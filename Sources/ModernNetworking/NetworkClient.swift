@@ -1,6 +1,64 @@
 import Foundation
 
 /// Modern HTTP client implementation using URLSession and structured concurrency.
+///
+/// `NetworkClient` is the primary implementation of ``HTTPClient`` that provides a comprehensive
+/// networking solution built on top of URLSession. It supports a middleware pipeline for request
+/// and response processing, automatic error recovery, and is fully compatible with Swift's
+/// structured concurrency model.
+///
+/// ## Usage
+///
+/// ### Basic Client Creation
+///
+/// ```swift
+/// let client = NetworkClient()
+/// let response = try await client.execute(request)
+/// ```
+///
+/// ### Client with Middleware
+///
+/// ```swift
+/// let client = NetworkClient(
+///     requestMiddlewares: [AuthenticationMiddleware()],
+///     responseMiddlewares: [CachingMiddleware()],
+///     errorMiddlewares: [RetryMiddleware()]
+/// )
+/// ```
+///
+/// ### Configuration-Based Client
+///
+/// ```swift
+/// let client = NetworkClient {
+///     BaseURL("https://api.example.com")
+///     EnableLogging()
+///     EnableRetry()
+///     Authentication {
+///         BearerToken(tokenProvider)
+///     }
+/// }
+/// ```
+///
+/// ## Architecture
+///
+/// The client processes requests through a three-stage middleware pipeline:
+///
+/// 1. **Request Middleware**: Modifies requests before execution (authentication, logging, etc.)
+/// 2. **Network Execution**: Performs the actual HTTP request using URLSession
+/// 3. **Response Middleware**: Processes responses after execution (caching, validation, etc.)
+/// 4. **Error Middleware**: Handles errors and provides recovery strategies (retry, fallback, etc.)
+///
+/// ## Thread Safety
+///
+/// `NetworkClient` is fully thread-safe and `Sendable`. All middleware operations are executed
+/// in a controlled manner that ensures safe concurrent access. The client can be safely shared
+/// across multiple tasks and actors.
+///
+/// ## Related Documentation
+///
+/// - <doc:Client-Configuration>: Complete configuration guide
+/// - <doc:Middleware-System>: Creating custom middleware
+/// - <doc:Core-Networking>: Understanding HTTP primitives
 public final class NetworkClient: HTTPClient {
   // MARK: - Properties
 
@@ -162,8 +220,54 @@ public final class NetworkClient: HTTPClient {
 
 extension NetworkClient {
   /// Creates a NetworkClient using the configuration builder pattern.
-  /// - Parameter content: A closure that returns configuration components
-  /// - Returns: A configured NetworkClient
+  ///
+  /// This convenience initializer allows you to configure a NetworkClient using a declarative,
+  /// Swift DSL syntax. The configuration is processed to set up middleware chains, security
+  /// settings, and other client behaviors.
+  ///
+  /// - Parameter content: A closure that returns configuration components using the
+  ///   ``NetworkClientBuilder`` result builder syntax
+  /// - Returns: A fully configured NetworkClient instance
+  ///
+  /// ## Example Usage
+  ///
+  /// ```swift
+  /// let client = NetworkClient {
+  ///     BaseURL("https://api.example.com")
+  ///     DefaultTimeout(30.0)
+  ///
+  ///     Authentication {
+  ///         BearerToken(tokenProvider)
+  ///         AuthRefreshStrategy(.automatic)
+  ///     }
+  ///
+  ///     Retry {
+  ///         MaxAttempts(3)
+  ///         BackoffStrategy(.exponential)
+  ///     }
+  ///
+  ///     Caching {
+  ///         Policy(.standard)
+  ///         Storage(.memory(size: .MB(50)))
+  ///     }
+  ///
+  ///     EnableLogging()
+  ///     EnableSecurity {
+  ///         SSLPinning(.certificates(certificates))
+  ///     }
+  /// }
+  /// ```
+  ///
+  /// ## Configuration Processing
+  ///
+  /// The configuration is processed in the following order:
+  /// 1. Base configuration (URL, headers, timeouts)
+  /// 2. Security configuration and session setup
+  /// 3. Middleware chain construction
+  /// 4. Validation of the complete configuration
+  ///
+  /// - Note: This initializer validates the configuration and will create optimized
+  ///   middleware chains based on the provided components.
   public convenience init(@NetworkClientBuilder _ content: () -> [any ConfigurationComponent]) {
     var config = NetworkClientBuilder.Configuration()
     let components = content()
