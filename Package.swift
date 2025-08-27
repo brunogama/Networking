@@ -5,7 +5,7 @@ import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-  name: "ModernNetworking",
+  name: "Networking",
   platforms: [
     .iOS(.v16),
     .macOS(.v13),
@@ -14,8 +14,8 @@ let package = Package(
   ],
   products: [
     .library(
-      name: "ModernNetworking",
-      targets: ["ModernNetworking"]
+      name: "Networking",
+      targets: ["Networking"]
     )
   ],
   dependencies: [
@@ -25,8 +25,8 @@ let package = Package(
   targets: [
     // Main library target
     .target(
-      name: "ModernNetworking",
-      dependencies: ["ModernNetworkingMacros"],
+      name: "Networking",
+      dependencies: ["NetworkingMacros"],
       swiftSettings: [
         .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
       ]
@@ -34,7 +34,7 @@ let package = Package(
 
     // Macro implementations
     .macro(
-      name: "ModernNetworkingMacros",
+      name: "NetworkingMacros",
       dependencies: [
         .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
@@ -45,9 +45,9 @@ let package = Package(
 
     // Test target
     .testTarget(
-      name: "ModernNetworkingTests",
+      name: "NetworkingTests",
       dependencies: [
-        "ModernNetworking",
+        "Networking",
         .product(name: "MacroTesting", package: "swift-macro-testing"),
       ]
     ),
