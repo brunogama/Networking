@@ -1,10 +1,10 @@
-# ModernNetworking Middleware Architecture
+# Networking Middleware Architecture
 
-This document describes the advanced middleware architecture implemented for the ModernNetworking framework, providing comprehensive error handling, performance monitoring, caching, and authentication capabilities.
+This document describes the advanced middleware architecture implemented for the Networking framework, providing comprehensive error handling, performance monitoring, caching, and authentication capabilities.
 
 ## Overview
 
-The ModernNetworking framework now includes five sophisticated middleware components:
+The Networking framework now includes five sophisticated middleware components:
 
 1. **CircuitBreakerMiddleware** - Implements circuit breaker pattern with failure detection and recovery
 2. **AuthenticationMiddleware** - Handles token-based authentication with automatic refresh
@@ -301,7 +301,7 @@ The middleware system has minimal dependencies:
 
 - Foundation framework
 - Swift 6 concurrency features
-- ModernNetworking core types (HTTPRequest, HTTPResponse, HTTPError)
+- Networking core types (HTTPRequest, HTTPResponse, HTTPError)
 
 ## Thread Safety
 

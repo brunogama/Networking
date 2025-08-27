@@ -1,4 +1,4 @@
-# ModernNetworking Architecture Guide
+# Networking Architecture Guide
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## Overview
 
-ModernNetworking is architected around three core principles:
+Networking is architected around three core principles:
 
 1. **Swift 6 First**: Built from the ground up with Swift 6 concurrency, Sendable compliance, and actor isolation
 2. **Composable Design**: Middleware-based architecture enabling easy extension and customization  
@@ -942,7 +942,7 @@ The framework integrates with Swift's new Testing framework:
 
 ```swift
 import Testing
-import ModernNetworking
+import Networking
 
 @Test("NetworkClient executes basic requests correctly")
 func basicRequestExecution() async throws {

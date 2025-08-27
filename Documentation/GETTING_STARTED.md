@@ -1,4 +1,4 @@
-# ModernNetworking - Getting Started Guide
+# Networking - Getting Started Guide
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@
 
 ### Swift Package Manager
 
-Add ModernNetworking to your `Package.swift`:
+Add Networking to your `Package.swift`:
 
 ```swift
 // Package.swift
@@ -31,12 +31,12 @@ let package = Package(
         .watchOS(.v9)
     ],
     dependencies: [
-        .package(url: "https://github.com/your-org/ModernNetworking.git", from: "1.0.0")
+        .package(url: "https://github.com/your-org/Networking.git", from: "1.0.0")
     ],
     targets: [
         .target(
             name: "YourProject",
-            dependencies: ["ModernNetworking"]
+            dependencies: ["Networking"]
         )
     ]
 )
@@ -45,7 +45,7 @@ let package = Package(
 ### Xcode Integration
 
 1. In Xcode, go to **File → Add Package Dependencies**
-2. Enter the repository URL: `https://github.com/your-org/ModernNetworking.git`
+2. Enter the repository URL: `https://github.com/your-org/Networking.git`
 3. Select the version range and add to your target
 
 ### Requirements
@@ -61,7 +61,7 @@ let package = Package(
 ### Import the Framework
 
 ```swift
-import ModernNetworking
+import Networking
 ```
 
 ### Create Your First Client
@@ -762,7 +762,7 @@ let client = NetworkClient {
 
 ### Example Projects
 
-Check out these example projects to see ModernNetworking in action:
+Check out these example projects to see Networking in action:
 
 1. **BasicNetworking** - Simple GET/POST requests
 2. **GitHubClient** - Real-world API client with pagination
@@ -794,4 +794,4 @@ Check out these example projects to see ModernNetworking in action:
 - **Video Tutorials** - Step-by-step walkthroughs
 - **Community Support** - Active community of developers
 
-Ready to build amazing networking experiences with ModernNetworking! 🚀
+Ready to build amazing networking experiences with Networking! 🚀

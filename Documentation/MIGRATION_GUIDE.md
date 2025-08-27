@@ -1,4 +1,4 @@
-# Migration Guide to ModernNetworking
+# Migration Guide to Networking
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## Overview
 
-This guide helps you migrate to ModernNetworking from existing networking solutions, with special attention to Swift 6 compliance and modern concurrency patterns.
+This guide helps you migrate to Networking from existing networking solutions, with special attention to Swift 6 compliance and modern concurrency patterns.
 
 ### Migration Benefits
 
@@ -80,7 +80,7 @@ class UserService {
 }
 ```
 
-#### After (Swift 6 with ModernNetworking)
+#### After (Swift 6 with Networking)
 
 ```swift
 // Modern async/await approach
@@ -156,7 +156,7 @@ struct NetworkConfiguration: Sendable {
     }
 }
 
-// Or use ModernNetworking's built-in configuration
+// Or use Networking's built-in configuration
 let client = NetworkClient {
     BaseURL("https://api.example.com")
     DefaultHeader("User-Agent", "MyApp/1.0")
@@ -218,7 +218,7 @@ actor TokenManager {
     }
 }
 
-// Or use ModernNetworking's built-in authentication
+// Or use Networking's built-in authentication
 let client = NetworkClient {
     BaseURL("https://api.example.com")
     Authentication {
@@ -258,7 +258,7 @@ func fetchUsers() async throws -> [User] {
 }
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
 func fetchUsers() async throws -> [User] {
@@ -305,7 +305,7 @@ func createUser(_ user: CreateUserRequest) async throws -> User {
 }
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
 func createUser(_ user: CreateUserRequest) async throws -> User {
@@ -333,7 +333,7 @@ configuration.waitsForConnectivity = true
 let session = URLSession(configuration: configuration)
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
 let client = NetworkClient {
@@ -376,7 +376,7 @@ func fetchUser(id: String) async throws -> User {
 }
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
 func fetchUser(id: String) async throws -> User {
@@ -415,7 +415,7 @@ session.request("https://api.example.com/users", interceptor: interceptor)
     }
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
 let client = NetworkClient {
@@ -452,7 +452,7 @@ struct APIRequestModifier: RequestModifier {
 AF.request("https://api.example.com/users", modifier: APIRequestModifier(token: token))
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
 struct RequestIDMiddleware: HTTPRequestMiddleware {
@@ -511,7 +511,7 @@ class LegacyNetworkManager: NSURLConnectionDelegate {
 }
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
 // Modern async/await approach
@@ -545,10 +545,10 @@ manager.responseSerializer = [AFJSONResponseSerializer serializer];
      }];
 ```
 
-#### After (ModernNetworking)
+#### After (Networking)
 
 ```swift
-// Swift ModernNetworking
+// Swift Networking
 let client = NetworkClient {
     BaseURL("https://api.example.com")
     DefaultHeader("Content-Type", "application/json")
@@ -906,7 +906,7 @@ class DataLoader {
 
 ### Connection Management
 
-ModernNetworking automatically handles connection pooling and management through URLSession, but provides additional configuration options:
+Networking automatically handles connection pooling and management through URLSession, but provides additional configuration options:
 
 ```swift
 let client = NetworkClient {
@@ -1018,7 +1018,7 @@ let user = try await service.getUser(id: "123")
 
 ```swift
 import Testing
-import ModernNetworking
+import Networking
 
 @Test("User service returns correct user data")
 func userServiceTest() async throws {
@@ -1232,4 +1232,4 @@ let client = NetworkClient {
 
 This will help identify issues with request/response handling during migration.
 
-Migration to ModernNetworking provides significant benefits in terms of Swift 6 compliance, developer experience, and production readiness. The structured approach outlined in this guide should help ensure a smooth transition from legacy networking code.
+Migration to Networking provides significant benefits in terms of Swift 6 compliance, developer experience, and production readiness. The structured approach outlined in this guide should help ensure a smooth transition from legacy networking code.

@@ -1,78 +1,77 @@
-# ModernNetworking
+# Networking
 
-A Swift 6 compliant networking framework built with structured concurrency, modern Swift features, and an exceptional developer experience.
+A Swift 6 networking framework designed for modern iOS, macOS, tvOS, and watchOS applications. Built with async/await, structured concurrency, and comprehensive security features.
 
-## ✨ Features
+## Features
 
-### 🚀 Swift 6 Ready
-- **Full async/await support** - No more completion handlers
-- **Sendable compliant** - Thread-safe by design
-- **Structured concurrency** - Proper cancellation and error handling
-- **Actor isolation** - Safe shared state management
+### Core Networking
+- Swift 6 compliant with full async/await URLSession integration
+- Fluent DSL for declarative request/response building
+- Result builder patterns for readable configuration
+- Comprehensive middleware architecture
+- File transfer operations with progress tracking
+- Circuit breaker pattern for system resilience
 
-### 🎨 Beautiful API Design
-- **Request Builder DSL** - Fluent, readable request construction
-- **Result builders** - Type-safe configuration
-- **Swift Macros** - Generate API clients from protocol definitions
-- **Zero boilerplate** - Focus on your business logic
+### Security (OWASP Top 10 Compliance)
+- Header injection prevention with CRLF detection
+- Certificate pinning with validation and backup pins
+- Secure token storage via iOS Keychain Services
+- Input validation and output encoding
+- Security headers enforcement (CSP, HSTS, X-Frame-Options)
+- SHA-256 based checksums (MD5/SHA1 deprecated)
 
-### 🛡️ Production Ready
-- **Comprehensive error handling** - Rich error types with context
-- **Automatic retries** - Exponential backoff with circuit breaking
-- **Request/Response logging** - Built-in observability
-- **Middleware architecture** - Extensible and testable
+### Code Generation
+- Macro-based API client generation
+- Automatic request/response mapping
+- Type-safe parameter binding
+- Protocol-driven development
 
-## 📦 Installation
+## Installation
 
-Add ModernNetworking to your Swift package:
+### Swift Package Manager
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/your-org/ModernNetworking.git", from: "1.0.0")
+    .package(url: "https://github.com/brunogama/Networking.git", from: "1.0.0")
 ]
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
-### Basic Usage
+### Basic Client Configuration
 
 ```swift
-import ModernNetworking
+import Networking
 
-// Create a client with beautiful configuration
 let client = NetworkClient {
     BaseURL("https://api.example.com")
     EnableLogging()
     EnableRetry()
     DefaultHeader("User-Agent", "MyApp/1.0")
+    BearerAuth("your-token")
 }
+```
 
-// Make requests with the elegant DSL
+### Making Requests
+
+```swift
+// GET request
 let response = try await client.execute {
     GET("/users/123")
-    BearerAuth(token)
     Timeout(15.0)
 }
 
-// Decode responses effortlessly
 let user: User = try response.decode(User.self)
-```
 
-### POST Requests with JSON
-
-```swift
-let newUser = User(name: "John Doe", email: "john@example.com")
-
-let response = try await client.execute {
+// POST request
+let createResponse = try await client.execute {
     POST("/users")
-    BearerAuth(token)
     JSONBody(newUser)
-    Header("Content-Type", "application/json")
+    ContentType(.json)
 }
 ```
-### Generated API Clients (Macros)
 
-The framework's true power shines with generated API clients:
+### Generated API Client
 
 ```swift
 @API(baseURL: "https://api.example.com")
@@ -87,201 +86,140 @@ protocol UserAPI {
     func updateUser(@Path id: String, @Body user: User) async throws -> User
     
     @DELETE("/users/{id}")
-    func deleteUser(@Path id: String) async throws
+    func deleteUser(@Path id: String) async throws -> Void
 }
 
-// Use the generated implementation
 let userAPI = UserAPIImplementation()
 let user = try await userAPI.getUser(id: "123")
 ```
 
-## 🏗️ Architecture
+## Architecture
 
-### Core Components
+### Middleware System
 
-#### HTTPClient Protocol
-The foundation of all networking operations:
+The framework includes comprehensive middleware for:
+
+- **Authentication**: Automatic token refresh and management
+- **Retry Logic**: Exponential backoff with jitter
+- **Caching**: Multi-level with TTL and storage policies
+- **Logging**: Request/response logging with privacy controls
+- **Metrics**: Performance tracking and monitoring
+- **Security**: Header validation and sanitization
+
+### Request Building
+
 ```swift
-public protocol HTTPClient: Sendable {
-    func execute(_ request: HTTPRequest) async throws -> HTTPResponse
-}
-```
-
-#### Request Builder DSL
-Build requests with a fluent, type-safe API:
-```swift
-let request = try HTTPRequest {
-    BaseURL("https://api.example.com")
-    GET("/users")
-    BearerAuth("your-token")
-    QueryParam("limit", "10")
+let request = HTTPRequest {
+    GET("/api/data")
+    BearerAuth(token)
+    JSONBody(payload)
+    Header("Custom-Header", "value")
+    QueryParam("filter", "active")
     Timeout(30.0)
 }
 ```
 
-#### Middleware Architecture
-Extend functionality with composable middleware:
-```swift
-// Request middleware
-public protocol HTTPRequestMiddleware: Sendable {
-    func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest
-}
-
-// Response middleware  
-public protocol HTTPResponseMiddleware: Sendable {
-    func processResponse(_ response: HTTPResponse, for request: HTTPRequest) async throws -> HTTPResponse
-}
-
-// Error middleware
-public protocol HTTPErrorMiddleware: Sendable {
-    func handleError(_ error: HTTPError, for request: HTTPRequest) async throws -> HTTPResponse
-}
-```
-
-## 🎯 Advanced Features
-
-### Retry Logic with Exponential Backoff
+### Response Processing
 
 ```swift
-let client = NetworkClient {
-    EnableRetry(RetryMiddleware.Configuration(
-        maxAttempts: 3,
-        baseDelay: 1.0,
-        backoffMultiplier: 2.0,
-        shouldRetry: { error in
-            // Custom retry logic
-            error.status?.rawValue ?? 0 >= 500
-        }
-    ))
-}
-```
-### Comprehensive Logging
-
-```swift
-let client = NetworkClient {
-    EnableLogging(LoggingMiddleware.Configuration(
-        logLevel: .debug,
-        logHeaders: true,
-        logBody: true,
-        maxBodyLength: 1024
-    ))
-}
-```
-
-### Authentication Patterns
-
-```swift
-// Bearer token
-let response = try await client.execute {
-    GET("/protected")
-    BearerAuth("your-jwt-token")
-}
-
-// Basic auth
-let response = try await client.execute {
-    GET("/protected") 
-    BasicAuth(username: "user", password: "pass")
-}
-
-// Custom headers
-let response = try await client.execute {
-    GET("/protected")
-    Header("X-API-Key", "your-api-key")
-}
-```
-
-## 🧪 Testing
-
-The framework is designed for easy testing:
-
-```swift
-import Testing
-import ModernNetworking
-
-@Test("User API client works correctly")
-func testUserAPI() async throws {
-    let mockClient = MockHTTPClient()
-    let userAPI = UserAPIImplementation(client: mockClient)
-    
-    mockClient.expect { request in
-        #expect(request.method == .get)
-        #expect(request.url.path.contains("/users/123"))
-        return HTTPResponse(
-            request: request,
-            status: .ok,
-            body: #"{"id": "123", "name": "John"}"#.data(using: .utf8)
-        )
+let response = try await client.execute(request)
+    .validateStatusCode()
+    .transform { data in
+        return try JSONDecoder().decode(Model.self, from: data)
     }
-    
-    let user = try await userAPI.getUser(id: "123")
-    #expect(user.id == "123")
-    #expect(user.name == "John")
-}
+    .retry(maxAttempts: 3)
 ```
 
-## 📈 Migration from Legacy Framework
+## Advanced Features
 
-### Before (Old Framework)
+### File Operations
+
 ```swift
-// Complex, error-prone setup
-let factory = NetworkingFactory()
-let session = factory.makeURLSessionLoader()
-let retry = factory.makeRetryLoader()
-let logging = factory.makeLoggingLoader()
-let chain = logging --> retry --> session
+// Upload with progress tracking
+let uploadTask = client.uploadFile(
+    url: "/upload",
+    fileURL: localFileURL,
+    progressHandler: { progress in
+        print("Upload progress: \(progress.fractionCompleted)")
+    }
+)
 
-let request = HTTPRequest()
-request.method = .get
-request.host = "api.example.com"
-request.path = "/users"
-request.headers["Authorization"] = "Bearer \(token)"
-
-chain.load(task: HTTPTask(request: request) { result in
-    // Handle completion on potentially wrong thread
-})
+// Download with resume support
+let downloadTask = client.downloadFile(
+    url: "/download/file.zip",
+    destination: destinationURL
+)
 ```
 
-### After (Modern Framework)
+### Circuit Breaker
+
 ```swift
-// Clean, type-safe, async/await
 let client = NetworkClient {
     BaseURL("https://api.example.com")
-    EnableLogging()
-    EnableRetry()
+    CircuitBreaker(
+        failureThreshold: 5,
+        recoveryTimeout: 60.0,
+        successThreshold: 3
+    )
 }
-
-let user: User = try await client.execute {
-    GET("/users/123")
-    BearerAuth(token)
-}.decode(User.self)
 ```
 
-## 🎯 Key Improvements
+### Caching
 
-| Feature | Legacy | Modern |
-|---------|--------|--------|
-| **Concurrency** | Completion handlers | async/await |
-| **Thread Safety** | Manual synchronization | Sendable + Actor isolation |
-| **Error Handling** | Basic NSError | Rich HTTPError with context |
-| **Request Building** | Imperative property setting | Declarative DSL |
-| **API Generation** | Manual implementation | Swift Macros |
-| **Testing** | Mock complexity | Built-in test utilities |
-| **Configuration** | Factory methods | Result builders |
+```swift
+let client = NetworkClient {
+    BaseURL("https://api.example.com")
+    EnableCaching(
+        policy: .returnCacheDataElseLoad,
+        storage: .memory(maxSize: 100_000_000)
+    )
+}
+```
 
-## 📋 Requirements
+## Platform Support
 
-- iOS 16.0+ / macOS 13.0+ / tvOS 16.0+ / watchOS 9.0+
+- iOS 16.0+
+- macOS 13.0+
+- tvOS 16.0+
+- watchOS 9.0+
+
+## Requirements
+
 - Swift 6.0+
 - Xcode 16.0+
 
-## 📝 License
+## Documentation
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Comprehensive documentation is available through DocC:
 
-## 🤝 Contributing
+- [Getting Started Guide](Documentation/GETTING_STARTED.md)
+- [API Reference](Documentation/API_REFERENCE.md)
+- [Architecture Guide](Documentation/ARCHITECTURE_GUIDE.md)
+- [Security Features](Documentation/SWIFT_6_FEATURES.md)
+- [Testing Guide](Documentation/TESTING_GUIDE.md)
+- [Migration Guide](Documentation/MIGRATION_GUIDE.md)
+- [Advanced Usage](Documentation/ADVANCED_USAGE.md)
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Testing
 
-## ⭐ Acknowledgments
+The framework includes comprehensive test coverage:
 
-Built with ❤️ for the Swift community, leveraging the latest Swift 6 features for maximum performance and developer experience.
+```bash
+swift test
+```
+
+For detailed testing documentation, see [Testing Guide](Documentation/TESTING_GUIDE.md).
+
+## Contributing
+
+This project follows Swift API Design Guidelines and maintains Swift 6 strict concurrency compliance. See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+## License
+
+This project is available under the MIT license.
+
+## Version
+
+- Framework Version: 1.0.0
+- Swift Version: 6.0
+- Platform Support: iOS 16+, macOS 13+, tvOS 16+, watchOS 9+

@@ -1,4 +1,4 @@
-# ModernNetworking Advanced Usage Guide
+# Networking Advanced Usage Guide
 
 ## Table of Contents
 
@@ -1021,7 +1021,7 @@ struct ConnectionPoolManager {
     }
 }
 
-// Usage with ModernNetworking
+// Usage with Networking
 let poolManager = ConnectionPoolManager(
     configuration: ConnectionPoolManager.ConnectionPoolConfiguration(
         maxConnectionsPerHost: 10,
@@ -1514,4 +1514,4 @@ enum SigningError: Error {
 }
 ```
 
-This advanced usage guide demonstrates sophisticated patterns for using ModernNetworking in complex scenarios, from custom middleware development to performance optimization and security hardening. These patterns enable building robust, high-performance networking applications that scale well in production environments.
+This advanced usage guide demonstrates sophisticated patterns for using Networking in complex scenarios, from custom middleware development to performance optimization and security hardening. These patterns enable building robust, high-performance networking applications that scale well in production environments.
