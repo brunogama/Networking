@@ -1032,19 +1032,19 @@ def develop_networking_library():
     # Generate implementation files based on research
     files = [
         {
-            "path": "Sources/ModernNetworking/NetworkManager.swift",
+            "path": "Sources/Networking/NetworkManager.swift",
             "content": generate_network_manager_code(rag_results, code_examples)
         },
         {
-            "path": "Sources/ModernNetworking/NetworkError.swift", 
+            "path": "Sources/Networking/NetworkError.swift", 
             "content": generate_error_types(web_research)
         },
         {
-            "path": "Sources/ModernNetworking/RequestInterceptor.swift",
+            "path": "Sources/Networking/RequestInterceptor.swift",
             "content": generate_interceptor_code(official_docs)
         },
         {
-            "path": "Tests/ModernNetworkingTests/NetworkManagerTests.swift",
+            "path": "Tests/NetworkingTests/NetworkManagerTests.swift",
             "content": generate_test_suite(created_tasks)
         },
         {

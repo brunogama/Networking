@@ -1,4 +1,4 @@
-# ModernNetworking API Reference
+# Networking API Reference
 
 ## Table of Contents
 

@@ -1,4 +1,4 @@
-# ModernNetworking Testing Guide
+# Networking Testing Guide
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## Testing Philosophy
 
-ModernNetworking is designed with testability as a core principle:
+Networking is designed with testability as a core principle:
 
 ### Protocol-Based Design
 - All major components implement protocols
@@ -42,7 +42,7 @@ ModernNetworking is designed with testability as a core principle:
 
 ```swift
 import Testing
-import ModernNetworking
+import Networking
 
 @Test("NetworkClient executes basic GET request")
 func testBasicGETRequest() async throws {
@@ -288,7 +288,7 @@ func testHTTPErrorDescriptions() {
 
 ```swift
 import Testing
-import ModernNetworking
+import Networking
 
 @Test("Integration test with JSONPlaceholder API")
 func testRealAPIIntegration() async throws {
@@ -438,7 +438,7 @@ func testConfigurationDSL() async throws {
 
 ```swift
 import Foundation
-import ModernNetworking
+import Networking
 
 /// Mock HTTPClient for testing
 public struct MockHTTPClient: HTTPClient {
@@ -637,7 +637,7 @@ public struct TestErrorMiddleware: HTTPErrorMiddleware {
 
 ```swift
 import Testing
-import ModernNetworking
+import Networking
 
 // Basic test structure
 @Test("NetworkClient basic functionality")
@@ -1391,7 +1391,7 @@ struct EndToEndTests {
         let client = NetworkClient {
             BaseURL("https://api.github.com")
             DefaultHeader("Accept", "application/vnd.github.v3+json")
-            DefaultHeader("User-Agent", "ModernNetworking-Tests/1.0")
+            DefaultHeader("User-Agent", "Networking-Tests/1.0")
             
             Authentication {
                 BearerToken(testToken)
@@ -1639,4 +1639,4 @@ struct GitHubRepo: Codable {
    - Response deserialization
    - Middleware execution
 
-This comprehensive testing guide provides the foundation for thoroughly testing ModernNetworking-based applications, ensuring reliability and maintainability in production environments.
+This comprehensive testing guide provides the foundation for thoroughly testing Networking-based applications, ensuring reliability and maintainability in production environments.

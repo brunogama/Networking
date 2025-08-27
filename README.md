@@ -1,4 +1,4 @@
-# ModernNetworking
+# Networking
 
 A Swift 6 compliant networking framework built with structured concurrency, modern Swift features, and an exceptional developer experience.
 
@@ -24,11 +24,11 @@ A Swift 6 compliant networking framework built with structured concurrency, mode
 
 ## 📦 Installation
 
-Add ModernNetworking to your Swift package:
+Add Networking to your Swift package:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/your-org/ModernNetworking.git", from: "1.0.0")
+    .package(url: "https://github.com/your-org/Networking.git", from: "1.0.0")
 ]
 ```
 
@@ -37,7 +37,7 @@ dependencies: [
 ### Basic Usage
 
 ```swift
-import ModernNetworking
+import Networking
 
 // Create a client with beautiful configuration
 let client = NetworkClient {
@@ -196,7 +196,7 @@ The framework is designed for easy testing:
 
 ```swift
 import Testing
-import ModernNetworking
+import Networking
 
 @Test("User API client works correctly")
 func testUserAPI() async throws {

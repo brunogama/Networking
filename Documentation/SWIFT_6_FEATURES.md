@@ -1,4 +1,4 @@
-# Swift 6 Features in ModernNetworking
+# Swift 6 Features in Networking
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## Overview
 
-ModernNetworking is built from the ground up to leverage Swift 6's advanced concurrency and safety features. This document details how the framework uses these features to provide a safe, performant, and developer-friendly networking experience.
+Networking is built from the ground up to leverage Swift 6's advanced concurrency and safety features. This document details how the framework uses these features to provide a safe, performant, and developer-friendly networking experience.
 
 ### Swift 6 Compliance Highlights
 
@@ -34,7 +34,7 @@ ModernNetworking is built from the ground up to leverage Swift 6's advanced conc
 
 ### Core Types Are Sendable
 
-All fundamental types in ModernNetworking conform to `Sendable`, ensuring thread safety:
+All fundamental types in Networking conform to `Sendable`, ensuring thread safety:
 
 ```swift
 // Core HTTP types
@@ -939,22 +939,22 @@ The framework provides comprehensive macro support for generating type-safe API 
 ```swift
 // Macro declarations with Swift 6 compliance
 @attached(extension)
-public macro API(baseURL: String) = #externalMacro(module: "ModernNetworkingMacros", type: "APIMacro")
+public macro API(baseURL: String) = #externalMacro(module: "NetworkingMacros", type: "APIMacro")
 
 @attached(peer)
-public macro GET(_ path: String) = #externalMacro(module: "ModernNetworkingMacros", type: "GETMacro")
+public macro GET(_ path: String) = #externalMacro(module: "NetworkingMacros", type: "GETMacro")
 
 @attached(peer)
-public macro POST(_ path: String) = #externalMacro(module: "ModernNetworkingMacros", type: "POSTMacro")
+public macro POST(_ path: String) = #externalMacro(module: "NetworkingMacros", type: "POSTMacro")
 
 @attached(peer)
-public macro Path(_ name: String? = nil) = #externalMacro(module: "ModernNetworkingMacros", type: "PathMacro")
+public macro Path(_ name: String? = nil) = #externalMacro(module: "NetworkingMacros", type: "PathMacro")
 
 @attached(peer)
-public macro Body() = #externalMacro(module: "ModernNetworkingMacros", type: "BodyMacro")
+public macro Body() = #externalMacro(module: "NetworkingMacros", type: "BodyMacro")
 
 @attached(peer)
-public macro Query(_ name: String? = nil) = #externalMacro(module: "ModernNetworkingMacros", type: "QueryMacro")
+public macro Query(_ name: String? = nil) = #externalMacro(module: "NetworkingMacros", type: "QueryMacro")
 
 // Usage - generates fully Swift 6 compliant code
 @API(baseURL: "https://api.example.com")
@@ -1367,7 +1367,7 @@ class LegacyNetworkManager {
 }
 ```
 
-### After: Swift 6 + ModernNetworking
+### After: Swift 6 + Networking
 
 ```swift
 // Modern approach - thread-safe, structured concurrency, rich error handling
@@ -1420,7 +1420,7 @@ struct ModernNetworkManager: Sendable {
 
 ### Key Improvements Summary
 
-| Aspect | Swift 5 + Legacy | Swift 6 + ModernNetworking |
+| Aspect | Swift 5 + Legacy | Swift 6 + Networking |
 |--------|-------------------|----------------------------|
 | **Thread Safety** | Manual synchronization | Automatic with Sendable |
 | **Error Handling** | Generic Error types | Rich HTTPError with context |
@@ -1433,4 +1433,4 @@ struct ModernNetworkManager: Sendable {
 | **Cancellation** | Manual tracking | Automatic with Task |
 | **Memory Safety** | Potential retain cycles | Actor isolation |
 
-ModernNetworking's Swift 6 implementation provides a comprehensive, safe, and performant foundation for modern iOS, macOS, and cross-platform Swift applications.
+Networking's Swift 6 implementation provides a comprehensive, safe, and performant foundation for modern iOS, macOS, and cross-platform Swift applications.
