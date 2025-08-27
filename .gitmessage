@@ -1,0 +1,31 @@
+# Conventional Commits 1.0.0
+# <type>[optional scope]: <description>
+#
+# [optional body]
+#
+# [optional footer(s)]
+#
+# Types:
+# - feat:     A new feature
+# - fix:      A bug fix
+# - docs:     Documentation only changes
+# - style:    Changes that don't affect code meaning (formatting, missing semicolons, etc)
+# - refactor: Code change that neither fixes a bug nor adds a feature
+# - perf:     Code change that improves performance
+# - test:     Adding missing tests or correcting existing tests
+# - build:    Changes that affect the build system or external dependencies
+# - ci:       Changes to CI configuration files and scripts
+# - chore:    Other changes that don't modify src or test files
+# - revert:   Reverts a previous commit
+#
+# Scope examples: (api), (parser), (core), (ui), (docs), (deps)
+#
+# Breaking Changes:
+# Add "BREAKING CHANGE:" in footer or "!" after type/scope
+#
+# Examples:
+# feat(api): add ability to query message bus metrics
+# fix(core)!: change event handler signature
+# docs: update README with usage examples
+#
+# Co-authored-by: should be added at the end if applicable

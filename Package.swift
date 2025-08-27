@@ -1,0 +1,55 @@
+// swift-tools-version: 6.0
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+
+import PackageDescription
+import CompilerPluginSupport
+
+let package = Package(
+  name: "ModernNetworking",
+  platforms: [
+    .iOS(.v16),
+    .macOS(.v13),
+    .tvOS(.v16),
+    .watchOS(.v9),
+  ],
+  products: [
+    .library(
+      name: "ModernNetworking",
+      targets: ["ModernNetworking"]
+    )
+  ],
+  dependencies: [
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+    .package(url: "https://github.com/pointfreeco/swift-macro-testing.git", from: "0.5.2"),
+  ],
+  targets: [
+    // Main library target
+    .target(
+      name: "ModernNetworking",
+      dependencies: ["ModernNetworkingMacros"],
+      swiftSettings: [
+        .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
+      ]
+    ),
+
+    // Macro implementations
+    .macro(
+      name: "ModernNetworkingMacros",
+      dependencies: [
+        .product(name: "SwiftSyntax", package: "swift-syntax"),
+        .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
+        .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+        .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+      ]
+    ),
+
+    // Test target
+    .testTarget(
+      name: "ModernNetworkingTests",
+      dependencies: [
+        "ModernNetworking",
+        .product(name: "MacroTesting", package: "swift-macro-testing"),
+      ]
+    ),
+  ]
+)
