@@ -531,7 +531,7 @@ extension MockURLProtocol {
   ) async {
     let count = await getRequestCount(for: url)
     #expect(
-      count == 0,
+      isEmpty,
       "Expected no requests to \(url), but found \(count)",
       sourceLocation: sourceLocation
     )

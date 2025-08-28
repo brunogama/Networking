@@ -179,7 +179,7 @@ struct ProgressTrackingTests {
       }
 
       func getProgress() -> TransferProgress? {
-        return receivedProgress
+        receivedProgress
       }
     }
 
@@ -322,7 +322,7 @@ struct ProgressTrackingTests {
       }
 
       func get() -> TransferProgress? {
-        return progress
+        progress
       }
     }
 
@@ -535,7 +535,7 @@ struct ProgressTrackingTests {
       }
 
       func getAll() -> [TransferProgress] {
-        return updates
+        updates
       }
     }
 

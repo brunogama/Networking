@@ -102,6 +102,26 @@ let request = HTTPRequest {
 
 ### ConditionalComponent Helper
 
+The ConditionalComponent allows you to conditionally include request components:
+
+```swift
+struct ConditionalComponent<Content: RequestComponent>: RequestComponent {
+    let condition: Bool
+    let content: () -> Content
+    
+    init(_ condition: Bool, @RequestBuilder content: @escaping () -> Content) {
+        self.condition = condition
+        self.content = content
+    }
+    
+    func build(into request: inout HTTPRequest) throws {
+        if condition {
+            try content().build(into: &request)
+        }
+    }
+}
+```
+
 Use the built-in conditional component for cleaner code:
 
 ```swift

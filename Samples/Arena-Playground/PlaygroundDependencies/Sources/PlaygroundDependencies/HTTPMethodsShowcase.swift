@@ -43,7 +43,6 @@ private let UIDevice = DeviceInfo.self
 /// This struct demonstrates the complete range of HTTP methods available in the framework,
 /// providing educational examples and real-world usage patterns for each method.
 public struct HTTPMethodsShowcase {
-
   // MARK: - Public Interface
 
   /// Runs all HTTP method examples in sequence
@@ -139,7 +138,6 @@ public struct HTTPMethodsShowcase {
 
       let response4 = try await client.execute(request4)
       print("   Status: \(response4.status) - Resource access")
-
     } catch {
       print("   ❌ GET Error: \(error)")
     }
@@ -249,7 +247,6 @@ public struct HTTPMethodsShowcase {
 
       let response4 = try await client.execute(request4)
       print("   Status: \(response4.status) - File upload")
-
     } catch {
       print("   ❌ POST Error: \(error)")
     }
@@ -357,7 +354,6 @@ public struct HTTPMethodsShowcase {
 
       let response3 = try await client.execute(request3)
       print("   Status: \(response3.status) - Resource created")
-
     } catch {
       print("   ❌ PUT Error: \(error)")
     }
@@ -466,7 +462,6 @@ public struct HTTPMethodsShowcase {
 
       let response3 = try await client.execute(request3)
       print("   Status: \(response3.status) - Merge patch applied")
-
     } catch {
       print("   ❌ PATCH Error: \(error)")
     }
@@ -560,7 +555,6 @@ public struct HTTPMethodsShowcase {
 
       let response4 = try await client.execute(request4)
       print("   Status: \(response4.status) - Soft deletion")
-
     } catch {
       print("   ❌ DELETE Error: \(error)")
     }
@@ -642,7 +636,6 @@ public struct HTTPMethodsShowcase {
       let response4 = try await client.execute(request4)
       print("   Status: \(response4.status) - API health")
       print("   Server: \(response4.headers["Server"] ?? "Unknown")")
-
     } catch {
       print("   ❌ HEAD Error: \(error)")
     }
@@ -727,7 +720,6 @@ public struct HTTPMethodsShowcase {
 
       let response4 = try await client.execute(request4)
       print("   Status: \(response4.status) - Version negotiation")
-
     } catch {
       print("   ❌ OPTIONS Error: \(error)")
     }
@@ -808,7 +800,6 @@ public struct HTTPMethodsShowcase {
 
       print("   ⚠️  CONNECT requests typically fail against test servers")
       print("   as they don't support proxy functionality.")
-
     } catch {
       print("   ❌ CONNECT Error: \(error)")
     }
@@ -918,7 +909,6 @@ public struct HTTPMethodsShowcase {
       print("   - Can expose sensitive headers in response")
       print("   - Useful for debugging proxy chains")
       print("   - Should be carefully controlled in production")
-
     } catch {
       print("   ❌ TRACE Error: \(error)")
     }

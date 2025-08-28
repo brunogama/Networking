@@ -95,8 +95,10 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
     }
 
     /// Default predicate for determining if a response should trigger a retry
-    public static func defaultShouldRetryResponse(_ response: HTTPResponse, _ attempt: Int) -> Bool
-    {
+    public static func defaultShouldRetryResponse(
+      _ response: HTTPResponse,
+      _ attempt: Int
+    ) -> Bool {
       // Generally, we don't retry successful responses
       // This is mainly for custom logic where a 200 response might indicate a temporary issue
       false

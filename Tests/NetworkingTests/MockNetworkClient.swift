@@ -50,7 +50,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
       func matches(_ count: Int) -> Bool {
         switch self {
-        case .never: return count == 0
+        case .never: return isEmpty
         case .once: return count == 1
         case .exactly(let expected): return count == expected
         case .atLeast(let min): return count >= min
