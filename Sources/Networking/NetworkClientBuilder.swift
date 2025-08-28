@@ -29,6 +29,12 @@ public struct NetworkClientBuilder {
     components
   }
 
+  public static func buildExpression(
+    _ expression: any ConfigurationComponent
+  ) -> any ConfigurationComponent {
+    expression
+  }
+
   public static func buildOptional(
     _ component: [any ConfigurationComponent]?
   ) -> [any ConfigurationComponent] {

@@ -1,0 +1,85 @@
+# Commit
+
+Create well-formatted commits with conventional commit messages and emojis.
+
+## Expected behavior
+
+if command commit does not exists add a single one liner shell script that
+
+1. has the name commit
+2. validates if it is a true git repository
+3. and then yoy are allowed to commit
+
+## Features:
+
+
+### Commit Rule
+
+- **Never skips pre-commit rules: `--no-verify || -n` are not allowed to added as options in the commit command.**.
+- Runs pre-commit checks by default (lint, build, generate docs)
+- Automatically stages files if none are staged
+- Uses conventional commit format without emojis in types
+- Suggests splitting commits for different concerns
+
+## Usage:
+
+- `\commit` - Standard commit with pre-commit checks
+- `\commit -n || --no-verify` - Skip pre-commit checks
+
+## Commit Types (No Emojis)
+
+- feat: New features
+- fix: Bug fixes
+- docs: Documentation changes
+- refactor: Code restructuring without changing functionality
+- style: Code formatting, missing semicolons, etc.
+- perf: Performance improvements
+- test: Adding or correcting tests
+- chore: Tooling, configuration, maintenance
+- wip: Work in progress
+- remove: Removing code or files
+- hotfix: Critical fixes
+- security: Security improvements
+
+## Emoji Usage in Scopes (When Applicable):
+
+- `feat(ui:✨): add new dashboard component`
+- `fix(api:🔧): resolve authentication endpoint`
+- `test(unit:🧪): add comprehensive validation tests`
+- `docs(guide:📚): update installation instructions`
+- `refactor(core:♻️): restructure module architecture`
+
+## Scope Categories with Representative Emojis:
+
+- ui:✨ - User interface components
+- api:🔧 - API endpoints and services
+- test:🧪 - Testing related changes
+- docs:📚 - Documentation updates
+- core:♻️ - Core functionality refactoring
+- config:⚙️ - Configuration changes
+- security:🔒 - Security improvements
+- perf:⚡ - Performance optimizations
+- build:🏗️ - Build system changes
+- ci:🚀 - CI/CD pipeline changes
+
+## Process:
+
+1. Check for staged changes (`git status`)
+2. If no staged changes, review and stage appropriate files
+3. Run pre-commit checks (unless --no-verify)
+4. Analyze changes to determine commit type
+5. Generate descriptive commit message
+6. Include scope if applicable: `type(scope): description`
+7. Add emoji to scope only if it represents a specific category
+8. Add body for complex changes explaining why
+9. Execute commit
+
+## Best Practices:
+
+- Keep commits atomic and focused
+- Write in imperative mood ("Add feature" not "Added feature")
+- Explain why, not just what
+- Reference issues/PRs when relevant
+- Split unrelated changes into separate commits
+- Use emojis only in scopes to represent categories, never in commit types
+- Follow conventional commit specification strictly

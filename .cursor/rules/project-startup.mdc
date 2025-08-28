@@ -1,0 +1,42 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Advanced project startup behaviors with rich context, intelligent suggestions, and task integration"
+globs: "**/*"
+alwaysApply: true
+---
+
+```yaml
+actions:
+  - type: react
+    event: "cursor_start"
+    action: |
+      # Load and display project context
+      I'll automatically:
+
+      1. **Analyze Recent Activity**
+         - Check last modified files
+         - Review recent git commits
+         - Identify current work focus
+
+      2. **Load Task Context**
+         - Display in-progress tasks from .cursor/tasks/
+         - Show blocked or pending items
+         - Suggest next actions based on priority
+
+      3. **Environment Status**
+         - Validate development environment
+         - Check for dependency updates
+         - Verify tool configurations
+
+      4. **Project Health Dashboard**
+         - Test coverage metrics
+         - Code quality scores
+         - Security scan results
+         - Performance benchmarks
+
+         mcp_MCP_DOCKER_setConfig(["/Users/bruno/Developer/debugging-framework"])
+```

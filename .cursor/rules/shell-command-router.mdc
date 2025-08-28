@@ -1,0 +1,468 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Shell Command Router - DesktopCommander MCP Integration
+
+**🚀 CRITICAL SYSTEM RULE: ALL SHELL COMMANDS MUST BE ROUTED THROUGH DESKTOP COMMANDER MCP SERVER**
+
+This rule implements automatic shell command interception and routing through the DesktopCommander MCP infrastructure, ensuring secure, auditable, and controlled execution of all shell operations.
+
+## **Command Routing Architecture**
+
+### **Primary Routing Hierarchy**
+1. **DesktopCommander MCP Server** (Primary Route)
+2. **SSH Localhost Bypass** (Fallback Route)
+3. **Direct Shell Execution** (Emergency Route - Requires Explicit Permission)
+
+### **Automatic Command Interception**
+```typescript
+interface CommandRouter {
+    interceptCommand(command: string): Promise<CommandResult>;
+    classifyCommand(command: string): CommandSafetyLevel;
+    routeToMCP(command: string, timeout: number): Promise<CommandResult>;
+    routeToSSH(command: string): Promise<CommandResult>;
+    auditLog(command: string, result: CommandResult): void;
+}
+```
+
+---
+
+## **COMMAND SAFETY CLASSIFICATION**
+
+### **SAFE Commands (Auto-Execute via MCP)**
+```bash
+# Read-only operations - Execute immediately
+SAFE_COMMANDS=(
+    "ls" "cat" "grep" "find" "ps" "df" "pwd" "whoami" "tree"
+    "head" "tail" "wc" "echo" "which" "type" "history"
+    "git status" "git log" "git show" "git diff" "git branch"
+    "swift --version" "xcodebuild -version" "pod --version"
+    "fd" "eza" "bat" "procs" "dust" "tokei" "hyperfine"
+)
+```
+
+### **POTENTIALLY_DESTRUCTIVE Commands (Require Confirmation)**
+```bash
+# Modifying but recoverable operations
+POTENTIALLY_DESTRUCTIVE=(
+    "chmod" "chown" "mkdir" "touch" "cp" "mv"
+    "git add" "git commit" "git push" "git pull" "git merge"
+    "swift build" "swift test" "xcodebuild" "pod install"
+    "npm install" "yarn install" "make" "cmake"
+)
+```
+
+### **CRITICAL_DESTRUCTIVE Commands (Explicit Permission Required)**
+```bash
+# Irreversible or dangerous operations
+CRITICAL_DESTRUCTIVE=(
+    "rm" "sudo" "kill" "killall" "format" "dd" "fdisk" "mkfs"
+    "git reset --hard" "git clean -fd" "git rebase"
+    "docker system prune" "docker rm" "docker rmi"
+)
+```
+
+---
+
+## **MCP FUNCTION MAPPING**
+
+### **Command Execution Functions**
+```typescript
+// Primary execution route
+mcp_MCP_DOCKER_execute_command(command: string, timeout_ms: number): Promise<CommandResult>
+
+// File system operations
+mcp_MCP_DOCKER_read_file(path: string, offset?: number, length?: number): Promise<FileContent>
+mcp_MCP_DOCKER_write_file(path: string, content: string, mode?: 'rewrite' | 'append'): Promise<WriteResult>
+mcp_MCP_DOCKER_list_directory(path: string): Promise<DirectoryListing>
+mcp_MCP_DOCKER_create_directory(path: string): Promise<CreateResult>
+mcp_MCP_DOCKER_move_file(source: string, destination: string): Promise<MoveResult>
+
+// Search operations
+mcp_MCP_DOCKER_search_files(path: string, pattern: string, timeout?: number): Promise<SearchResult>
+mcp_MCP_DOCKER_search_code(path: string, pattern: string, options?: SearchOptions): Promise<CodeSearchResult>
+
+// Process management
+mcp_MCP_DOCKER_list_processes(): Promise<ProcessList>
+mcp_MCP_DOCKER_kill_process(pid: number): Promise<KillResult>
+mcp_MCP_DOCKER_list_sessions(): Promise<SessionList>
+```
+
+---
+
+## **AUTOMATIC COMMAND ROUTING RULES**
+
+### **Rule 1: Intercept All Shell Commands**
+```typescript
+// Automatically intercept any shell command attempt
+when command_detected(cmd: string) {
+    const classification = classifyCommand(cmd);
+    const routingStrategy = determineRouting(classification);
+
+    switch (routingStrategy) {
+        case RoutingStrategy.MCP_DIRECT:
+            return routeToMCP(cmd, getTimeoutForCommand(cmd));
+        case RoutingStrategy.MCP_WITH_CONFIRMATION:
+            return requestUserConfirmation(cmd).then(() => routeToMCP(cmd));
+        case RoutingStrategy.SSH_FALLBACK:
+            return routeToSSH(cmd);
+        case RoutingStrategy.EXPLICIT_PERMISSION:
+            return requestExplicitPermission(cmd);
+    }
+}
+```
+
+### **Rule 2: Timeout Management**
+```typescript
+function getTimeoutForCommand(command: string): number {
+    const timeoutMap: Record<string, number> = {
+        // Quick operations
+        'ls': 5000, 'pwd': 5000, 'whoami': 5000,
+
+        // File operations
+        'find': 30000, 'grep': 30000, 'cat': 15000,
+
+        // Git operations
+        'git status': 10000, 'git log': 15000, 'git diff': 20000,
+        'git add': 30000, 'git commit': 30000, 'git push': 60000,
+
+        // Build operations
+        'swift build': 120000, 'swift test': 180000,
+        'xcodebuild': 300000, 'pod install': 180000,
+
+        // Default
+        'default': 30000
+    };
+
+    const baseCommand = command.split(' ')[0];
+    return timeoutMap[baseCommand] || timeoutMap['default'];
+}
+```
+
+### **Rule 3: Fallback Chain Implementation**
+```typescript
+async function executeWithFallback(command: string): Promise<CommandResult> {
+    try {
+        // Primary: DesktopCommander MCP
+        return await mcp_MCP_DOCKER_execute_command(command, getTimeoutForCommand(command));
+    } catch (mcpError) {
+        logError('MCP execution failed', { command, error: mcpError });
+
+        try {
+            // Fallback: SSH localhost bypass
+            return await executeViaSSH(command);
+        } catch (sshError) {
+            logError('SSH fallback failed', { command, error: sshError });
+
+            // Emergency: Request explicit permission for direct execution
+            const permission = await requestExplicitPermission(command);
+            if (permission.granted) {
+                return await executeDirectly(command);
+            } else {
+                throw new Error('Command execution denied by user');
+            }
+        }
+    }
+}
+```
+
+---
+
+## **SSH LOCALHOST BYPASS CONFIGURATION**
+
+### **Desktop Commander Emulator Function**
+```bash
+# Required function in ~/.zshrc or ~/.bashrc
+function desktop-commander-emulator() {
+    local escaped_command=$(printf '%q ' "$@")
+    echo "🔧 Executing via SSH bypass: $escaped_command" | tee -a ~/.cursor/logs/shell_commands.log
+    eval "$escaped_command"
+}
+```
+
+### **Tmux Session Management**
+```bash
+# Create bypass session
+function create_bypass_session() {
+    local localhost_ip=$(get_localhost_ip)
+    echo "🌐 Creating bypass session for IP: $localhost_ip"
+    tmux new-session -d -s "bypass-mcp-rules"
+    tmux send-keys -t "bypass-mcp-rules" "ssh -i ~/.ssh/id_rsa $localhost_ip" Enter
+    echo "✅ Bypass session created: bypass-mcp-rules"
+}
+
+# Route command through tmux
+function route_command_through_tmux() {
+    local command="$1"
+    if ! tmux has-session -t "bypass-mcp-rules" 2>/dev/null; then
+        create_bypass_session
+    fi
+
+    tmux send-keys -t "bypass-mcp-rules" "desktop-commander-emulator $command" Enter
+    sleep 0.5
+    tmux capture-pane -t "bypass-mcp-rules" -p
+}
+```
+
+---
+
+## **USER PERMISSION WORKFLOW**
+
+### **Confirmation Templates**
+```typescript
+interface PermissionRequest {
+    command: string;
+    classification: CommandSafetyLevel;
+    explanation: string;
+    documentation: string;
+    alternatives: string[];
+}
+
+function generatePermissionRequest(command: string): PermissionRequest {
+    return {
+        command,
+        classification: classifyCommand(command),
+        explanation: `This command is classified as ${classifyCommand(command)}`,
+        documentation: `See: man ${command.split(' ')[0]}`,
+        alternatives: suggestAlternatives(command)
+    };
+}
+```
+
+### **Interactive Permission Flow**
+```bash
+# Permission request template
+function request_permission() {
+    local command="$1"
+    local classification="$2"
+
+    echo "🚨 Permission Required for Command Execution"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Command: $command"
+    echo "Classification: $classification"
+    echo "Documentation: man $(echo $command | awk '{print $1}')"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    read -p "Do you want to proceed? (y/N): " confirmation
+    case $confirmation in
+        [Yy]* ) return 0 ;;
+        * ) return 1 ;;
+    esac
+}
+```
+
+---
+
+## **LOGGING AND AUDIT TRAIL**
+
+### **Comprehensive Logging System**
+```typescript
+interface CommandLog {
+    timestamp: Date;
+    command: string;
+    classification: CommandSafetyLevel;
+    routingMethod: RoutingMethod;
+    executionTime: number;
+    result: CommandResult;
+    user: string;
+    workingDirectory: string;
+}
+
+function logCommand(log: CommandLog): void {
+    const logEntry = {
+        ...log,
+        sessionId: getSessionId(),
+        projectRoot: getProjectRoot(),
+        gitBranch: getCurrentGitBranch()
+    };
+
+    appendToLogFile('~/.cursor/logs/shell_commands.log', logEntry);
+    appendToLogFile('~/.cursor/logs/audit_trail.log', logEntry);
+}
+```
+
+### **Log File Locations**
+- `~/.cursor/logs/shell_commands.log` - All command executions
+- `~/.cursor/logs/routing_errors.log` - Routing failures and fallbacks
+- `~/.cursor/logs/user_permissions.log` - Permission requests and responses
+- `~/.cursor/logs/mcp_health.log` - MCP server health checks
+- `~/.cursor/logs/audit_trail.log` - Comprehensive audit trail
+
+---
+
+## **MCP SERVER HEALTH MONITORING**
+
+### **Health Check Implementation**
+```typescript
+async function checkMCPServerHealth(): Promise<boolean> {
+    try {
+        const result = await mcp_MCP_DOCKER_execute_command('echo "health_check"', 5000);
+        return result.status === 'success';
+    } catch (error) {
+        logError('MCP health check failed', error);
+        return false;
+    }
+}
+
+// Periodic health monitoring
+setInterval(async () => {
+    const isHealthy = await checkMCPServerHealth();
+    if (!isHealthy) {
+        logWarning('MCP server appears unhealthy, switching to SSH fallback mode');
+        enableSSHFallbackMode();
+    }
+}, 30000); // Check every 30 seconds
+```
+
+---
+
+## **INTEGRATION WITH EXISTING RULES**
+
+### **Create-Prompt Integration**
+When `create-prompt.mdc` generates prompts, it MUST include:
+1. Explicit DesktopCommander MCP routing instructions
+2. Proper timeout specifications
+3. Fallback strategy documentation
+4. Command safety classification guidance
+
+### **Base-Context Integration**
+The shell command router integrates with:
+- `tech-spec.mdc` - Technology stack compatibility
+- `common-patterns.mdc` - Standardized command patterns
+- `workflow.mdc` - Development process integration
+- `environment.mdc` - Environment setup requirements
+
+---
+
+## **PERFORMANCE OPTIMIZATION**
+
+### **Command Batching**
+```typescript
+// Batch multiple safe commands for efficiency
+async function executeBatch(commands: string[]): Promise<CommandResult[]> {
+    const batchCommand = commands.join(' && ');
+    return await mcp_MCP_DOCKER_execute_command(batchCommand, getBatchTimeout(commands));
+}
+```
+
+### **Connection Pooling**
+```typescript
+// Maintain persistent connections to reduce overhead
+class MCPConnectionPool {
+    private connections: MCPConnection[] = [];
+
+    async getConnection(): Promise<MCPConnection> {
+        return this.connections.find(conn => conn.isAvailable()) || this.createConnection();
+    }
+}
+```
+
+---
+
+## **ERROR HANDLING AND RECOVERY**
+
+### **Automatic Recovery Strategies**
+```typescript
+enum RecoveryStrategy {
+    RETRY_WITH_BACKOFF,
+    SWITCH_TO_FALLBACK,
+    REQUEST_USER_INTERVENTION,
+    ABORT_OPERATION
+}
+
+async function handleExecutionError(
+    command: string,
+    error: Error,
+    attempt: number
+): Promise<CommandResult> {
+    const strategy = determineRecoveryStrategy(error, attempt);
+
+    switch (strategy) {
+        case RecoveryStrategy.RETRY_WITH_BACKOFF:
+            await delay(Math.pow(2, attempt) * 1000);
+            return executeWithFallback(command);
+
+        case RecoveryStrategy.SWITCH_TO_FALLBACK:
+            return executeViaSSH(command);
+
+        case RecoveryStrategy.REQUEST_USER_INTERVENTION:
+            return requestUserIntervention(command, error);
+
+        case RecoveryStrategy.ABORT_OPERATION:
+            throw new Error(`Command execution failed: ${error.message}`);
+    }
+}
+```
+
+---
+
+## **SECURITY CONSIDERATIONS**
+
+### **Command Sanitization**
+```typescript
+function sanitizeCommand(command: string): string {
+    // Remove dangerous patterns
+    const dangerousPatterns = [
+        /;\s*rm\s+-rf/g,
+        /\|\s*sudo/g,
+        /&&\s*rm\s+-rf/g,
+        /`[^`]*`/g, // Command substitution
+        /\$\([^)]*\)/g // Command substitution
+    ];
+
+    let sanitized = command;
+    dangerousPatterns.forEach(pattern => {
+        sanitized = sanitized.replace(pattern, '[BLOCKED]');
+    });
+
+    return sanitized;
+}
+```
+
+### **Path Validation**
+```typescript
+function validatePath(path: string): boolean {
+    // Ensure paths are within project boundaries
+    const projectRoot = getProjectRoot();
+    const absolutePath = path.startsWith('/') ? path : `${projectRoot}/${path}`;
+
+    return absolutePath.startsWith(projectRoot) ||
+           absolutePath.startsWith(os.homedir()) ||
+           isWhitelistedSystemPath(absolutePath);
+}
+```
+
+---
+
+## **CRITICAL SUCCESS METRICS**
+
+### **Performance Targets**
+- **Command Routing Latency**: < 100ms for classification and routing decisions
+- **MCP Execution Time**: < 5s for simple commands, < 60s for build operations
+- **Fallback Activation Time**: < 2s when MCP server is unavailable
+- **Health Check Frequency**: Every 30s with < 1s timeout
+
+### **Reliability Targets**
+- **MCP Server Uptime**: > 99.5%
+- **Successful Command Routing**: > 99.9%
+- **Audit Log Completeness**: 100% of commands logged
+- **Security Incident Rate**: 0 unauthorized command executions
+
+---
+
+## **VALIDATION CHECKLIST**
+
+- [ ] DesktopCommander MCP server is configured and responsive
+- [ ] SSH localhost bypass is properly configured with key authentication
+- [ ] `desktop-commander-emulator` function exists in shell RC file
+- [ ] Tmux session management is operational
+- [ ] Command classification system is comprehensive and up-to-date
+- [ ] Timeout specifications are appropriate for all command types
+- [ ] Logging system is capturing all required information
+- [ ] Fallback mechanisms are tested and functional
+- [ ] User permission workflows are implemented and tested
+- [ ] Security validations are in place and effective
+
+**🚀 This rule ensures that ALL shell commands in the development workflow are securely routed through DesktopCommander MCP server, providing complete audit trails, security controls, and reliable fallback mechanisms.**

@@ -1,0 +1,115 @@
+---
+description: How to write commit messages with conventional commit
+globs: 
+alwaysApply: false
+---
+# **Writing Commit Messages With Conventional Commit**
+You must format commit messages using the **Conventional Commits** standard.  
+**Only apply this rule when generating or suggesting commit messages.**  
+
+---
+
+### Format:
+```
+<type>(<scope>): <description>
+```
+- **Type**: Defines the nature of the change (NO emojis).
+- **Scope**: Derived from the file path or affected component (emojis allowed for categories).
+- **Description**: Written in imperative mood.
+
+### Types (NO Emojis):
+- **feat**: A new feature.
+- **fix**: A bug fix.
+- **docs**: Documentation changes only.
+- **style**: Code formatting, no logic change.
+- **refactor**: Code restructuring, no behavior change.
+- **perf**: Performance improvements.
+- **test**: Adding or improving tests.
+- **chore**: Build process, dependencies, or auxiliary tools.
+- **wip**: Work in progress.
+- **remove**: Removing code or files.
+- **hotfix**: Critical fixes.
+- **security**: Security improvements.
+
+### Scope Categories with Emojis (When Applicable):
+- **ui:✨** - User interface components
+- **api:🔧** - API endpoints and services
+- **test:🧪** - Testing related changes
+- **docs:📚** - Documentation updates
+- **core:♻️** - Core functionality refactoring
+- **config:⚙️** - Configuration changes
+- **security:🔒** - Security improvements
+- **perf:⚡** - Performance optimizations
+- **build:🏗️** - Build system changes
+- **ci:🚀** - CI/CD pipeline changes
+
+---
+
+## **Commit Logic**
+```js
+function generateCommitMessage(file, changeDescription) {
+  let changeType = "chore"
+  if (/add|create|implement/i.test(changeDescription)) changeType = "feat"
+  else if (/fix|correct|resolve/i.test(changeDescription)) changeType = "fix"
+  else if (/refactor|restructure/i.test(changeDescription)) changeType = "refactor"
+  else if (/test/i.test(changeDescription)) changeType = "test"
+  else if (/doc|comment/i.test(changeDescription)) changeType = "docs"
+  else if (/style|format/i.test(changeDescription)) changeType = "style"
+  else if (/perf|optimize/i.test(changeDescription)) changeType = "perf"
+
+  // Extract scope from file path
+  const scope = file.split("/").slice(0, -1).join("-")
+  
+  // Add category emoji to scope if applicable
+  let scopeWithEmoji = scope
+  if (scope.includes("ui") || scope.includes("UI")) scopeWithEmoji = `ui:✨`
+  else if (scope.includes("api") || scope.includes("API")) scopeWithEmoji = `api:🔧`
+  else if (scope.includes("test") || scope.includes("Test")) scopeWithEmoji = `test:🧪`
+  else if (scope.includes("doc") || scope.includes("Doc")) scopeWithEmoji = `docs:📚`
+  else if (scope.includes("core") || scope.includes("Core")) scopeWithEmoji = `core:♻️`
+  else if (scope.includes("config") || scope.includes("Config")) scopeWithEmoji = `config:⚙️`
+  
+  return `${changeType}(${scopeWithEmoji}): ${changeDescription}`
+}
+```
+
+---
+
+## **Conventional Commit Examples**
+
+**Standard Scope (No Category Emoji)**:
+```
+CHANGE_DESCRIPTION="add user authentication function"
+FILE="Source/Features/Auth/LoginAuth.swift"
+OUTPUT: feat(Source-Features-Auth): add user authentication function
+```
+
+**UI Category Scope (With Emoji)**:
+```
+CHANGE_DESCRIPTION="add new dashboard component"
+FILE="Source/UI/Dashboard/DashboardView.swift"
+OUTPUT: feat(ui:✨): add new dashboard component
+```
+
+**API Category Scope (With Emoji)**:
+```
+CHANGE_DESCRIPTION="fix authentication endpoint"
+FILE="Source/API/Auth/AuthService.swift"
+OUTPUT: fix(api:🔧): fix authentication endpoint
+```
+
+**Test Category Scope (With Emoji)**:
+```
+CHANGE_DESCRIPTION="add comprehensive validation tests"
+FILE="Tests/Unit/ValidationTests.swift"
+OUTPUT: test(test:🧪): add comprehensive validation tests
+```
+
+---
+
+## **Rules**:
+1. **NEVER** use emojis in commit types
+2. **ONLY** use emojis in scopes when they represent specific categories
+3. Follow conventional commit specification strictly
+4. Use imperative mood for descriptions
+5. Keep commits atomic and focused

@@ -1,0 +1,232 @@
+---
+description: Generate a prompt for an LLM tasked with implementing the proposal
+globs:
+alwaysApply: false
+---
+## **SHELL COMMAND ROUTING INTEGRATION**
+
+**🚀 ALL SHELL COMMANDS MUST BE PIPED TO DESKTOP COMMANDER MCP SERVER**
+
+This rule integrates comprehensive shell command routing through DesktopCommander MCP server with prompt generation capabilities. Every shell command execution is automatically routed through the MCP infrastructure for controlled, auditable, and secure execution.
+
+### **Command Routing Hierarchy**
+1. **Primary Route**: DesktopCommander MCP Server
+2. **Fallback Route**: SSH Localhost Bypass via `desktop-commander-emulator`
+3. **Emergency Route**: Direct shell execution (with explicit user permission)
+
+### **Automatic Command Interception**
+```typescript
+// All shell commands are automatically intercepted and routed
+interface CommandRouter {
+    route: (command: string) => Promise<CommandResult>;
+    classification: CommandSafetyLevel;
+    auditTrail: CommandLog[];
+}
+```
+
+### **Safety Classification System**
+- **SAFE**: `ls`, `cat`, `grep`, `find`, `ps`, `df`, `pwd`, `whoami`, `tree`, `head`, `tail`, `wc`, `echo`, `git status`, `git log`
+- **POTENTIALLY_DESTRUCTIVE**: `chmod`, `chown`, `mkdir`, `touch`, `cp`, `git add`, `git commit`
+- **CRITICAL_DESTRUCTIVE**: `rm`, `mv`, `sudo`, `kill`, `format`, `dd`, `fdisk`, `mkfs`, `git reset --hard`
+
+---
+
+## **TASK: Generate an Effective Prompt**
+
+**Command Trigger:** `\create-prompt` or `\prompt`
+
+**Objective**
+You're a prompt engineer and software architect specializing in meta-promping and code refactoring. You're tasked with generating a prompt for an LLM tasked with implementing the currently proposed solution. Your goal is to create a **fully structured, execution-ready prompt for this LLM to be tasked with** that provides them with a clear, actionable sequence of instructions. These instructions must maximize coherence, specificity, and alignment with the task's intended outcome.
+
+**🔧 SHELL COMMAND INTEGRATION**: All generated prompts MUST include explicit instructions for routing shell commands through DesktopCommander MCP server.
+
+Each instruction in your list within the generated prompt must include:
+- **Action:** The precise instruction for the AI at that step.
+- **Objective:** The intended goal or purpose of that action.
+- **Rationale:** The reasoning behind why this step is necessary.
+- **Example:** A concrete, context-aligned example demonstrating correct execution.
+- **Shell Command Routing:** Explicit DesktopCommander MCP integration where applicable.
+
+---
+
+## **DESKTOP COMMANDER INTEGRATION PATTERNS**
+
+### **Command Execution Template**
+```bash
+# ✅ CORRECT: Route through DesktopCommander MCP
+mcp_MCP_DOCKER_execute_command "ls -la src/" 30000
+
+# ✅ CORRECT: Fallback through SSH localhost bypass
+desktop-commander-emulator "find . -name '*.swift' | head -10"
+
+# ❌ INCORRECT: Direct shell execution (requires explicit permission)
+ls -la src/
+```
+
+### **File Operations Template**
+```bash
+# ✅ CORRECT: Use DesktopCommander file operations
+mcp_MCP_DOCKER_read_file "/absolute/path/to/file.swift"
+mcp_MCP_DOCKER_write_file "/absolute/path/to/output.swift" "content"
+mcp_MCP_DOCKER_search_files "/project/root" "*.swift"
+
+# ✅ CORRECT: Directory operations
+mcp_MCP_DOCKER_list_directory "/project/src"
+mcp_MCP_DOCKER_create_directory "/project/output"
+```
+
+### **Git Operations Template**
+```bash
+# ✅ CORRECT: Git commands through DesktopCommander
+mcp_MCP_DOCKER_execute_command "git status" 10000
+mcp_MCP_DOCKER_execute_command "git add ." 15000
+mcp_MCP_DOCKER_execute_command "git commit -m 'feat: implement feature'" 20000
+```
+
+### **Build and Test Operations Template**
+```bash
+# ✅ CORRECT: Build commands through DesktopCommander
+mcp_MCP_DOCKER_execute_command "swift build" 60000
+mcp_MCP_DOCKER_execute_command "swift test" 120000
+mcp_MCP_DOCKER_execute_command "xcodebuild -scheme MyApp build" 180000
+```
+
+---
+
+## **Code Examples: Best Practices**
+⚠ **IMPORTANT:** Avoid generating complete, fully functional code samples within your prompt. The AI executing the prompt likely has a **higher level of coding proficiency than you**. Your role is that of an **architect**, not a developer.
+
+✅ **Optimal Strategy:**
+- Focus on **critical** or **noteworthy** aspects of the solution.
+- Use **pseudocode** and **annotated code comments** to express **complex ideas concisely**.
+- Design code snippets that function as **templates** rather than fully resolved implementations.
+- **ALWAYS include DesktopCommander MCP routing** for any shell operations.
+
+---
+
+## **Comprehensive vs. Brief Instructions**
+Your prompt should **balance depth and conciseness**:
+
+- **When to be Comprehensive:**
+  - Instructions requiring logical reasoning, structured outputs, or precise contextual decisions.
+  - Any step involving content generation that impacts the final outcome.
+  - **Shell command routing specifications** (always comprehensive).
+- **When to be Brief:**
+  - Instructions with **clear, unambiguous** commands when DesktopCommander routing is already specified.
+  - When the AI **already has explicit context** from previous Instructions.
+
+**Example of When to Be Concise:**
+💡 If a step instructs the AI to run a terminal command through DesktopCommander MCP, and the exact MCP function call is already provided, additional elaboration is unnecessary.
+
+---
+
+## **Specificity Over Generality**
+LLMs require **precise, domain-aware thinking** to maintain coherence in execution. **Highly specific prompts outperform vague or loosely structured ones.**
+
+✅ **Optimal Strategies for Precision:**
+- Use **full file paths** when referencing files (required for DesktopCommander MCP).
+- Ensure code snippets **match** the exact format and style used in the target codebase.
+- Structure outputs like **technical specifications**, using:
+  - Exact **method names**, **properties**, **inputs/outputs**, **tokens**, and **domain terminology**.
+  - Clearly formatted **tables**, **objects**, and **formulas**.
+  - **Specific MCP function calls** with correct parameters.
+- Maintain **alignment with existing codebases** by embedding domain-relevant patterns.
+- **Always specify timeout values** for DesktopCommander MCP operations.
+
+❌ **Generalities That Reduce Performance:**
+- Loosely structured text or **unorganized bullet points**.
+- Overemphasis on **"Why"** at the expense of clear execution details.
+- Providing multiple possible approaches **without ranking them** or recommending a preferred choice.
+- Generating responses without prior **deep research** into the existing codebase and domain-specific logic.
+- **Omitting DesktopCommander MCP routing** for shell operations.
+
+---
+
+## **Optimal Prompt Output Structure**
+Your generated prompts must follow a **consistent, structured format**:
+
+1. **Prompt Title** – Clearly describes the prompt's purpose.
+2. **Context** – Establishes relevant background information.
+3. **DesktopCommander MCP Setup** – Required MCP server configuration and routing instructions.
+4. **Instructions** – The core Instructions, structured with:
+   - **Step #**: (Action, Objective, Rationale, Example, MCP Routing)
+5. **Shell Command Reference** – Quick reference for DesktopCommander MCP functions.
+6. **Final Notes** – Any additional considerations or constraints.
+
+📌 **Key Formatting Guidelines:**
+- The **majority of content** should be in the **Instructions** section.
+- **No unnecessary confirmations**—return **only** the generated prompt.
+- **Avoid complex nesting**—use flat, structured lists for clarity.
+- **Do not mention "LLM" in the prompt itself**—assume it is the AI's internal role.
+- **Always include DesktopCommander MCP routing** in relevant instructions.
+
+---
+
+## **DESKTOP COMMANDER MCP FUNCTION REFERENCE**
+
+### **Core Execution Functions**
+- `mcp_MCP_DOCKER_execute_command(command, timeout_ms)` - Execute shell commands
+- `mcp_MCP_DOCKER_read_output(pid, timeout_ms)` - Read command output
+- `mcp_MCP_DOCKER_force_terminate(pid)` - Terminate running processes
+
+### **File System Functions**
+- `mcp_MCP_DOCKER_read_file(path, offset?, length?)` - Read file contents
+- `mcp_MCP_DOCKER_write_file(path, content, mode?)` - Write/append to files
+- `mcp_MCP_DOCKER_list_directory(path)` - List directory contents
+- `mcp_MCP_DOCKER_create_directory(path)` - Create directories
+- `mcp_MCP_DOCKER_move_file(source, destination)` - Move/rename files
+- `mcp_MCP_DOCKER_search_files(path, pattern, timeout?)` - Search for files
+- `mcp_MCP_DOCKER_get_file_info(path)` - Get file metadata
+
+### **Code Search Functions**
+- `mcp_MCP_DOCKER_search_code(path, pattern, options?)` - Search code content
+- `mcp_MCP_DOCKER_edit_block(file_path, old_string, new_string, expected_replacements?)` - Edit code blocks
+
+### **Process Management Functions**
+- `mcp_MCP_DOCKER_list_sessions()` - List active terminal sessions
+- `mcp_MCP_DOCKER_list_processes()` - List running processes
+- `mcp_MCP_DOCKER_kill_process(pid)` - Terminate processes
+
+---
+
+## **IMPORTANT NOTES ON THIS CONVERSATION**
+- When responding to the user's request to generate a prompt you will return ONLY the prompt and say nothing else.
+- Keep the list of instructions tight, avoiding concluding statements.
+- Never mention or refer to the LLM in the prompt.
+- Never confirm the user's request to generate a prompt, only response with the prompt's content in your message.
+- **ALWAYS include DesktopCommander MCP routing** for any shell operations in generated prompts.
+- **ALL generated prompts MUST enforce** the use of DesktopCommander MCP server for shell command execution.
+- **Include timeout specifications** for all MCP operations (minimum 10000ms for simple commands, 60000ms+ for build operations).
+
+---
+
+## **SHELL COMMAND ROUTING ENFORCEMENT**
+
+### **Mandatory Routing Rules**
+1. **NO DIRECT SHELL EXECUTION** - All commands must go through DesktopCommander MCP
+2. **ABSOLUTE PATHS REQUIRED** - Use full file paths for all file operations
+3. **TIMEOUT SPECIFICATIONS** - Always specify appropriate timeout values
+4. **ERROR HANDLING** - Include fallback strategies for MCP failures
+5. **AUDIT COMPLIANCE** - All commands are logged for security and debugging
+
+### **Command Safety Validation**
+```typescript
+// Automatic safety classification before execution
+enum CommandSafetyLevel {
+    SAFE,                    // Read-only operations
+    POTENTIALLY_DESTRUCTIVE, // Modifying but recoverable
+    CRITICAL_DESTRUCTIVE     // Requires explicit permission
+}
+```
+
+### **Fallback Strategy**
+```bash
+# Primary: DesktopCommander MCP
+mcp_MCP_DOCKER_execute_command "command" timeout
+
+# Fallback: SSH localhost bypass
+desktop-commander-emulator "command"
+
+# Emergency: Direct execution (requires user permission)
+# Only used when both MCP and SSH bypass fail
+```

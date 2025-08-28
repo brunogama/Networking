@@ -1,0 +1,220 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "On-start behaviors that automatically execute when Cursor starts with project status checks and context"
+globs: "**/*"
+alwaysApply: true
+---
+
+# On-Start Rule
+
+This rule defines behaviors that automatically execute when Cursor starts with this project.
+
+## Pre-Start Behaviors
+
+### Project Status Check
+When Cursor starts, I will:
+
+1. **Check Git Status**
+   - Display current branch and any uncommitted changes
+   - Show recent commits for context
+   - Alert if there are merge conflicts
+
+2. **Environment Validation**
+   - Verify Python environment is active
+   - Check if required dependencies are installed
+   - Validate pre-commit hooks are set up
+
+3. **Project Health Check**
+   - Display test coverage status
+   - Show any linting issues
+   - Check for security vulnerabilities
+
+### Helpful Context Display
+
+I will automatically provide:
+
+```
+🚀 Debugging Framework Project Status
+
+📊 **Current Status:**
+- Branch: [current_branch]
+- Last commit: [commit_info]
+- Working directory: [clean/dirty]
+
+🧪 **Test Status:**
+- Coverage: [percentage]%
+- Last test run: [timestamp]
+- Failing tests: [count]
+
+🔧 **Environment:**
+- Python: [version]
+- Virtual env: [active/inactive]
+- Pre-commit: [installed/missing]
+
+💡 **Quick Actions:**
+- Run tests: `pytest`
+- Check coverage: `pytest --cov`
+- Update deps: `pip install -r requirements.txt`
+- Format code: `black .`
+
+📋 **Recent Tasks:**
+[Display any in-progress tasks from .cursor/tasks/]
+```
+
+### Development Reminders
+
+I will remind you about:
+
+- **Commit Message Standards**: Use conventional commits
+- **Testing Requirements**: Maintain 90%+ coverage
+- **Code Quality**: Run pre-commit hooks before committing
+- **Documentation**: Update docstrings for new code
+
+### Context-Aware Suggestions
+
+Based on the current state, I will suggest:
+
+- If uncommitted changes exist: "Consider committing your work"
+- If tests are failing: "Fix failing tests before continuing"
+- If coverage is low: "Add tests to improve coverage"
+- If dependencies are outdated: "Update dependencies"
+
+## Implementation
+
+### Trigger Events
+
+This rule activates on:
+- `cursor_start` event
+- Opening the project in Cursor
+- Switching to this workspace
+
+### Automatic Actions
+
+```yaml
+actions:
+  - type: react
+    event: "cursor_start"
+    action: |
+      # Display project status dashboard
+      I'll automatically show you the current project status including:
+
+      1. Git status and recent commits
+      2. Test coverage and any failing tests
+      3. Environment setup validation
+      4. Any pending tasks or issues
+      5. Quick action suggestions
+
+      This gives you immediate context about the project state.
+
+  - type: suggest
+    message: |
+      ### 🚀 Welcome to the Debugging Framework Project!
+
+      **Quick Start Commands:**
+      - `pytest` - Run all tests
+      - `black .` - Format code
+      - `pre-commit run --all-files` - Run all checks
+
+      **Development Workflow:**
+      1. Create feature branch: `git checkout -b feature/your-feature`
+      2. Make changes with tests
+      3. Run pre-commit checks
+      4. Commit with conventional commit format
+      5. Create pull request
+
+      **Need Help?**
+      - Ask me about project structure
+      - Request code examples
+      - Get testing guidance
+```
+
+### Silent Mode Option
+
+If you prefer minimal startup output, you can set:
+```yaml
+silent_start: true  # Only show critical issues
+```
+
+## Customization
+
+### Adding Your Own Pre-Start Checks
+
+You can extend this rule by adding:
+
+1. **Custom Health Checks**
+   ```yaml
+   - Check database connectivity
+   - Verify API endpoints
+   - Validate configuration files
+   ```
+
+2. **Project-Specific Reminders**
+   ```yaml
+   - Remind about coding standards
+   - Display architecture decisions
+   - Show recent changes in dependencies
+   ```
+
+3. **Development Context**
+   ```yaml
+   - Load recent debugging sessions
+   - Display performance metrics
+   - Show security scan results
+   ```
+
+### Examples of Custom Pre-Start Rules
+
+#### 1. Environment Setup Check
+```yaml
+- type: react
+  event: "cursor_start"
+  conditions:
+    - pattern: "python_env_missing"
+  action: |
+    # Check if Python virtual environment is active
+    I'll verify your Python environment is properly set up and suggest
+    activation commands if needed.
+```
+
+#### 2. Dependency Validation
+```yaml
+- type: react
+  event: "cursor_start"
+  action: |
+    # Check if requirements.txt has been updated
+    I'll compare your installed packages with requirements.txt and
+    suggest updates if there are mismatches.
+```
+
+#### 3. Security Reminder
+```yaml
+- type: suggest
+  event: "cursor_start"
+  message: |
+    🔒 **Security Reminder**: This project handles debugging data.
+    Remember to:
+    - Never commit API keys or secrets
+    - Validate all user inputs
+    - Review security scan results regularly
+```
+
+## Best Practices
+
+### Keep Pre-Start Rules Lightweight
+- Avoid heavy computations on startup
+- Cache results when possible
+- Provide quick, actionable information
+
+### Make Them Helpful, Not Annoying
+- Only show critical information
+- Provide clear next steps
+- Allow users to dismiss or configure
+
+### Context-Aware Behavior
+- Show different information based on project state
+- Adapt to user's recent activity
+- Respect user preferences for verbosity

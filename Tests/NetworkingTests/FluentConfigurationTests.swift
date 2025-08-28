@@ -4,7 +4,7 @@ import Foundation
 
 final class FluentConfigurationTests: XCTestCase {
   func testBasicNetworkClientConfiguration() throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       DefaultHeader("Content-Type", "application/json")
       DefaultTimeout(30.0)
@@ -27,7 +27,7 @@ final class FluentConfigurationTests: XCTestCase {
   }
 
   func testCachingConfiguration() throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       Caching {
         Policy.standard()
@@ -41,7 +41,7 @@ final class FluentConfigurationTests: XCTestCase {
   }
 
   func testSessionConfiguration() throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       Session {
         SessionTimeout(60.0)
@@ -56,7 +56,7 @@ final class FluentConfigurationTests: XCTestCase {
   }
 
   func testCompleteFluentConfiguration() throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       DefaultHeader("User-Agent", "Networking/1.0")
       DefaultTimeout(30.0)
@@ -85,19 +85,20 @@ final class FluentConfigurationTests: XCTestCase {
     let enableCaching = true
     let useAuthentication = false
 
-    let client = NetworkClient {
+    var components: [any ConfigurationComponent] = [
       BaseURL(URL(string: "https://api.example.com")!)
+    ]
 
-      if enableCaching {
+    if enableCaching {
+      components.append(
         Caching {
           Policy.standard()
           Storage.memory(size: .MB(25))
         }
-      }
-
-      // Skip authentication for now
-      // TODO: Fix authentication middleware creation in builder
+      )
     }
+
+    let client = try NetworkClient(components: components)
 
     XCTAssertNotNil(client)
   }

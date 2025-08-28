@@ -1,0 +1,175 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Technology stack specification defining core dependencies, architecture patterns, and development standards"
+globs: "**/*.py, **/pyproject.toml, **/requirements*.txt, **/*.md"
+alwaysApply: true
+---
+
+# Technology Stack Specification
+
+## Project Overview
+
+**Swift Debugging Framework MCP Server** - A Model Context Protocol (MCP) server providing AI-accessible Swift debugging strategies to modern IDEs with agentic workflows.
+
+## Core Technology Stack
+
+### Runtime Environment
+- **Python**: 3.11+ (primary language)
+- **MCP Protocol**: 1.0.0+ (Model Context Protocol compliance)
+- **Async Runtime**: anyio 4.0.0+ (async support)
+
+### Web Framework & Protocols
+- **MCP Transport**: stdio/websocket modes
+- **HTTP Client**: httpx 0.25.0+ (webhooks and API calls)
+- **WebSocket**: Built-in MCP protocol support
+
+### Data & Storage
+- **Configuration**: PyYAML 6.0+ (YAML configuration management)
+- **Data Validation**: Pydantic 2.5.0+ (type validation and serialization)
+- **Search Engine**: Whoosh 2.7.0+ (full-text search with relevance scoring)
+- **Git Operations**: GitPython 3.1.0+ (repository management)
+
+### Template & Content Processing
+- **Template Engine**: Jinja2 3.1.0+ (strategy template rendering)
+- **Markdown Processing**:
+  - python-frontmatter 1.0.0+ (YAML frontmatter parsing)
+  - markdown 3.5.0+ (markdown to HTML conversion)
+
+### Development & Quality Tools
+- **Testing**: pytest 7.4.0+ with asyncio, coverage, and mocking
+- **Code Quality**: black, isort, flake8, mypy
+- **Pre-commit**: pre-commit 3.5.0+ (git hooks)
+- **Documentation**: mkdocs with material theme
+
+### Deployment & Monitoring
+- **Containerization**: Docker with multi-stage builds
+- **Process Management**: gunicorn 21.2.0+ (production deployment)
+- **Logging**: structlog 23.2.0+ (structured logging)
+- **Monitoring**: prometheus-client, OpenTelemetry (optional)
+
+## Architecture Patterns
+
+### MCP Server Architecture
+
+```mermaid
+graph TD
+    A[IDE/Agent] -->|MCP Protocol| B[MCP Server]
+    B --> C[Strategy Repository]
+    B --> D[Search Engine]
+    B --> E[Template Engine]
+
+    C --> F[Git Repository]
+    D --> G[Whoosh Index]
+    E --> H[Jinja2 Templates]
+
+    B --> I[Configuration]
+    I --> J[YAML Config]
+    I --> K[Environment Variables]
+```
+
+### Strategy Processing Pipeline
+
+```mermaid
+graph LR
+    A[Git Repository] --> B[Strategy Files]
+    B --> C[Frontmatter Parser]
+    C --> D[Markdown Processor]
+    D --> E[Search Indexer]
+    E --> F[MCP Tool Response]
+```
+
+### Data Flow Architecture
+
+```mermaid
+graph TD
+    A[Strategy Request] --> B[MCP Tool Handler]
+    B --> C{Request Type}
+
+    C -->|get_strategy| D[Direct Lookup]
+    C -->|search_strategies| E[Search Engine]
+    C -->|list_strategies| F[Category Filter]
+
+    D --> G[Strategy Formatter]
+    E --> G
+    F --> G
+
+    G --> H[Template Renderer]
+    H --> I[MCP Response]
+```
+
+## Development Standards
+
+### Code Organization
+- **Package Structure**: `src/swift_debugging_mcp_server/`
+- **Configuration**: `src/swift_debugging_mcp_server/config/`
+- **Templates**: `src/swift_debugging_mcp_server/templates/`
+- **Tests**: `tests/` (parallel structure to src)
+
+### Quality Requirements
+- **Test Coverage**: Minimum 90% (pytest-cov)
+- **Type Checking**: Full mypy compliance
+- **Code Formatting**: black + isort
+- **Linting**: flake8 compliance
+- **Documentation**: mkdocs for user documentation
+
+### Performance Targets
+- **Response Time**: Sub-100ms for strategy retrieval
+- **Search Performance**: <50ms for full-text search
+- **Memory Usage**: <100MB base memory footprint
+- **Startup Time**: <2 seconds for server initialization
+
+## Integration Patterns
+
+### MCP Tool Interface
+```python
+@tool
+async def get_strategy(strategy_id: str, format: str = "full") -> Dict[str, Any]:
+    """Retrieve a specific debugging strategy by ID."""
+    pass
+
+@tool
+async def search_strategies(query: str, fuzzy: bool = True, limit: int = 10) -> List[Dict[str, Any]]:
+    """Search strategies by keywords."""
+    pass
+```
+
+### Configuration Management
+```python
+@dataclass
+class ServerConfig:
+    repository: RepositoryConfig
+    server: ServerConfig
+    search: SearchConfig
+
+    @classmethod
+    def from_env(cls) -> 'ServerConfig':
+        """Load configuration from environment variables."""
+        pass
+```
+
+### Async Pattern
+```python
+async def serve_mcp():
+    """Main MCP server entry point with proper async handling."""
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(repository_poller)
+        tg.start_soon(mcp_server)
+```
+
+## Security Considerations
+
+### Authentication
+- **Git Authentication**: Token-based or SSH key authentication
+- **Environment Variables**: Secure credential management
+- **No Hardcoded Secrets**: All secrets via environment or config files
+
+### Input Validation
+- **Pydantic Models**: All inputs validated through Pydantic schemas
+- **Strategy ID Validation**: Prevent path traversal attacks
+- **Query Sanitization**: Search query validation and sanitization
+
+This technology specification ensures consistent architectural decisions and provides the foundation for all development work on the Swift Debugging Framework MCP Server.

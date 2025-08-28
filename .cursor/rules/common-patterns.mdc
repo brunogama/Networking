@@ -1,0 +1,409 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Common development patterns for MCP tools, repositories, use cases, and handlers"
+globs: "**/*.py, **/*.ts, **/*.js"
+alwaysApply: true
+---
+
+# Common Development Patterns
+
+## Repository Pattern
+
+### MCP Tool Repository
+```python
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional, Any
+from pydantic import BaseModel
+
+class StrategyRepository(ABC):
+    """Abstract repository for strategy management."""
+
+    @abstractmethod
+    async def get_strategy(self, strategy_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a strategy by ID."""
+        pass
+
+    @abstractmethod
+    async def search_strategies(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Search strategies by query."""
+        pass
+
+    @abstractmethod
+    async def list_strategies(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List strategies with optional category filter."""
+        pass
+
+class GitStrategyRepository(StrategyRepository):
+    """Git-based strategy repository implementation."""
+
+    def __init__(self, repository_url: str, branch: str = "main"):
+        self.repository_url = repository_url
+        self.branch = branch
+        self._strategies_cache: Dict[str, Any] = {}
+
+    async def get_strategy(self, strategy_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve strategy from cache or load from repository."""
+        if strategy_id in self._strategies_cache:
+            return self._strategies_cache[strategy_id]
+
+        # Load from repository logic here
+        return None
+```
+
+### Search Repository Pattern
+```python
+from whoosh.index import create_index
+from whoosh.fields import Schema, TEXT, ID, KEYWORD
+from whoosh.qparser import QueryParser
+
+class SearchRepository:
+    """Full-text search repository using Whoosh."""
+
+    def __init__(self, index_dir: str):
+        self.index_dir = index_dir
+        self.schema = Schema(
+            id=ID(stored=True),
+            title=TEXT(stored=True),
+            content=TEXT(stored=True),
+            category=KEYWORD(stored=True),
+            tags=KEYWORD(stored=True)
+        )
+        self.index = create_index(self.schema, self.index_dir)
+
+    async def index_strategy(self, strategy: Dict[str, Any]) -> None:
+        """Index a strategy for search."""
+        writer = self.index.writer()
+        writer.add_document(
+            id=strategy["id"],
+            title=strategy["title"],
+            content=strategy["content"],
+            category=strategy["category"],
+            tags=" ".join(strategy.get("tags", []))
+        )
+        writer.commit()
+
+    async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Search strategies with relevance scoring."""
+        with self.index.searcher() as searcher:
+            query_parser = QueryParser("content", self.index.schema)
+            parsed_query = query_parser.parse(query)
+            results = searcher.search(parsed_query, limit=limit)
+
+            return [
+                {
+                    "id": result["id"],
+                    "title": result["title"],
+                    "score": result.score
+                }
+                for result in results
+            ]
+```
+
+## Use Case Pattern
+
+### MCP Tool Use Case Template
+```python
+from typing import Dict, Any, Optional
+from pydantic import BaseModel, Field
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+class GetStrategyRequest(BaseModel):
+    """Request model for getting a strategy."""
+    strategy_id: str = Field(..., description="Unique strategy identifier")
+    format: str = Field(default="full", description="Response format (full|summary)")
+
+class GetStrategyResponse(BaseModel):
+    """Response model for strategy retrieval."""
+    strategy_id: str
+    title: str
+    content: str
+    category: str
+    tags: List[str]
+    metadata: Dict[str, Any]
+
+class GetStrategyUseCase:
+    """Use case for retrieving a debugging strategy."""
+
+    def __init__(self, strategy_repository: StrategyRepository):
+        self.strategy_repository = strategy_repository
+
+    async def execute(self, request: GetStrategyRequest) -> GetStrategyResponse:
+        """Execute the get strategy use case."""
+        logger.info("Getting strategy", strategy_id=request.strategy_id)
+
+        try:
+            strategy = await self.strategy_repository.get_strategy(request.strategy_id)
+
+            if not strategy:
+                logger.warning("Strategy not found", strategy_id=request.strategy_id)
+                raise StrategyNotFoundError(f"Strategy {request.strategy_id} not found")
+
+            logger.info("Strategy retrieved successfully", strategy_id=request.strategy_id)
+
+            return GetStrategyResponse(
+                strategy_id=strategy["id"],
+                title=strategy["title"],
+                content=strategy["content"] if request.format == "full" else strategy["summary"],
+                category=strategy["category"],
+                tags=strategy.get("tags", []),
+                metadata=strategy.get("metadata", {})
+            )
+
+        except Exception as e:
+            logger.error("Failed to get strategy", strategy_id=request.strategy_id, error=str(e))
+            raise
+
+class StrategyNotFoundError(Exception):
+    """Raised when a strategy is not found."""
+    pass
+```
+
+### Search Use Case Pattern
+```python
+class SearchStrategiesRequest(BaseModel):
+    """Request model for searching strategies."""
+    query: str = Field(..., description="Search query")
+    fuzzy: bool = Field(default=True, description="Enable fuzzy search")
+    limit: int = Field(default=10, ge=1, le=100, description="Maximum results")
+    category: Optional[str] = Field(default=None, description="Category filter")
+
+class SearchStrategiesUseCase:
+    """Use case for searching debugging strategies."""
+
+    def __init__(self, search_repository: SearchRepository):
+        self.search_repository = search_repository
+
+    async def execute(self, request: SearchStrategiesRequest) -> List[Dict[str, Any]]:
+        """Execute the search strategies use case."""
+        logger.info("Searching strategies", query=request.query, limit=request.limit)
+
+        try:
+            results = await self.search_repository.search(
+                query=request.query,
+                limit=request.limit
+            )
+
+            # Apply category filter if specified
+            if request.category:
+                results = [r for r in results if r.get("category") == request.category]
+
+            logger.info("Search completed", query=request.query, results_count=len(results))
+            return results
+
+        except Exception as e:
+            logger.error("Search failed", query=request.query, error=str(e))
+            raise
+```
+
+## MCP Tool Handler Pattern
+
+### Tool Registration Pattern
+```python
+from mcp.server import Server
+from mcp.types import Tool, TextContent
+
+class MCPToolHandler:
+    """Handler for MCP tool registration and execution."""
+
+    def __init__(self, server: Server):
+        self.server = server
+        self.use_cases = {}
+
+    def register_tools(self):
+        """Register all MCP tools."""
+        self._register_get_strategy_tool()
+        self._register_search_strategies_tool()
+        self._register_list_strategies_tool()
+
+    def _register_get_strategy_tool(self):
+        """Register the get_strategy tool."""
+        @self.server.call_tool()
+        async def get_strategy(arguments: Dict[str, Any]) -> List[TextContent]:
+            """Get a specific debugging strategy by ID."""
+            request = GetStrategyRequest(**arguments)
+            use_case = self.use_cases["get_strategy"]
+
+            try:
+                response = await use_case.execute(request)
+                return [TextContent(
+                    type="text",
+                    text=self._format_strategy_response(response)
+                )]
+            except StrategyNotFoundError as e:
+                return [TextContent(
+                    type="text",
+                    text=f"Error: {str(e)}"
+                )]
+
+    def _format_strategy_response(self, response: GetStrategyResponse) -> str:
+        """Format strategy response for MCP."""
+        return f"""# {response.title}
+
+**Category**: {response.category}
+**Tags**: {', '.join(response.tags)}
+
+## Strategy Content
+
+{response.content}
+
+## Metadata
+{self._format_metadata(response.metadata)}
+"""
+```
+
+## Testing Patterns
+
+### Unit Test Pattern
+```python
+import pytest
+from unittest.mock import AsyncMock, Mock
+from swift_debugging_mcp_server.use_cases.get_strategy import GetStrategyUseCase, GetStrategyRequest
+
+class TestGetStrategyUseCase:
+    """Test suite for GetStrategyUseCase."""
+
+    @pytest.fixture
+    def mock_repository(self):
+        """Mock strategy repository."""
+        return AsyncMock()
+
+    @pytest.fixture
+    def use_case(self, mock_repository):
+        """Get strategy use case instance."""
+        return GetStrategyUseCase(mock_repository)
+
+    @pytest.mark.asyncio
+    async def test_execute_success(self, use_case, mock_repository):
+        """Test successful strategy retrieval."""
+        # Arrange
+        strategy_data = {
+            "id": "test-strategy",
+            "title": "Test Strategy",
+            "content": "Test content",
+            "category": "Test Category",
+            "tags": ["test"],
+            "metadata": {"author": "Test Author"}
+        }
+        mock_repository.get_strategy.return_value = strategy_data
+        request = GetStrategyRequest(strategy_id="test-strategy")
+
+        # Act
+        response = await use_case.execute(request)
+
+        # Assert
+        assert response.strategy_id == "test-strategy"
+        assert response.title == "Test Strategy"
+        assert response.content == "Test content"
+        mock_repository.get_strategy.assert_called_once_with("test-strategy")
+
+    @pytest.mark.asyncio
+    async def test_execute_strategy_not_found(self, use_case, mock_repository):
+        """Test strategy not found error."""
+        # Arrange
+        mock_repository.get_strategy.return_value = None
+        request = GetStrategyRequest(strategy_id="nonexistent")
+
+        # Act & Assert
+        with pytest.raises(StrategyNotFoundError):
+            await use_case.execute(request)
+```
+
+### Integration Test Pattern
+```python
+import pytest
+from httpx import AsyncClient
+from swift_debugging_mcp_server.main import create_app
+
+class TestMCPIntegration:
+    """Integration tests for MCP server."""
+
+    @pytest.fixture
+    async def app(self):
+        """Create test application."""
+        return create_app(test_mode=True)
+
+    @pytest.fixture
+    async def client(self, app):
+        """Create test client."""
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            yield client
+
+    @pytest.mark.asyncio
+    async def test_get_strategy_tool(self, client):
+        """Test get_strategy MCP tool."""
+        # Arrange
+        tool_request = {
+            "method": "tools/call",
+            "params": {
+                "name": "get_strategy",
+                "arguments": {
+                    "strategy_id": "1-optional-unwrapping-investigator",
+                    "format": "full"
+                }
+            }
+        }
+
+        # Act
+        response = await client.post("/mcp", json=tool_request)
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert "result" in data
+        assert len(data["result"]["content"]) > 0
+```
+
+## Error Handling Patterns
+
+### Structured Error Response
+```python
+from enum import Enum
+from typing import Optional
+
+class ErrorCode(Enum):
+    """Standard error codes for the MCP server."""
+    STRATEGY_NOT_FOUND = "STRATEGY_NOT_FOUND"
+    REPOSITORY_ERROR = "REPOSITORY_ERROR"
+    SEARCH_ERROR = "SEARCH_ERROR"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+
+class MCPError(Exception):
+    """Base MCP server error."""
+
+    def __init__(self, code: ErrorCode, message: str, details: Optional[Dict[str, Any]] = None):
+        self.code = code
+        self.message = message
+        self.details = details or {}
+        super().__init__(message)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert error to dictionary for JSON response."""
+        return {
+            "error": {
+                "code": self.code.value,
+                "message": self.message,
+                "details": self.details
+            }
+        }
+
+def handle_mcp_error(error: Exception) -> Dict[str, Any]:
+    """Convert exceptions to structured MCP error responses."""
+    if isinstance(error, MCPError):
+        return error.to_dict()
+
+    # Handle unexpected errors
+    logger.exception("Unexpected error occurred")
+    return MCPError(
+        code=ErrorCode.REPOSITORY_ERROR,
+        message="An unexpected error occurred",
+        details={"error_type": type(error).__name__}
+    ).to_dict()
+```
+
+These patterns provide consistent structure across the MCP server codebase, ensuring maintainable and testable code that follows established architectural principles.

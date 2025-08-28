@@ -1,0 +1,55 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Whenever agent needs to run a shell command always look to execute a faster option command like the many tools written in rust that has the same functionality as native shell commands.
+
+**Prefer:**
+
+* fd over find
+* eza over ls
+* ag over grep
+* z over cd
+* bat over cat
+* sd over sed
+* dust over du
+* dua over du
+* procs over ps
+* zoxide over cd 
+* hyperfine over time
+* tokei over cloc/wc
+* dog over dig
+* difftastic over diff
+* choose over cut
+* xcp over cp
+
+**All available tools at the moment**
+
+```plaintext
+❯ brew list
+==> Formulae
+aom                     docker                  gdu                     gnutls                  lefthook                libusb                  mas                     pinentry                snappy                  watchman
+asdf                    docker-completion       gettext                 graphite2               libassuan               libuv                   mpdecimal               pipx                    sourcery                webp
+autoconf                double-conversion       gflags                  graphviz                libavif                 libvmaf                 msgpack                 pixman                  sqlite                  wget
+bat                     dust                    gh                      grex                    libdeflate              libvterm                ncdu                    pkgconf                 stow                    xcbeautify
+bats-core               edencommon              giflib                  gts                     libevent                libx11                  ncurses                 plantuml                swift-format            xcinfo
+binwalk                 eza                     git                     gzip                    libffi                  libxau                  neovim                  pre-commit              swiftformat             xcode-build-server
+boost                   fastlane                git-delta               harfbuzz                libgcrypt               libxcb                  netpbm                  procs                   swiftlint               xcodegen
+brotli                  fb303                   git-extras              highway                 libgit2                 libxdmcp                nettle                  pyenv                   terminal-notifier       xcv
+c-ares                  fbthrift                git-flow                htop                    libgpg-error            libxext                 node                    python@3.13             the_silver_searcher     xorgproto
+ca-certificates         fd                      git-ignore              httpie                  libidn2                 libxrender              npth                    python@3.9              tldr                    xxhash
+cairo                   fizz                    git-imerge              hyperfine               libksba                 libyaml                 oniguruma               rbenv                   tmux                    xz
+carthage                fmt                     git-lfs                 icu4c@76                libnghttp2              libzip                  openexr                 rbenv-default-gems      tokei                   yarn
+certifi                 folly                   git-quick-stats         icu4c@77                libpng                  little-cms2             openjdk                 rcm                     tree                    zip
+choose                  fontconfig              git-secrets             imath                   librsvg                 lpeg                    openssl@3               readline                tree-sitter             zoxide
+clang-format            freetype                git-standup             ios-deploy              libsodium               lsd                     p11-kit                 ripgrep                 unbound                 zsh
+cocoapods               fribidi                 gitleaks                jasper                  libssh2                 luajit                  p7zip                   rtmpdump                unibilium               zsh-autosuggestions
+coreutils               fzf                     glib                    jpeg-turbo              libtasn1                luv                     pango                   ruby                    unzip                   zsh-completions
+curl                    gd                      glog                    jpeg-xl                 libtiff                 lz4                     pcre                    ruby-build              utf8proc                zsh-syntax-highlighting
+detect-secrets          gdbm                    gmp                     jq                      libtool                 lzo                     pcre2                   sd                      velero                  zstd
+difftastic              gdk-pixbuf              gnupg                   kotlin                  libunistring            m4                      periphery               shellcheck              wangle
+
+```
+
+ALWAYS EXECUTE SHELL COMMANDS USING DESKTOP COMMANDER MCP TOOL

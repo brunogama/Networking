@@ -1,0 +1,160 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Demo startup rule showing pre-start functionality with welcome messages and project context"
+globs: "**/*"
+alwaysApply: true
+---
+
+# Demo Startup Rule
+
+This is a simple demonstration of pre-start rule functionality.
+
+## What This Rule Does
+
+When Cursor starts, this rule will:
+
+1. **Welcome Message**: Display a friendly welcome message
+2. **Project Info**: Show basic project information
+3. **Quick Actions**: Suggest common development commands
+4. **Git Status**: Display current git branch and status
+
+## Implementation
+
+```yaml
+actions:
+  - type: suggest
+    event: "cursor_start"
+    message: |
+      ### 🚀 Welcome to the Debugging Framework Project!
+
+      **Project Status:**
+      - Type: Python MCP Server for Swift Debugging
+      - Current session: [timestamp]
+
+      **Quick Development Commands:**
+      - Run tests: `pytest`
+      - Check coverage: `pytest --cov`
+      - Format code: `black .`
+      - Type check: `mypy .`
+      - Lint: `flake8 .`
+
+      **Git Workflow:**
+      - Check status: `git status`
+      - Create feature branch: `git checkout -b feature/your-feature`
+      - Commit changes: `git add . && git commit -m "feat: your description"`
+
+      **Project Resources:**
+      - Documentation: `docs/` directory
+      - Architecture decisions: `docs/adr/`
+      - Guidelines: `docs/guidelines/`
+
+      **Need Help?**
+      - Ask me about project structure
+      - Request code examples
+      - Get testing guidance
+      - Learn about MCP development
+
+  - type: react
+    event: "cursor_start"
+    action: |
+      # Provide immediate project context
+      I'll automatically check and display:
+
+      1. **Current Git Branch**: Show which branch you're working on
+      2. **Recent Activity**: Highlight recently modified files
+      3. **Project Health**: Basic status of tests and dependencies
+      4. **Development Tips**: Suggest relevant actions based on project state
+
+      This gives you immediate context to start working efficiently.
+```
+
+## Features Demonstrated
+
+### 1. Basic Welcome Message
+- Friendly greeting when Cursor starts
+- Project-specific information
+- Quick reference commands
+
+### 2. Contextual Information
+- Git branch awareness
+- Project type identification
+- Resource location guidance
+
+### 3. Development Workflow Support
+- Common command suggestions
+- Testing and quality assurance reminders
+- Documentation pointers
+
+### 4. Interactive Help
+- Invitation to ask questions
+- Guidance on available assistance
+- Project-specific support options
+
+## Testing This Rule
+
+To test this rule:
+
+1. **Save and reload**: The rule should activate on next Cursor start
+2. **Check output**: Look for the welcome message in the chat
+3. **Verify behavior**: Ensure the suggestions are helpful and relevant
+4. **Customize**: Modify the message content to suit your preferences
+
+## Customization Options
+
+You can easily customize this rule by:
+
+### Changing the Welcome Message
+```yaml
+message: |
+  ### Your Custom Welcome Message
+
+  **Your Custom Content:**
+  - Your custom information
+  - Your custom commands
+```
+
+### Adding Conditional Logic
+```yaml
+- type: suggest
+  event: "cursor_start"
+  conditions:
+    - pattern: "your_condition"
+  message: |
+    **Conditional Message**
+    This only shows when your condition is met.
+```
+
+### Adding More Detailed Checks
+```yaml
+- type: react
+  event: "cursor_start"
+  action: |
+    # Your custom startup logic
+    I'll perform additional checks specific to your needs.
+```
+
+## Next Steps
+
+After testing this demo rule:
+
+1. **Modify it**: Customize the content to match your workflow
+2. **Create new rules**: Use the template to create specialized rules
+3. **Add conditions**: Make rules context-aware
+4. **Integrate systems**: Connect with your task management or CI/CD
+
+## Disable This Rule
+
+To disable this demo rule, either:
+
+1. **Set alwaysApply to false**:
+   ```yaml
+   alwaysApply: false
+   ```
+
+2. **Remove from index**: Remove the reference from `.cursor/rules/my/index.mdc`
+
+3. **Delete the file**: Remove this file entirely

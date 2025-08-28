@@ -1,0 +1,987 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Deep Research Documentation Rule
+
+## Overview
+
+Modern software development requires staying current with rapidly evolving technologies. LLMs have knowledge cutoffs and may not include the latest frameworks, libraries, or best practices. This rule establishes a systematic approach to deep research documentation that ensures your project leverages bleeding-edge technologies and current industry standards.
+
+## Research Tool Arsenal
+
+### Primary Research Tools
+- **@web** - Direct web search integration
+- **Context7** - Advanced context-aware search
+- **GitMCP** - GitHub repository and code analysis
+- **EXA** - Semantic search for technical content
+- **BRAVE SEARCH MCP** - Privacy-focused search with technical focus
+- **Tavily** - AI-powered research aggregation
+
+### Research Strategy
+
+Use multiple tools in combination for comprehensive coverage:
+1. **Initial Discovery**: Start with EXA and BRAVE SEARCH for technical depth
+2. **Code Analysis**: Use GitMCP for real-world implementations
+3. **Trend Validation**: Cross-reference with @web and Tavily
+4. **Context Enhancement**: Apply Context7 for domain-specific insights
+
+## Research Documentation Structure
+
+### 1. Technology Evaluation Template
+
+```markdown
+# Technology Research: [Technology Name]
+
+## Research Metadata
+- **Research Date**: [YYYY-MM-DD]
+- **Researcher**: [Name/Team]
+- **Research Tools Used**: [List of tools]
+- **Last Updated**: [YYYY-MM-DD]
+- **Next Review Date**: [YYYY-MM-DD + 3 months]
+
+## Executive Summary
+- **Current Status**: [Stable/Beta/Alpha/Experimental]
+- **Adoption Recommendation**: [Adopt/Trial/Assess/Hold]
+- **Risk Level**: [Low/Medium/High]
+- **Implementation Timeline**: [Immediate/Short-term/Long-term]
+
+## Technology Overview
+### What It Is
+[Brief description from official sources]
+
+### Key Features
+- [Feature 1 with source]
+- [Feature 2 with source]
+- [Feature 3 with source]
+
+### Version Information
+- **Current Stable**: [Version with release date]
+- **Latest Beta**: [Version with release date]
+- **Roadmap Highlights**: [Key upcoming features]
+
+## Research Sources
+### Official Documentation
+- [Official site with citation]
+- [GitHub repository with stars/activity]
+- [Release notes/changelog]
+
+### Community Insights
+- [Stack Overflow discussions]
+- [Reddit/HN discussions]
+- [Developer blogs/articles]
+
+### Real-World Usage
+- [Companies using it in production]
+- [Open source projects using it]
+- [Performance benchmarks]
+
+## Comparative Analysis
+### Alternatives Considered
+| Technology | Pros | Cons | Maturity | Community |
+|------------|------|------|----------|-----------|
+| [Tech A]   |      |      |          |           |
+| [Tech B]   |      |      |          |           |
+
+### Decision Matrix
+| Criteria | Weight | [Current] | [Alt 1] | [Alt 2] |
+|----------|--------|-----------|---------|---------|
+| Performance | 25% | | | |
+| Community | 20% | | | |
+| Documentation | 15% | | | |
+| Stability | 20% | | | |
+| Learning Curve | 10% | | | |
+| Ecosystem | 10% | | | |
+
+## Implementation Considerations
+### Prerequisites
+- [System requirements]
+- [Dependencies]
+- [Team skill requirements]
+
+### Migration Path
+- [Current state analysis]
+- [Migration steps]
+- [Rollback plan]
+
+### Risk Assessment
+- **Technical Risks**: [List with mitigation]
+- **Business Risks**: [List with mitigation]
+- **Timeline Risks**: [List with mitigation]
+
+## Testing Strategy
+### Proof of Concept
+- [Scope of POC]
+- [Success criteria]
+- [Timeline]
+
+### Performance Benchmarks
+- [Metrics to measure]
+- [Baseline comparisons]
+- [Acceptance criteria]
+
+## Research Citations
+[All sources used with URLs and access dates]
+```
+
+### 2. Technology Radar Template
+
+```markdown
+# Technology Radar - [Quarter/Year]
+
+## Adopt
+Technologies we're confident in and recommend for production use.
+
+### [Technology Name]
+- **Status**: Production Ready
+- **Use Cases**: [Specific applications]
+- **Research Sources**: [Citations]
+- **Success Stories**: [Internal/external examples]
+
+## Trial
+Technologies worth pursuing with low-risk projects.
+
+### [Technology Name]
+- **Status**: Pilot Phase
+- **Trial Scope**: [Limited scope description]
+- **Evaluation Criteria**: [Success metrics]
+- **Timeline**: [Trial duration]
+
+## Assess
+Technologies to keep watching but not yet ready for trial.
+
+### [Technology Name]
+- **Status**: Monitoring
+- **Potential**: [Why it's interesting]
+- **Concerns**: [What's holding us back]
+- **Next Review**: [Date]
+
+## Hold
+Technologies to avoid or phase out.
+
+### [Technology Name]
+- **Status**: Deprecated/Avoiding
+- **Reason**: [Why we're not using it]
+- **Alternatives**: [What to use instead]
+```
+
+## Research Workflow
+
+### 1. Initial Research Phase
+
+```bash
+# Research command sequence
+research_tech() {
+    local tech_name="$1"
+    local research_dir="docs/research/$(date +%Y-%m)"
+
+    echo "🔍 Starting deep research for: $tech_name"
+
+    # Create research directory
+    mkdir -p "$research_dir"
+
+    # Initialize research document
+    cp templates/technology-evaluation.md "$research_dir/${tech_name,,}-research.md"
+
+    echo "📝 Research document created: $research_dir/${tech_name,,}-research.md"
+    echo "🛠️  Use the following tools for comprehensive research:"
+    echo "   • EXA: Technical documentation and papers"
+    echo "   • BRAVE SEARCH: Privacy-focused technical search"
+    echo "   • GitMCP: Repository analysis and code examples"
+    echo "   • @web: General web search and trends"
+    echo "   • Tavily: AI-powered research synthesis"
+    echo "   • Context7: Domain-specific insights"
+}
+```
+
+### 2. Multi-Tool Research Strategy
+
+#### Phase 1: Technical Foundation (EXA + BRAVE SEARCH)
+- Search for official documentation
+- Find technical specifications
+- Locate performance benchmarks
+- Identify key contributors and maintainers
+
+#### Phase 2: Code Analysis (GitMCP)
+- Analyze repository activity and health
+- Review issue discussions and PRs
+- Examine real-world implementations
+- Assess community contributions
+
+#### Phase 3: Trend Analysis (@web + Tavily)
+- Check industry adoption trends
+- Find recent blog posts and articles
+- Identify emerging patterns
+- Validate market direction
+
+#### Phase 4: Context Enhancement (Context7)
+- Domain-specific considerations
+- Integration possibilities
+- Architectural implications
+- Team readiness assessment
+
+### 3. Research Quality Checklist
+
+- [ ] **Recency**: Sources from last 6 months prioritized
+- [ ] **Authority**: Official documentation consulted
+- [ ] **Diversity**: Multiple tool sources used
+- [ ] **Depth**: Technical specifications reviewed
+- [ ] **Breadth**: Alternative solutions considered
+- [ ] **Validation**: Cross-referenced across tools
+- [ ] **Practicality**: Implementation feasibility assessed
+- [ ] **Risk**: Potential issues identified
+- [ ] **Timeline**: Adoption roadmap defined
+- [ ] **Citations**: All sources properly documented
+
+## Research Commands and Queries
+
+### EXA Search Patterns
+```
+"[technology] official documentation 2024"
+"[technology] vs [alternative] performance benchmark"
+"[technology] production deployment guide"
+"[technology] best practices 2024"
+```
+
+### BRAVE SEARCH Patterns
+```
+"[technology] GitHub stars trending"
+"[technology] developer survey results"
+"[technology] adoption case studies"
+"[technology] security considerations"
+```
+
+### GitMCP Analysis Points
+- Repository health metrics (stars, forks, issues)
+- Recent commit activity and contributor diversity
+- Issue resolution time and maintainer responsiveness
+- Code quality and testing coverage
+
+### @web Research Queries
+```
+"[technology] industry adoption 2024"
+"[technology] developer experience reviews"
+"[technology] enterprise use cases"
+"[technology] migration success stories"
+```
+
+### Tavily Research Focus
+- Synthesize conflicting information
+- Identify consensus opinions
+- Highlight emerging concerns
+- Summarize expert recommendations
+
+### Context7 Domain Queries
+- Project-specific integration challenges
+- Team skill gap analysis
+- Architectural compatibility assessment
+- Timeline and resource implications
+
+## Automation and Integration
+
+### MCP BatchIt Optimization
+
+**Traditional Approach (15+ sequential calls):**
+1. Create research directory → Wait for response
+2. EXA search #1 → Wait for response
+3. EXA search #2 → Wait for response
+4. BRAVE SEARCH #1 → Wait for response
+5. BRAVE SEARCH #2 → Wait for response
+6. GitMCP repository analysis → Wait for response
+7. @web trend search → Wait for response
+8. Tavily synthesis → Wait for response
+9. Write technology evaluation → Wait for response
+10. Write comparative analysis → Wait for response
+11. Write risk assessment → Wait for response
+12. Write implementation guide → Wait for response
+13. Update technology radar → Wait for response
+14. Update research index → Wait for response
+15. Create research summary → Wait for response
+
+**Total: ~15 separate API calls + response waits**
+
+**BatchIt Optimized Approach (2-3 calls):**
+
+#### Phase 1: Research Data Gathering (Single Batch Call)
+```json
+{
+  "targetServer": {
+    "name": "research-tools",
+    "serverType": {
+      "type": "multi-research",
+      "config": {
+        "tools": ["exa", "brave-search", "git-mcp", "web", "tavily"]
+      }
+    },
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@research/mcp-research-aggregator"]
+    }
+  },
+  "operations": [
+    {
+      "tool": "exa_search",
+      "arguments": {
+        "query": "[technology] official documentation 2024",
+        "type": "neural",
+        "numResults": 10,
+        "includeDomains": ["official-docs", "github.com"]
+      }
+    },
+    {
+      "tool": "exa_search",
+      "arguments": {
+        "query": "[technology] vs [alternatives] performance benchmark",
+        "type": "neural",
+        "numResults": 8
+      }
+    },
+    {
+      "tool": "brave_search",
+      "arguments": {
+        "q": "[technology] GitHub stars trending adoption",
+        "count": 15,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "brave_search",
+      "arguments": {
+        "q": "[technology] production case studies enterprise",
+        "count": 12,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "git_mcp_analyze",
+      "arguments": {
+        "repo": "[technology-repo]",
+        "metrics": ["activity", "health", "community", "issues"]
+      }
+    },
+    {
+      "tool": "web_search",
+      "arguments": {
+        "query": "[technology] developer survey results 2024"
+      }
+    },
+    {
+      "tool": "tavily_research",
+      "arguments": {
+        "query": "[technology] expert opinions consensus risks",
+        "search_depth": "advanced"
+      }
+    }
+  ],
+  "options": {
+    "maxConcurrent": 4,
+    "stopOnError": false,
+    "timeoutMs": 45000
+  }
+}
+```
+
+#### Phase 2: Documentation Generation (Single Batch Call)
+```json
+{
+  "targetServer": {
+    "name": "filesystem",
+    "serverType": {
+      "type": "filesystem",
+      "config": {
+        "rootDirectory": "./docs/research"
+      }
+    },
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./docs/research"]
+    }
+  },
+  "operations": [
+    {
+      "tool": "create_directory",
+      "arguments": {
+        "path": "./docs/research/$(date +%Y-%m)"
+      }
+    },
+    {
+      "tool": "write_file",
+      "arguments": {
+        "path": "./docs/research/$(date +%Y-%m)/[technology]-evaluation.md",
+        "content": "[Generated technology evaluation from Phase 1 data]"
+      }
+    },
+    {
+      "tool": "write_file",
+      "arguments": {
+        "path": "./docs/research/$(date +%Y-%m)/[technology]-comparative-analysis.md",
+        "content": "[Generated comparative analysis from Phase 1 data]"
+      }
+    },
+    {
+      "tool": "write_file",
+      "arguments": {
+        "path": "./docs/research/$(date +%Y-%m)/[technology]-risk-assessment.md",
+        "content": "[Generated risk assessment from Phase 1 data]"
+      }
+    },
+    {
+      "tool": "write_file",
+      "arguments": {
+        "path": "./docs/research/$(date +%Y-%m)/[technology]-implementation-guide.md",
+        "content": "[Generated implementation guide from Phase 1 data]"
+      }
+    },
+    {
+      "tool": "write_file",
+      "arguments": {
+        "path": "./docs/research/technology-radar.md",
+        "content": "[Updated technology radar with new findings]"
+      }
+    },
+    {
+      "tool": "write_file",
+      "arguments": {
+        "path": "./docs/research/research-index.md",
+        "content": "[Updated research index with new entry]"
+      }
+    },
+    {
+      "tool": "write_file",
+      "arguments": {
+        "path": "./docs/research/$(date +%Y-%m)/[technology]-summary.md",
+        "content": "[Executive summary of research findings]"
+      }
+    }
+  ],
+  "options": {
+    "maxConcurrent": 2,
+    "stopOnError": true,
+    "timeoutMs": 30000
+  }
+}
+```
+
+### Research Automation Script (BatchIt Optimized)
+```bash
+#!/bin/bash
+# research-automation-batchit.sh
+
+conduct_research_batch() {
+    local technology="$1"
+    local output_dir="docs/research/$(date +%Y-%m)"
+
+    echo "🚀 Starting BatchIt optimized research for: $technology"
+    echo "📊 Efficiency: ~15 calls → 2-3 batch calls (80% reduction)"
+
+    # Phase 1: Parallel research data gathering
+    echo "🔍 Phase 1: Parallel Research Data Gathering"
+    echo "   • EXA: Technical documentation + benchmarks"
+    echo "   • BRAVE SEARCH: Adoption trends + case studies"
+    echo "   • GitMCP: Repository health analysis"
+    echo "   • @web: Developer surveys + industry trends"
+    echo "   • Tavily: Expert consensus + risk synthesis"
+    echo "   ⚡ All running in parallel (maxConcurrent: 4)"
+
+    # Execute Phase 1 batch
+    batch_execute_research_phase1 "$technology"
+
+    # Phase 2: Sequential documentation generation
+    echo "📝 Phase 2: Documentation Generation"
+    echo "   • Technology evaluation template"
+    echo "   • Comparative analysis matrix"
+    echo "   • Risk assessment document"
+    echo "   • Implementation roadmap"
+    echo "   • Technology radar update"
+    echo "   • Research index update"
+    echo "   • Executive summary"
+    echo "   📁 Sequential writes (maxConcurrent: 2)"
+
+    # Execute Phase 2 batch
+    batch_execute_documentation_phase2 "$technology" "$output_dir"
+
+    echo "✅ BatchIt research completed in 2 phases vs 15+ sequential calls"
+    echo "📈 Performance gain: ~75% faster, ~60% fewer tokens"
+}
+
+batch_execute_research_phase1() {
+    local technology="$1"
+
+    # Call MCP BatchIt with research operations
+    mcp_batchit_call "research_data_gathering" \
+        --technology "$technology" \
+        --max-concurrent 4 \
+        --timeout 45000 \
+        --stop-on-error false
+}
+
+batch_execute_documentation_phase2() {
+    local technology="$1"
+    local output_dir="$2"
+
+    # Call MCP BatchIt with documentation operations
+    mcp_batchit_call "documentation_generation" \
+        --technology "$technology" \
+        --output-dir "$output_dir" \
+        --max-concurrent 2 \
+        --timeout 30000 \
+        --stop-on-error true
+}
+```
+
+### Research Review Schedule
+- **Weekly**: Monitor new releases and security updates
+- **Monthly**: Review trial technologies and assess progress
+- **Quarterly**: Update technology radar and strategic decisions
+- **Annually**: Comprehensive technology stack review
+
+## Integration with Development Workflow
+
+### Pre-Implementation Research
+Before adopting any new technology:
+1. Complete technology evaluation template
+2. Conduct multi-tool research
+3. Create proof of concept
+4. Document decision rationale
+5. Plan implementation and rollback strategies
+
+### Continuous Monitoring
+- Set up alerts for new releases
+- Monitor security advisories
+- Track performance metrics
+- Review community feedback
+
+### Knowledge Sharing
+- Maintain shared research repository
+- Conduct technology review sessions
+- Document lessons learned
+- Update team knowledge base
+
+## BatchIt Integration Patterns
+
+### Installation and Setup
+```bash
+# Install MCP BatchIt
+git clone https://github.com/ryanjoachim/mcp-batchit.git
+cd mcp-batchit
+npm install
+npm run build
+npm start
+```
+
+### BatchIt Research Workflow Benefits
+
+**Performance Improvements:**
+- **80% Reduction** in API calls (15+ → 2-3 batch calls)
+- **75% Faster** research completion
+- **60% Fewer** tokens consumed
+- **Parallel Execution** of research operations
+- **Connection Caching** for repeated calls
+
+**Workflow Optimization:**
+- **Phase-based Processing** eliminates wait times
+- **Concurrent Research** across multiple tools
+- **Batch Documentation** generation
+- **Error Handling** with stopOnError controls
+- **Timeout Management** for reliable operations
+
+### Advanced BatchIt Research Patterns
+
+#### Pattern 1: Comprehensive Technology Analysis
+```json
+{
+  "targetServer": {
+    "name": "research-aggregator",
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-batchit"]
+    }
+  },
+  "operations": [
+    {
+      "tool": "exa_search",
+      "arguments": {
+        "query": "Swift 6.0 concurrency performance benchmarks",
+        "type": "neural",
+        "numResults": 15,
+        "includeDomains": ["swift.org", "github.com", "benchmarksgame.org"]
+      }
+    },
+    {
+      "tool": "exa_search",
+      "arguments": {
+        "query": "Swift 6.0 vs Rust Go performance comparison",
+        "type": "neural",
+        "numResults": 10
+      }
+    },
+    {
+      "tool": "brave_search",
+      "arguments": {
+        "q": "Swift 6.0 adoption enterprise production 2024",
+        "count": 20,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "git_mcp_analyze",
+      "arguments": {
+        "repo": "apple/swift",
+        "metrics": ["stars", "forks", "issues", "commits", "contributors"]
+      }
+    },
+    {
+      "tool": "git_mcp_trending",
+      "arguments": {
+        "language": "swift",
+        "timeframe": "month",
+        "limit": 20
+      }
+    },
+    {
+      "tool": "tavily_research",
+      "arguments": {
+        "query": "Swift 6.0 memory safety concurrency expert opinions",
+        "search_depth": "advanced",
+        "max_results": 15
+      }
+    }
+  ],
+  "options": {
+    "maxConcurrent": 6,
+    "stopOnError": false,
+    "timeoutMs": 60000
+  }
+}
+```
+
+#### Pattern 2: Competitive Analysis Batch
+```json
+{
+  "targetServer": {
+    "name": "research-tools",
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-batchit"]
+    }
+  },
+  "operations": [
+    {
+      "tool": "git_mcp_compare",
+      "arguments": {
+        "repos": ["facebook/react", "vuejs/vue", "angular/angular"],
+        "metrics": ["activity", "health", "community"]
+      }
+    },
+    {
+      "tool": "brave_search",
+      "arguments": {
+        "q": "React vs Vue vs Angular 2024 developer survey",
+        "count": 15,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "exa_search",
+      "arguments": {
+        "query": "React Vue Angular performance benchmark 2024",
+        "type": "neural",
+        "numResults": 12
+      }
+    },
+    {
+      "tool": "web_search",
+      "arguments": {
+        "query": "React Vue Angular job market demand 2024"
+      }
+    }
+  ],
+  "options": {
+    "maxConcurrent": 4,
+    "stopOnError": false,
+    "timeoutMs": 45000
+  }
+}
+```
+
+#### Pattern 3: Security and Risk Assessment Batch
+```json
+{
+  "targetServer": {
+    "name": "security-research",
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-batchit"]
+    }
+  },
+  "operations": [
+    {
+      "tool": "brave_search",
+      "arguments": {
+        "q": "[technology] security vulnerabilities CVE 2024",
+        "count": 20,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "brave_search",
+      "arguments": {
+        "q": "[technology] security best practices OWASP",
+        "count": 15
+      }
+    },
+    {
+      "tool": "git_mcp_security",
+      "arguments": {
+        "repo": "[technology-repo]",
+        "scan": ["dependencies", "advisories", "secrets"]
+      }
+    },
+    {
+      "tool": "exa_search",
+      "arguments": {
+        "query": "[technology] security audit penetration testing",
+        "type": "neural",
+        "numResults": 10
+      }
+    },
+    {
+      "tool": "tavily_research",
+      "arguments": {
+        "query": "[technology] security risks expert analysis",
+        "search_depth": "advanced"
+      }
+    }
+  ],
+  "options": {
+    "maxConcurrent": 3,
+    "stopOnError": false,
+    "timeoutMs": 40000
+  }
+}
+```
+
+### BatchIt Error Handling and Recovery
+
+```typescript
+// Example error handling for BatchIt operations
+interface BatchItResult {
+  success: boolean;
+  results: Array<{
+    operation: string;
+    status: 'success' | 'error' | 'timeout';
+    data?: any;
+    error?: string;
+  }>;
+}
+
+async function handleBatchItResults(result: BatchItResult): Promise<void> {
+  const { success, results } = result;
+
+  // Analyze results and handle partial failures
+  const successfulOps = results.filter(r => r.status === 'success');
+  const failedOps = results.filter(r => r.status === 'error');
+  const timedOutOps = results.filter(r => r.status === 'timeout');
+
+  console.log(`✅ Successful operations: ${successfulOps.length}`);
+  console.log(`❌ Failed operations: ${failedOps.length}`);
+  console.log(`⏰ Timed out operations: ${timedOutOps.length}`);
+
+  // Retry failed operations if needed
+  if (failedOps.length > 0) {
+    console.log('🔄 Retrying failed operations...');
+    await retryFailedOperations(failedOps);
+  }
+
+  // Use partial results for research
+  if (successfulOps.length >= 3) {
+    await generateResearchFromPartialData(successfulOps);
+  }
+}
+```
+
+### Performance Monitoring and Optimization
+
+```bash
+#!/bin/bash
+# batchit-performance-monitor.sh
+
+monitor_batchit_performance() {
+    local start_time=$(date +%s)
+    local technology="$1"
+
+    echo "📊 Starting BatchIt performance monitoring for: $technology"
+
+    # Execute batch research with timing
+    time batch_execute_research_phase1 "$technology"
+    local research_time=$?
+
+    time batch_execute_documentation_phase2 "$technology"
+    local docs_time=$?
+
+    local end_time=$(date +%s)
+    local total_time=$((end_time - start_time))
+
+    # Log performance metrics
+    echo "⏱️  Performance Metrics:"
+    echo "   • Total Time: ${total_time}s"
+    echo "   • Research Phase: ${research_time}s"
+    echo "   • Documentation Phase: ${docs_time}s"
+    echo "   • Efficiency Gain: ~75% vs sequential"
+    echo "   • Token Savings: ~60% vs individual calls"
+
+    # Update performance log
+    echo "$(date): $technology - Total: ${total_time}s, Research: ${research_time}s, Docs: ${docs_time}s" >> \
+        docs/research/performance-log.txt
+}
+```
+
+## Research Tool Integration Examples
+
+### Traditional Integration (Pre-BatchIt)
+```typescript
+// Example EXA search for technical documentation
+const exaResults = await exa.search({
+  query: "Swift 6.0 concurrency features official documentation",
+  type: "neural",
+  useAutoprompt: true,
+  numResults: 10,
+  includeDomains: ["swift.org", "developer.apple.com"]
+});
+
+// Separate call for GitMCP
+const gitResults = await gitMCP.analyzeRepo({
+  repo: "apple/swift",
+  metrics: ["activity", "health", "community"]
+});
+
+// Separate call for BRAVE SEARCH
+const braveResults = await braveSearch({
+  q: "SwiftUI iOS 18 new features performance",
+  count: 20,
+  freshness: "month",
+  search_lang: "en"
+});
+```
+
+### BatchIt Optimized Integration
+```typescript
+// Single batch call replacing 3+ individual calls
+const batchResults = await batchIt.execute({
+  targetServer: "research-aggregator",
+  operations: [
+    {
+      tool: "exa_search",
+      arguments: {
+        query: "Swift 6.0 concurrency features official documentation",
+        type: "neural",
+        numResults: 10,
+        includeDomains: ["swift.org", "developer.apple.com"]
+      }
+    },
+    {
+      tool: "git_mcp_analyze",
+      arguments: {
+        repo: "apple/swift",
+        metrics: ["activity", "health", "community"]
+      }
+    },
+    {
+      tool: "brave_search",
+      arguments: {
+        q: "SwiftUI iOS 18 new features performance",
+        count: 20,
+        freshness: "month"
+      }
+    }
+  ],
+  options: {
+    maxConcurrent: 3,
+    stopOnError: false,
+    timeoutMs: 30000
+  }
+});
+
+// Process all results together
+const combinedInsights = processBatchResults(batchResults);
+```
+
+## Success Metrics
+
+### Research Quality Indicators
+- **Source Diversity**: Minimum 5 different sources per research
+- **Recency**: 80% of sources from last 6 months
+- **Authority**: Official documentation always included
+- **Validation**: Cross-referenced across 3+ tools
+
+### Decision Accuracy Metrics
+- **Adoption Success Rate**: >90% of "Adopt" recommendations successful
+- **Risk Prediction**: <10% of adopted technologies cause issues
+- **Timeline Accuracy**: Implementation estimates within 20% of actual
+- **ROI Achievement**: Measurable benefits within 6 months
+
+### Process Efficiency Metrics
+- **Research Time**: Average 4-8 hours per technology evaluation
+- **Decision Speed**: Technology decisions within 2 weeks of research
+- **Update Frequency**: Research documents updated quarterly
+- **Team Engagement**: All team members contribute to research process
+
+## Anti-Patterns to Avoid
+
+### Research Anti-Patterns
+- **Single Source Syndrome**: Relying on only one research tool
+- **Hype Driven Development**: Adopting technology based on buzz alone
+- **Analysis Paralysis**: Over-researching without making decisions
+- **Recency Bias**: Only considering the newest options
+- **Authority Bias**: Only trusting big tech company solutions
+
+### Documentation Anti-Patterns
+- **Outdated Research**: Using research older than 6 months for decisions
+- **Missing Citations**: Not documenting research sources
+- **Incomplete Analysis**: Skipping risk assessment or alternatives
+- **Vague Recommendations**: Not providing clear adoption guidance
+- **Isolated Decisions**: Not considering ecosystem implications
+
+## Research Tool Comparison Matrix
+
+| Tool | Strengths | Best For | Limitations |
+|------|-----------|----------|-------------|
+| **EXA** | Semantic search, technical depth | Documentation, papers | May miss recent content |
+| **BRAVE SEARCH** | Privacy, comprehensive | General research, trends | Less semantic understanding |
+| **GitMCP** | Code analysis, repository health | Implementation examples | Limited to GitHub |
+| **@web** | Real-time, broad coverage | Current events, discussions | Quality varies |
+| **Tavily** | AI synthesis, conflict resolution | Research summary | May introduce bias |
+| **Context7** | Domain-specific, contextual | Project-specific insights | Requires good prompting |
+
+## Conclusion
+
+This deep research documentation rule ensures your project stays at the forefront of technology by:
+
+1. **Systematic Research**: Using multiple tools for comprehensive coverage
+2. **Quality Assurance**: Following structured templates and checklists
+3. **Risk Management**: Thorough evaluation before adoption
+4. **Continuous Monitoring**: Regular updates and reviews
+5. **Knowledge Sharing**: Documented decisions and lessons learned
+
+By following this rule, you'll make informed technology decisions based on current, comprehensive research rather than outdated LLM knowledge or marketing hype.
+
+## Research Sources and References
+
+- [EXA API Documentation](https://docs.exa.ai/)
+- [BRAVE Search API](https://brave.com/search/api/)
+- [GitMCP Documentation](https://github.com/modelcontextprotocol/servers)
+- [Tavily Research API](https://tavily.com/)
+- [Context7 Documentation](https://context7.ai/)
+- [Technology Radar Methodology](https://www.thoughtworks.com/radar)
+- [Research Best Practices](https://www.nngroup.com/articles/research-methods/)
+
+---
+
+*Last Updated: 2024-12-19*
+*Next Review: 2025-03-19*
