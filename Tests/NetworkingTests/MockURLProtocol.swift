@@ -27,7 +27,7 @@ import Foundation
 /// // Execute test
 /// let response = try await client.execute(request)
 /// ```
-public final class MockURLProtocol: URLProtocol {
+public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
   // MARK: - Types
 
   /// Request matching criteria for flexible stub configuration
@@ -215,8 +215,8 @@ public final class MockURLProtocol: URLProtocol {
 
   override public func startLoading() {
     // Use a simple synchronous approach to avoid concurrency issues in tests
-    Task {
-      await self.handleRequest()
+    Task { @Sendable in
+      await handleRequest()
     }
   }
 
@@ -531,7 +531,8 @@ extension MockURLProtocol {
   ) async {
     let count = await getRequestCount(for: url)
     #expect(
-      isEmpty,
+      // swiftlint:disable:next identifier_name
+      count == 0,
       "Expected no requests to \(url), but found \(count)",
       sourceLocation: sourceLocation
     )
