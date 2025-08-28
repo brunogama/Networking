@@ -41,6 +41,11 @@ public macro PUT(_ path: String) =
 public macro DELETE(_ path: String) =
   #externalMacro(module: "NetworkingMacros", type: "DELETEMacro")
 
+/// Marks a method as a PATCH request.
+@attached(peer)
+public macro PATCH(_ path: String) =
+  #externalMacro(module: "NetworkingMacros", type: "PATCHMacro")
+
 // MARK: - Parameter Macros
 
 /// Marks a parameter as a path parameter that will be substituted in the URL.

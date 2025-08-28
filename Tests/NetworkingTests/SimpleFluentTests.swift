@@ -4,7 +4,7 @@ import Foundation
 
 final class SimpleFluentTests: XCTestCase {
   func testBasicClientConfiguration() throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       DefaultHeader("Content-Type", "application/json")
     }
@@ -13,7 +13,7 @@ final class SimpleFluentTests: XCTestCase {
   }
 
   func testSessionConfiguration() throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       Session {
         SessionTimeout(60.0)

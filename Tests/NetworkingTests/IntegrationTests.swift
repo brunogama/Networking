@@ -146,11 +146,12 @@ struct IntegrationTests {
 
     let patchData = ["name": "Partially Updated Name"]
 
-    let request = try HTTPRequest {
-      PATCH("/patch")
-      Header("Content-Type", "application/json")
-      JSONBody(patchData)
-    }
+    let request = HTTPRequest(
+      method: .patch,
+      url: URL(string: "https://httpbin.org/patch")!,
+      headers: ["Content-Type": "application/json"],
+      body: try JSONEncoder().encode(patchData)
+    )
 
     let response = try await client.execute(request)
 
@@ -343,13 +344,11 @@ struct IntegrationTests {
   func testLoggingMiddlewareIntegration() async throws {
     var loggedMessages: [String] = []
 
-    let loggingMiddleware = LoggingMiddleware { level, message, _ in
-      loggedMessages.append("\(level): \(message)")
-    }
+    let loggingMiddleware = LoggingMiddleware(configuration: LoggingMiddleware.Configuration())
 
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
-      Middleware(loggingMiddleware)
+      Middleware(loggingMiddleware as any HTTPRequestMiddleware)
     }
 
     let request = try HTTPRequest {
@@ -385,15 +384,20 @@ struct IntegrationTests {
       attemptCount += 1
     }
 
-    let retryMiddleware = RetryMiddleware(
+    let retryConfig = RetryMiddleware.Configuration(
       maxAttempts: 3,
-      baseDelay: 0.1,
-      backoffMultiplier: 1.5
+      baseDelay: 0.1
     )
 
-    let clientWithRetry = NetworkClient {
+    let tempClient = NetworkClient()
+    let retryMiddleware = RetryMiddleware(
+      configuration: retryConfig,
+      client: tempClient
+    )
+
+    let clientWithRetry = try NetworkClient {
       try BaseURL("https://example.com")
-      Middleware(retryMiddleware)
+      Middleware(retryMiddleware as any HTTPErrorMiddleware)
     }
 
     // Override the client's internal HTTP client
@@ -414,13 +418,34 @@ struct IntegrationTests {
 
   @Test("Authentication middleware integration")
   func testAuthenticationMiddlewareIntegration() async throws {
+    struct TestTokenProvider: AuthenticationMiddleware.TokenProvider {
+      let token: String
+
+      func getCurrentToken() async throws -> String? {
+        return token
+      }
+
+      func refreshToken() async throws -> String {
+        return token
+      }
+
+      func shouldRefreshToken(for error: HTTPError) async -> Bool {
+        return false
+      }
+    }
+
+    let tokenProvider = TestTokenProvider(token: "test-token-123")
+    let authConfig = AuthenticationMiddleware.Configuration()
+    let tempClient = NetworkClient()
     let authMiddleware = AuthenticationMiddleware(
-      tokenProvider: { "Bearer test-token-123" }
+      configuration: authConfig,
+      tokenProvider: tokenProvider,
+      client: tempClient
     )
 
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
-      Middleware(authMiddleware)
+      Middleware(authMiddleware as any HTTPRequestMiddleware)
     }
 
     let request = try HTTPRequest {
@@ -443,14 +468,16 @@ struct IntegrationTests {
   @Test("Caching middleware integration")
   func testCachingMiddlewareIntegration() async throws {
     let storage = MemoryCacheStorage()
+    let tempClient = NetworkClient()
     let cachingMiddleware = CachingMiddleware(
       configuration: CachingMiddleware.Configuration(defaultTTL: 300.0),
-      storage: storage
+      storage: storage,
+      client: tempClient
     )
 
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
-      Middleware(cachingMiddleware)
+      Middleware(cachingMiddleware as any HTTPRequestMiddleware)
     }
 
     let request = try HTTPRequest {
@@ -478,14 +505,16 @@ struct IntegrationTests {
 
   @Test("NetworkClient builder pattern integration")
   func testNetworkClientBuilderIntegration() async throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
       DefaultTimeout(15.0)
       DefaultHeader("User-Agent", "Networking-Builder-Test/1.0")
       DefaultHeader("Accept", "application/json")
 
-      Middleware(LoggingMiddleware { _, _, _ in })
-      Middleware(RetryMiddleware(maxAttempts: 2))
+      Middleware(
+        LoggingMiddleware(configuration: LoggingMiddleware.Configuration())
+          as any HTTPRequestMiddleware
+      )
     }
 
     let request = try HTTPRequest {
@@ -517,13 +546,12 @@ struct IntegrationTests {
       Header("Authorization", "Bearer complex-token")
       QueryParam("version", "2.0")
       QueryParam("format", "json")
-      JSONBody([
-        "operation": "complex-test",
-        "parameters": [
-          "param1": "value1",
-          "param2": "value2",
-        ],
-      ])
+      JSONBody(
+        ComplexRequestData(
+          operation: "complex-test",
+          parameters: ["param1": "value1", "param2": "value2"]
+        )
+      )
       Timeout(25.0)
     }
 
@@ -683,7 +711,7 @@ struct IntegrationTests {
 
   @Test("Real network integration test", .disabled("Requires network access"))
   func testRealNetworkIntegration() async throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://api.github.com")
       DefaultTimeout(30.0)
       DefaultHeader("User-Agent", "Networking-Integration-Test/1.0")
@@ -724,6 +752,11 @@ struct ErrorResponse: Codable {
   let error: String
   let message: String
   let code: Int
+}
+
+struct ComplexRequestData: Codable {
+  let operation: String
+  let parameters: [String: String]
 }
 
 struct RawResponseData: Codable {

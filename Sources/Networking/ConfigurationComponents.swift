@@ -54,6 +54,56 @@ public struct DefaultHeader: ConfigurationComponent {
 
 // MARK: - Middleware Configuration Components
 
+public struct AddMiddleware: ConfigurationComponent {
+  private let requestMiddleware: (any HTTPRequestMiddleware)?
+  private let responseMiddleware: (any HTTPResponseMiddleware)?
+  private let errorMiddleware: (any HTTPErrorMiddleware)?
+
+  public init(_ middleware: any HTTPRequestMiddleware) {
+    self.requestMiddleware = middleware
+    self.responseMiddleware = nil
+    self.errorMiddleware = nil
+  }
+
+  public init(_ middleware: any HTTPResponseMiddleware) {
+    self.requestMiddleware = nil
+    self.responseMiddleware = middleware
+    self.errorMiddleware = nil
+  }
+
+  public init(_ middleware: any HTTPErrorMiddleware) {
+    self.requestMiddleware = nil
+    self.responseMiddleware = nil
+    self.errorMiddleware = middleware
+  }
+
+  public init<T: HTTPRequestMiddleware & HTTPResponseMiddleware>(_ middleware: T) {
+    self.requestMiddleware = middleware
+    self.responseMiddleware = middleware
+    self.errorMiddleware = nil
+  }
+
+  public init<T: HTTPRequestMiddleware & HTTPResponseMiddleware & HTTPErrorMiddleware>(
+    _ middleware: T
+  ) {
+    self.requestMiddleware = middleware
+    self.responseMiddleware = middleware
+    self.errorMiddleware = middleware
+  }
+
+  public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
+    if let requestMiddleware = requestMiddleware {
+      configuration.requestMiddlewares.append(requestMiddleware)
+    }
+    if let responseMiddleware = responseMiddleware {
+      configuration.responseMiddlewares.append(responseMiddleware)
+    }
+    if let errorMiddleware = errorMiddleware {
+      configuration.errorMiddlewares.append(errorMiddleware)
+    }
+  }
+}
+
 public struct EnableRetry: ConfigurationComponent {
   private let configuration: RetryMiddleware.Configuration
 
@@ -954,3 +1004,4 @@ public typealias BaseURL = ClientBaseURL
 public typealias BasicAuth = ClientBasicAuth
 public typealias BackoffStrategy = BackoffStrategyComponent
 public typealias RefreshStrategy = AuthRefreshStrategyComponent
+public typealias Middleware = AddMiddleware
