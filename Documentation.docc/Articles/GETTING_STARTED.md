@@ -446,6 +446,55 @@ func fetchAllUsers() async throws -> [User] {
 
 ### 4. File Upload
 
+First, let's define the multipart body components:
+
+```swift
+struct MultipartBody: RequestComponent {
+    let fields: [MultipartField]
+    
+    init(@MultipartBuilder content: () -> [MultipartField]) {
+        self.fields = content()
+    }
+    
+    func build(into request: inout HTTPRequest) throws {
+        // Implementation would generate multipart/form-data body
+        request.body = try generateMultipartData(fields: fields)
+        request.headers["Content-Type"] = "multipart/form-data; boundary=\(boundary)"
+    }
+}
+
+struct MultipartField {
+    let name: String
+    let data: Data?
+    let value: String?
+    let mimeType: String?
+    let filename: String?
+    
+    init(name: String, data: Data, mimeType: String? = nil, filename: String? = nil) {
+        self.name = name
+        self.data = data
+        self.value = nil
+        self.mimeType = mimeType
+        self.filename = filename
+    }
+    
+    init(name: String, value: String) {
+        self.name = name
+        self.data = nil
+        self.value = value
+        self.mimeType = nil
+        self.filename = nil
+    }
+}
+
+@resultBuilder
+struct MultipartBuilder {
+    static func buildBlock(_ components: MultipartField...) -> [MultipartField] {
+        Array(components)
+    }
+}
+```
+
 Upload files with progress tracking:
 
 ```swift

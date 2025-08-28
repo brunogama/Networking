@@ -90,7 +90,6 @@ private let UIDevice = DeviceInfo.self
 /// patterns using the RequestBuilder DSL. Each method demonstrates different aspects of
 /// advanced request building suitable for production applications.
 public struct AdvancedRequestBuilding {
-
   // MARK: - Public Interface
 
   /// Runs all advanced request building examples
@@ -322,7 +321,6 @@ public struct AdvancedRequestBuilding {
       print("      Method: \(validationRequest.method)")
       print("      Has Body: \(validationRequest.body != nil)")
       print("      Content-Type: \(validationRequest.headers["Content-Type"] ?? "none")")
-
     } catch {
       print("   ❌ Complex DSL Error: \(error)")
     }
@@ -562,7 +560,6 @@ public struct AdvancedRequestBuilding {
       print("   ✅ Authenticated Request with Token Management:")
       print("      Token Valid: \(!refreshedTokens.isExpired)")
       print("      Expires: \(refreshedTokens.expiresAt)")
-
     } catch {
       print("   ❌ Authentication Flow Error: \(error)")
     }
@@ -788,7 +785,6 @@ public struct AdvancedRequestBuilding {
       }
 
       print("   ✅ Performance Monitoring Middleware Configured")
-
     } catch {
       print("   ❌ Middleware Pattern Error: \(error)")
     }
@@ -1050,7 +1046,7 @@ public struct AdvancedRequestBuilding {
         }
 
         func deleteRequest(id: String) throws -> [any RequestComponent] {
-          return [
+          [
             DELETE("/\(apiVersion)/\(resourcePath)/\(id)"),
             RequestBaseURL(baseURL),
             AcceptHeader(.json),
@@ -1101,7 +1097,6 @@ public struct AdvancedRequestBuilding {
       print("      List Users: \(listUsersRequest.url?.absoluteString ?? "")")
       print("      Create User: \(createUserRequest.method) \(createUserRequest.url?.path ?? "")")
       print("      Has Auth: \(createUserRequest.headers["Authorization"] != nil)")
-
     } catch {
       print("   ❌ Request Template Error: \(error)")
     }
@@ -1148,7 +1143,7 @@ public struct AdvancedRequestBuilding {
       }
 
       func buildRequestFromConfiguration(_ config: RequestConfiguration) throws -> HTTPRequest {
-        return try RequestBuilder.build {
+        try RequestBuilder.build {
           // Dynamic method selection
           switch config.method.uppercased() {
           case "GET": GET(config.endpoint)
@@ -1179,14 +1174,17 @@ public struct AdvancedRequestBuilding {
               if let token = auth.token {
                 BearerAuth(token)
               }
+
             case "basic":
               if let username = auth.username, let password = auth.password {
                 RequestBasicAuth(username: username, password: password)
               }
+
             case "apikey":
               if let header = auth.keyHeader, let value = auth.keyValue {
                 APIKey(key: value, headerName: header)
               }
+
             default:
               EmptyComponent()
             }
@@ -1199,13 +1197,16 @@ public struct AdvancedRequestBuilding {
               ContentType(.json)
               let jsonData = try JSONSerialization.data(withJSONObject: bodyConfig.data)
               DataBody(jsonData)
+
             case "form":
               ContentType(.formURLEncoded)
               FormBody(bodyConfig.data)
+
             case "raw":
               if let rawData = bodyConfig.data["content"]?.data(using: .utf8) {
                 DataBody(rawData)
               }
+
             default:
               EmptyComponent()
             }
@@ -1432,7 +1433,6 @@ public struct AdvancedRequestBuilding {
       print("      Headers: \(templateBasedRequest.headers.count)")
       print("      Admin Role: \(templateBasedRequest.headers["X-Admin-Role"] ?? "none")")
       print("      User Context: \(templateBasedRequest.headers["X-User-Context"] ?? "none")")
-
     } catch {
       print("   ❌ Dynamic Request Generation Error: \(error)")
     }
@@ -1504,7 +1504,7 @@ public struct AdvancedRequestBuilding {
         profile: UserRegistration.UserProfile(
           firstName: "John",
           lastName: "Doe",
-          dateOfBirth: Date().addingTimeInterval(-86400 * 365 * 25),  // 25 years ago
+          dateOfBirth: Date().addingTimeInterval(-86_400 * 365 * 25),  // 25 years ago
           phoneNumber: "+1234567890",
           address: UserRegistration.UserProfile.Address(
             street: "123 Main St",
@@ -1683,7 +1683,7 @@ public struct AdvancedRequestBuilding {
 
         static func createChecksum(_ data: Data) -> String {
           // Simulate checksum calculation
-          return data.sha256Hash.prefix(16).description
+          data.sha256Hash.prefix(16).description
         }
       }
 
@@ -1752,7 +1752,7 @@ public struct AdvancedRequestBuilding {
         }
       }
 
-      let streamingBody = StreamingBody(chunkSize: 8192, totalSize: 65536)  // 64KB in 8KB chunks
+      let streamingBody = StreamingBody(chunkSize: 8192, totalSize: 65_536)  // 64KB in 8KB chunks
 
       // For demonstration, we'll collect the streaming data
       var streamedData = Data()
@@ -1780,7 +1780,6 @@ public struct AdvancedRequestBuilding {
       print("      Chunk Size: \(streamingBody.chunkSize) bytes")
       print("      Chunks: \(streamingBody.totalSize / streamingBody.chunkSize)")
       print("      Streamed Data: \(streamedData.count) bytes")
-
     } catch {
       print("   ❌ Advanced Body Handling Error: \(error)")
     }
@@ -1810,7 +1809,7 @@ public struct AdvancedRequestBuilding {
         let enableCaching: Bool
         let enableCompression: Bool
 
-        static let development = FeatureFlags(
+        static let development = Self(
           enableAnalytics: true,
           enablePushNotifications: true,
           enableBetaFeatures: true,
@@ -1820,7 +1819,7 @@ public struct AdvancedRequestBuilding {
           enableCompression: false
         )
 
-        static let production = FeatureFlags(
+        static let production = Self(
           enableAnalytics: true,
           enablePushNotifications: true,
           enableBetaFeatures: false,
@@ -1937,6 +1936,7 @@ public struct AdvancedRequestBuilding {
               Header("X-Performance-Monitor", "enabled"),
               Header("X-Error-Detail", "verbose"),
             ]
+
           case .testing:
             return [
               Header("X-Environment", "testing"),
@@ -1944,12 +1944,14 @@ public struct AdvancedRequestBuilding {
               Header("X-Mock-Data", "enabled"),
               Header("X-Test-Runner", "automated"),
             ]
+
           case .staging:
             return [
               Header("X-Environment", "staging"),
               Header("X-Staging-Mode", "true"),
               Header("X-Production-Mirror", "true"),
             ]
+
           case .production:
             return [
               Header("X-Environment", "production"),
@@ -1968,6 +1970,7 @@ public struct AdvancedRequestBuilding {
               Header("X-XSS-Protection", "1; mode=block"),
               Header("Referrer-Policy", "strict-origin-when-cross-origin"),
             ]
+
           default:
             return [
               Header("X-Security-Level", "development"),
@@ -1984,11 +1987,13 @@ public struct AdvancedRequestBuilding {
               Header("Accept-Encoding", "gzip, br"),
               Header("Cache-Control", "max-age=3600"),
             ]
+
           case .staging:
             return [
               Header("X-Performance-Test", "true"),
               Header("X-Load-Test", "enabled"),
             ]
+
           default:
             return [
               Header("X-Performance-Debug", "true")
@@ -2130,7 +2135,6 @@ public struct AdvancedRequestBuilding {
       print("      Network: \(context.networkType) (Slow: \(context.isSlowNetwork))")
       print("      Battery: \(context.batteryLevel ?? 1.0) (Low: \(context.isLowBattery))")
       print("      Total Headers: \(contextAwareRequest.headers.count)")
-
     } catch {
       print("   ❌ Conditional/Composite Component Error: \(error)")
     }
@@ -2367,12 +2371,16 @@ public struct AdvancedRequestBuilding {
             switch self {
             case .missingRequiredHeader(let header):
               return "Missing required header: \(header)"
+
             case .invalidURL(let url):
               return "Invalid URL: \(url)"
+
             case .bodyTooLarge(let size, let max):
               return "Body too large: \(size) bytes (max: \(max))"
+
             case .unsupportedMethod(let method):
               return "Unsupported HTTP method: \(method)"
+
             case .missingAuthentication:
               return "Authentication required but not provided"
             }
@@ -2491,7 +2499,6 @@ public struct AdvancedRequestBuilding {
       print(
         "      Body Size Valid: \(validatedRequest.body?.count ?? 0) <= \(validationRules.maxBodySize)"
       )
-
     } catch {
       print("   ❌ Production Pattern Error: \(error)")
       if let validationError = error as? ValidatedRequestBuilder.ValidationError {

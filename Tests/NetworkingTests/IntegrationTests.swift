@@ -48,8 +48,7 @@ struct IntegrationTests {
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
       let args = json["args"] as? [String: String],
-      let headers = json["headers"] as? [String: String]
-    {
+      let headers = json["headers"] as? [String: String] {
       #expect(args["param1"] == "value1")
       #expect(args["param2"] == "value2")
       #expect(headers["X-Custom-Header"] == "custom-value")
@@ -81,8 +80,7 @@ struct IntegrationTests {
     // Verify the request body was sent correctly
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let jsonData = json["json"] as? [String: Any]
-    {
+      let jsonData = json["json"] as? [String: Any] {
       #expect(jsonData["id"] as? String == "123")
       #expect(jsonData["name"] as? String == "John Doe")
       #expect(jsonData["email"] as? String == "john@example.com")
@@ -111,8 +109,7 @@ struct IntegrationTests {
     // Verify the update was processed
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let jsonData = json["json"] as? [String: Any]
-    {
+      let jsonData = json["json"] as? [String: Any] {
       #expect(jsonData["name"] as? String == "Jane Doe Updated")
       #expect(jsonData["email"] as? String == "jane.updated@example.com")
     }
@@ -134,8 +131,7 @@ struct IntegrationTests {
     // Verify authorization header was included
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let headers = json["headers"] as? [String: String]
-    {
+      let headers = json["headers"] as? [String: String] {
       #expect(headers["Authorization"] == "Bearer test-token")
     }
   }
@@ -160,8 +156,7 @@ struct IntegrationTests {
     // Verify partial update was processed
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let jsonData = json["json"] as? [String: Any]
-    {
+      let jsonData = json["json"] as? [String: Any] {
       #expect(jsonData["name"] as? String == "Partially Updated Name")
     }
   }
@@ -422,15 +417,15 @@ struct IntegrationTests {
       let token: String
 
       func getCurrentToken() async throws -> String? {
-        return token
+        token
       }
 
       func refreshToken() async throws -> String {
-        return token
+        token
       }
 
       func shouldRefreshToken(for error: HTTPError) async -> Bool {
-        return false
+        false
       }
     }
 
@@ -459,8 +454,7 @@ struct IntegrationTests {
     // Verify the authentication header was added
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let headers = json["headers"] as? [String: String]
-    {
+      let headers = json["headers"] as? [String: String] {
       #expect(headers["Authorization"] == "Bearer test-token-123")
     }
   }
@@ -529,8 +523,7 @@ struct IntegrationTests {
     // Verify default headers were applied
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let headers = json["headers"] as? [String: String]
-    {
+      let headers = json["headers"] as? [String: String] {
       #expect(headers["User-Agent"] == "Networking-Builder-Test/1.0")
       #expect(headers["Accept"] == "application/json")
     }
@@ -561,8 +554,7 @@ struct IntegrationTests {
 
     // Verify all components were applied correctly
     if let responseData = response.body,
-      let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any]
-    {
+      let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] {
       // Check query parameters
       if let args = json["args"] as? [String: String] {
         #expect(args["version"] == "2.0")

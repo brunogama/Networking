@@ -93,6 +93,26 @@ let user = try await userAPI.getUser(id: "123")
 ### Middleware System
 
 - <doc:MiddlewareOverview>
+- <doc:MIDDLEWARE_DOCUMENTATION>
+
+### Advanced Features
+
+- <doc:ADVANCED_USAGE>
+- <doc:SWIFT_6_FEATURES>
+
+### Testing
+
+- <doc:TESTING_GUIDE>
+
+### Architecture & Migration
+
+- <doc:ARCHITECTURE_GUIDE>
+- <doc:MIGRATION_GUIDE>
+
+### API Reference
+
+- <doc:API_REFERENCE>
+- <doc:FLUENT_DSL_DOCUMENTATION>
 
 ## Framework Architecture
 

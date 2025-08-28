@@ -1,5 +1,10 @@
 # Networking Advanced Usage Guide
 
+```swift
+import Foundation
+import CryptoKit
+```
+
 ## Table of Contents
 
 1. [Advanced Request Patterns](#advanced-request-patterns)
@@ -197,14 +202,20 @@ struct BatchRequestProcessor {
         return try await withThrowingTaskGroup(of: (Int, BatchResult<T>).self) { group in
             var results: [BatchResult<T>] = Array(repeating: .failure(BatchError.notExecuted), count: requests.count)
             
-            // Process requests with limited concurrency
-            let semaphore = AsyncSemaphore(value: maxConcurrency)
+            // Process requests with limited concurrency using TaskGroup
+            var activeTaskCount = 0
             
             for (index, request) in requests.enumerated() {
+                // Wait if we've reached the concurrency limit
+                while activeTaskCount >= maxConcurrency {
+                    if let (completedIndex, result) = try await group.next() {
+                        results[completedIndex] = result
+                        activeTaskCount -= 1
+                    }
+                }
+                
+                activeTaskCount += 1
                 group.addTask {
-                    await semaphore.wait()
-                    defer { semaphore.signal() }
-                    
                     do {
                         let response = try await self.client.execute {
                             RequestBuilder.buildFromComponents(request.components)
@@ -217,8 +228,12 @@ struct BatchRequestProcessor {
                 }
             }
             
-            for try await (index, result) in group {
-                results[index] = result
+            // Collect remaining results
+            while activeTaskCount > 0 {
+                if let (completedIndex, result) = try await group.next() {
+                    results[completedIndex] = result
+                    activeTaskCount -= 1
+                }
             }
             
             return results
@@ -327,7 +342,8 @@ struct DataDecompressionTransformation: ResponseTransformation {
             return response
         }
         
-        let decompressedData = try body.gunzipped()
+        // Note: This example requires a custom Data extension or third-party library for gzip decompression
+        let decompressedData = try decompressGzipData(body)
         
         var newHeaders = response.headers
         newHeaders.removeValue(forKey: "Content-Encoding")
@@ -339,6 +355,20 @@ struct DataDecompressionTransformation: ResponseTransformation {
             headers: newHeaders,
             body: decompressedData
         )
+    }
+    
+    // Helper function for gzip decompression (requires custom implementation)
+    private func decompressGzipData(_ data: Data) throws -> Data {
+        // In a real implementation, you would use:
+        // - A third-party library like SwiftNIO's NIOGzip
+        // - Apple's Compression framework
+        // - Or a custom implementation using zlib
+        
+        // Example using Apple's Compression framework:
+        // return try data.decompressed(using: .zlib)
+        
+        // For this documentation example, return the data as-is
+        return data
     }
 }
 
@@ -370,6 +400,17 @@ struct ResponseEnrichmentTransformation: ResponseTransformation {
 ```
 
 ### 3. Advanced Error Handling Middleware
+
+First, let's define the error handling middleware protocol:
+
+```swift
+protocol HTTPErrorMiddleware: Sendable {
+    func handleError(
+        _ error: HTTPError,
+        for request: HTTPRequest
+    ) async throws -> HTTPResponse
+}
+```
 
 Sophisticated error handling with recovery strategies:
 
@@ -1481,22 +1522,33 @@ struct RequestSigningMiddleware: HTTPRequestMiddleware {
     private func generateSignature(for string: String) throws -> String {
         switch algorithm {
         case .hmacSHA256:
-            return try generateHMACSignature(for: string, algorithm: .sha256)
+            return try generateHMACSignature(for: string, algorithm: .hmacSHA256)
         case .hmacSHA512:
-            return try generateHMACSignature(for: string, algorithm: .sha512)
+            return try generateHMACSignature(for: string, algorithm: .hmacSHA512)
         case .rsa:
             return try generateRSASignature(for: string)
         }
     }
     
-    private func generateHMACSignature(for string: String, algorithm: CryptoKit.HashFunction.Type) throws -> String {
+    private func generateHMACSignature(for string: String, algorithm: SigningAlgorithm) throws -> String {
         guard let data = string.data(using: .utf8),
               let keyData = signingKey.data(using: .utf8) else {
             throw SigningError.invalidInput
         }
         
-        let signature = HMAC<SHA256>.authenticationCode(for: data, using: SymmetricKey(data: keyData))
-        return Data(signature).base64EncodedString()
+        let key = SymmetricKey(data: keyData)
+        let signature: Data
+        
+        switch algorithm {
+        case .hmacSHA256:
+            signature = Data(HMAC<SHA256>.authenticationCode(for: data, using: key))
+        case .hmacSHA512:
+            signature = Data(HMAC<SHA512>.authenticationCode(for: data, using: key))
+        case .rsa:
+            throw SigningError.unsupportedAlgorithm
+        }
+        
+        return signature.base64EncodedString()
     }
     
     private func generateRSASignature(for string: String) throws -> String {
