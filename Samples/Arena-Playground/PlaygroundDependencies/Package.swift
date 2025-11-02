@@ -16,13 +16,16 @@ let package = Package(
     )
   ],
   dependencies: [
-    .package(name: "Networking", path: "../../../")
+    .package(
+        url: "https://github.com/vadymmarkov/Fakery.git",
+        exact: "5.1.0"
+    )
   ],
   targets: [
     .target(
       name: "PlaygroundDependencies",
       dependencies: [
-        .product(name: "Networking", package: "Networking")
+        .product(name: "Fakery", package: "Fakery")
       ]
     ),
     .testTarget(
@@ -31,3 +34,23 @@ let package = Package(
     ),
   ]
 )
+
+for target in package.targets where target.type != .system && target.type != .test {
+    target.swiftSettings = target.swiftSettings ?? []
+    target.swiftSettings?.append(contentsOf: [
+        .unsafeFlags(
+            [
+                "-enable-testing",
+                "-warnings-as-errors",
+            ],
+            .when(configuration: .debug)
+        ),
+        .unsafeFlags(
+            [
+                "-enable-testing",
+                "-warnings-as-errors",
+            ],
+            .when(configuration: .release)
+        ),
+    ])
+}
