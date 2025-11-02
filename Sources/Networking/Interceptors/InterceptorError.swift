@@ -48,6 +48,17 @@ public enum InterceptorError: Error, Sendable {
   ///
   /// - Parameter reason: A human-readable explanation of why the result was invalid
   case invalidResult(reason: String)
+
+  /// Rate limit exceeded for the endpoint.
+  ///
+  /// This error occurs when the rate limiter rejects a request because
+  /// too many requests have been made within the configured time window.
+  ///
+  /// - Parameters:
+  ///   - path: The endpoint path that exceeded the limit
+  ///   - limit: The maximum number of requests allowed per window
+  ///   - window: The time window duration in seconds
+  case rateLimitExceeded(path: String, limit: Int, window: TimeInterval)
 }
 
 // MARK: - LocalizedError Conformance
@@ -72,6 +83,12 @@ extension InterceptorError: LocalizedError {
         Invalid interceptor result: \(reason). \
         The interceptor returned an unexpected or malformed result.
         """
+
+    case .rateLimitExceeded(let path, let limit, let window):
+      return """
+        Rate limit exceeded for endpoint '\(path)'. \
+        Maximum of \(limit) requests allowed per \(window) seconds.
+        """
     }
   }
 
@@ -85,6 +102,9 @@ extension InterceptorError: LocalizedError {
 
     case .invalidResult:
       return "An interceptor returned an invalid result"
+
+    case .rateLimitExceeded:
+      return "Rate limit exceeded for the endpoint"
     }
   }
 
@@ -106,6 +126,12 @@ extension InterceptorError: LocalizedError {
       return """
         Review the interceptor's logic to ensure it returns valid InterceptorResult values. \
         Ensure .shortCircuit results include a valid HTTPResponse.
+        """
+
+    case .rateLimitExceeded:
+      return """
+        Wait before retrying the request, or implement exponential backoff. \
+        Consider increasing the rate limit if your use case requires more requests.
         """
     }
   }
