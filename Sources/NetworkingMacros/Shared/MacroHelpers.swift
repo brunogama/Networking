@@ -280,11 +280,8 @@ internal struct SimpleDiagnosticMessage: DiagnosticMessage {
 
 // MARK: - MacroExpansionError Extension
 
-/// Import error type from public API.
-///
-/// Note: This is a placeholder. The actual MacroExpansionError is defined
-/// in Sources/Networking/Macros/MacroError.swift and will be imported.
-enum MacroExpansionError: Error {
+/// Errors that can occur during macro expansion.
+public enum MacroExpansionError: Error, CustomStringConvertible {
   case parameterMismatch(path: String, declared: [String], required: [String])
   case invalidPathTemplate(String, suggestion: String?)
   case bodyParameterNotFound(String, available: [String])
@@ -294,4 +291,51 @@ enum MacroExpansionError: Error {
   case missingThrowsKeyword(String)
   case nonDecodableReturnType(String)
   case nonEncodableBodyType(String)
+
+  public var description: String {
+    switch self {
+    case .parameterMismatch(let path, let declared, let required):
+      return """
+        Path parameter mismatch in '\(path)': \
+        function has parameters [\(declared.joined(separator: ", "))], \
+        but path requires [\(required.joined(separator: ", "))]
+        """
+
+    case .invalidPathTemplate(let template, let suggestion):
+      if let suggestion = suggestion {
+        return "Invalid path template '\(template)': \(suggestion)"
+      }
+      return "Invalid path template '\(template)'"
+
+    case .bodyParameterNotFound(let param, let available):
+      return """
+        Body parameter '\(param)' not found in function signature. \
+        Available: [\(available.joined(separator: ", "))]
+        """
+
+    case .queryParameterNotFound(let param, let available):
+      return """
+        Query parameter '\(param)' not found in function signature. \
+        Available: [\(available.joined(separator: ", "))]
+        """
+
+    case .multipleHTTPMethods(let function, let found):
+      return """
+        Function '\(function)' has multiple HTTP method macros: \
+        [\(found.joined(separator: ", "))]. Only one is allowed.
+        """
+
+    case .missingAsyncKeyword(let function):
+      return "Function '\(function)' must be marked 'async'"
+
+    case .missingThrowsKeyword(let function):
+      return "Function '\(function)' must be marked 'throws'"
+
+    case .nonDecodableReturnType(let type):
+      return "Return type '\(type)' must conform to Decodable"
+
+    case .nonEncodableBodyType(let type):
+      return "Body parameter type '\(type)' must conform to Encodable"
+    }
+  }
 }
