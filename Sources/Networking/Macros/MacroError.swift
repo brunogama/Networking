@@ -162,7 +162,7 @@ public enum APIClientError: Error, Sendable, LocalizedError, CustomStringConvert
 
   public var description: String {
     switch self {
-    case .httpError(let statusCode, let response):
+    case .httpError(let statusCode, _):
       return
         "HTTP error \(statusCode): \(HTTPURLResponse.localizedString(forStatusCode: statusCode))"
 
