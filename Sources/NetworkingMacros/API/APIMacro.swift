@@ -56,25 +56,69 @@ public struct APIMacro: MemberMacro {
     // Get protocol name
     let protocolName = protocolDecl.name.text
 
-    // For now, just generate the basic struct declaration
-    // Method implementations will be added in subsequent tasks
-    let members: [DeclSyntax] = [
-      // NetworkClient property
+    // Extract default headers from @DefaultHeaders attribute
+    let defaultHeaders = DefaultHeadersMacro.extractDefaultHeaders(from: protocolDecl)
+
+    // Extract default timeout from @Timeout attribute
+    let defaultTimeout = TimeoutMacro.extractDefaultTimeout(from: protocolDecl)
+
+    // Build member declarations for the implementation struct
+    var members: [DeclSyntax] = []
+
+    // NetworkClient property
+    members.append(
       DeclSyntax(
         """
         private let client: NetworkClient
         """
-      ),
+      )
+    )
 
-      // Initializer
+    // Base URL property
+    members.append(
+      DeclSyntax(
+        """
+        private let baseURL: String = "\(raw: baseURL)"
+        """
+      )
+    )
+
+    // Default headers property (if any)
+    if !defaultHeaders.isEmpty {
+      let headersDict = defaultHeaders.map { key, value in
+        "\"\(key)\": \"\(value)\""
+      }.joined(separator: ", ")
+
+      members.append(
+        DeclSyntax(
+          """
+          private let defaultHeaders: [String: String] = [\(raw: headersDict)]
+          """
+        )
+      )
+    }
+
+    // Default timeout property (if any)
+    if let timeout = defaultTimeout {
+      members.append(
+        DeclSyntax(
+          """
+          private let defaultTimeout: Double = \(raw: String(timeout))
+          """
+        )
+      )
+    }
+
+    // Initializer
+    members.append(
       DeclSyntax(
         """
         public init(client: NetworkClient = .shared) {
           self.client = client
         }
         """
-      ),
-    ]
+      )
+    )
 
     // Create the implementation struct
     let structDecl = StructDeclSyntax(

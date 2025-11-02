@@ -13,7 +13,9 @@ struct NetworkingPlugin: CompilerPlugin {
     POSTMacro.self,
     PUTMacro.self,
     PATCHMacro.self,
-    // DELETEMacro will be added in later tasks
+    DELETEMacro.self,
+    DefaultHeadersMacro.self,
+    TimeoutMacro.self,
   ]
 }
 

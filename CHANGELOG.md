@@ -17,10 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - =� Circuit breaker pattern for system resilience and fault tolerance
 - <� Macro-based code generation for automatic API client creation
 
-#### Swift Macros - API Client Generation (Phase 3 Complete - POST/PUT/PATCH with Bodies)
+#### Swift Macros - API Client Generation (Phase 4 Complete - Configuration & DELETE Support)
 - ✨ @API macro for declarative protocol-based API client generation with automatic implementation struct creation
 - 🔧 HTTP method macros (@GET, @POST, @PUT, @PATCH, @DELETE) declarations with comprehensive DocC documentation
-- 🏗️ APIMacro implementation conforming to SwiftSyntax MemberMacro protocol
+- ⚙️ Configuration macros (@DefaultHeaders, @Timeout) for protocol-level settings
+- 🏗️ APIMacro implementation conforming to SwiftSyntax MemberMacro protocol with configuration extraction
+  - Extracts @DefaultHeaders and @Timeout from protocol attributes
+  - Generates implementation struct properties: baseURL, defaultHeaders, defaultTimeout
 - 🚀 GETMacro implementation with full code generation for GET endpoints
   - Path parameter substitution with compile-time validation
   - Query parameter handling and validation
@@ -34,17 +37,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mixed path parameters, query parameters, and request bodies
   - Custom header support for all HTTP methods
   - Compile-time validation of body parameter existence
+- 🗑️ DELETEMacro implementation for resource deletion operations
+  - Supports both Void and typed return values
+  - Full path parameter and query parameter support
+  - Optional response decoding for DELETE operations that return data
+- 🎛️ DefaultHeadersMacro for protocol-level default headers applied to all endpoints
+  - Validates dictionary syntax at compile-time
+  - Provides extraction helper for APIMacro integration
+- ⏱️ TimeoutMacro for protocol-level timeout configuration
+  - Validates positive numeric values (Int or Double)
+  - Provides extraction helper for APIMacro integration
 - 📋 MacroHelpers utilities for validation, parameter extraction, and diagnostic reporting
 - 🛠️ PathTemplateParser for REST path template parsing (e.g., "/users/{id}")
 - ⚙️ SyntaxFactory utilities for SwiftSyntax code generation
 - 🔒 Swift 6 strict concurrency compliance with Sendable conformance
 - ✅ Centralized error handling with descriptive diagnostics (MacroExpansionError)
-- 🧪 Comprehensive unit test suite (50 tests) covering success and error cases
+- 🧪 Comprehensive unit test suite (81 tests total) covering success and error cases
   - APIMacroTests: Protocol validation, base URL handling, error scenarios
   - GETMacroTests: Path params, query params, async/throws validation, diagnostics
   - POSTMacroTests: Body params, path/query params, headers, error cases (12 tests)
   - PUTMacroTests: Full update operations with body encoding (10 tests)
   - PATCHMacroTests: Partial updates, all features combined (12 tests)
+  - DELETEMacroTests: DELETE operations, return types, query params (9 tests)
+  - ConfigurationMacroTests: @DefaultHeaders and @Timeout validation (15 tests)
+  - MacroIntegrationTests: End-to-end macro workflows with configuration (7 tests)
 
 #### Security Implementation (OWASP Top 10 Compliance)
 - = Header injection prevention with CRLF detection and sanitization
