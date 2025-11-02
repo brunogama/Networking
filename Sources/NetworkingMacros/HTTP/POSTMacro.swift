@@ -251,16 +251,45 @@ public struct POSTMacro: PeerMacro {
     // Generate header code
     let headerCode = generateHeaderCode(headers)
 
-    return """
-      func \(functionName)(\(paramList)) async throws -> \(returnType) {
-        let path = \(pathCode)
-        var request = HTTPRequest(method: .POST, path: path, baseURL: baseURL)
+    // Generate body encoding code
+    let bodyCode = """
+
         request.setBody(try JSONEncoder().encode(\(bodyParameter)))
-        request.addHeader(name: "Content-Type", value: "application/json")\(headerCode)\(queryParamCode)
-        let response = try await client.execute(request)
-        return try JSONDecoder().decode(\(returnType).self, from: response.data)
-      }
+        request.addHeader(name: "Content-Type", value: "application/json")
       """
+
+    // Combine additional request code (body + headers + query params)
+    let additionalRequestCode = bodyCode + headerCode + queryParamCode
+
+    // Check if parent protocol has @Interceptors
+    let hasInterceptors =
+      findParentProtocol(function)
+      .map { InterceptorsMacro.hasInterceptors(from: $0) } ?? false
+
+    // Generate implementation using InterceptorCodeGenerator
+    return InterceptorCodeGenerator.generateMethodImplementation(
+      functionName: functionName,
+      parameters: paramList,
+      returnType: returnType,
+      pathCode: pathCode,
+      method: "POST",
+      additionalRequestCode: additionalRequestCode,
+      hasInterceptors: hasInterceptors
+    )
+  }
+
+  /// Finds the parent protocol declaration of a function.
+  private static func findParentProtocol(_ function: FunctionDeclSyntax) -> ProtocolDeclSyntax? {
+    var currentNode: Syntax? = Syntax(function)
+
+    while let node = currentNode {
+      if let protocolDecl = node.as(ProtocolDeclSyntax.self) {
+        return protocolDecl
+      }
+      currentNode = node.parent
+    }
+
+    return nil
   }
 
   /// Generates code for adding query parameters.

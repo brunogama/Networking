@@ -8,6 +8,7 @@
 /// ### Protocol Configuration
 /// - ``DefaultHeaders(_:)``
 /// - ``Timeout(_:)``
+/// - ``Interceptors(_:)``
 
 /// Applies default headers to all endpoints in an API protocol.
 ///
@@ -80,3 +81,80 @@ public macro DefaultHeaders(_ headers: [String: String]) =
 @attached(member)
 public macro Timeout(_ seconds: Double) =
   #externalMacro(module: "NetworkingMacros", type: "TimeoutMacro")
+
+/// Configures request/response interceptors for all endpoints in an API protocol.
+///
+/// Interceptors execute before/after HTTP requests to handle cross-cutting concerns
+/// like authentication, logging, retry logic, and caching. They are executed in the
+/// order specified in the array.
+///
+/// Example:
+/// ```swift
+/// @API(baseURL: "https://api.example.com")
+/// @Interceptors([
+///   AuthenticationInterceptor(tokenProvider: .shared),
+///   LoggingInterceptor(),
+///   RetryInterceptor(maxAttempts: 3)
+/// ])
+/// protocol UserAPI {
+///   @GET("/users/{id}")
+///   func getUser(id: String) async throws -> User
+/// }
+/// ```
+///
+/// The generated implementation will initialize an interceptor chain and execute
+/// interceptors for every request:
+/// ```swift
+/// struct UserAPIImplementation: UserAPI {
+///   private let interceptors: InterceptorChain
+///
+///   init(client: NetworkClient) {
+///     self.client = client
+///     self.interceptors = InterceptorChain(
+///       requestInterceptors: [
+///         AuthenticationInterceptor(tokenProvider: .shared),
+///         LoggingInterceptor()
+///       ],
+///       responseInterceptors: [
+///         LoggingInterceptor(),
+///         RetryInterceptor(maxAttempts: 3)
+///       ]
+///     )
+///   }
+///
+///   func getUser(id: String) async throws -> User {
+///     var request = HTTPRequest(method: .GET, path: "/users/\(id)")
+///     let context = InterceptorContext(path: "/users/\(id)", method: .GET, attemptCount: 0)
+///
+///     // Execute request interceptors
+///     let requestResult = try await interceptors.executeRequestInterceptors(request: &request, context: context)
+///     if case .shortCircuit(let response) = requestResult {
+///       return try JSONDecoder().decode(User.self, from: response.body ?? Data())
+///     }
+///
+///     // Execute network request
+///     let response = try await client.execute(request)
+///
+///     // Execute response interceptors
+///     let responseResult = try await interceptors.executeResponseInterceptors(response: response, context: context)
+///     if case .retry = responseResult {
+///       // Handle retry logic
+///     }
+///
+///     return try JSONDecoder().decode(User.self, from: response.body ?? Data())
+///   }
+/// }
+/// ```
+///
+/// - Parameter interceptors: Array of interceptor instances to apply to all requests.
+///   Interceptors must conform to either `RequestInterceptor`, `ResponseInterceptor`,
+///   or both protocols.
+///
+/// - Note: Interceptors are executed sequentially in the order they appear in the array.
+///   Request interceptors execute before the network call, and response interceptors
+///   execute after the network call.
+///
+/// - Note: All interceptors must be `Sendable` to comply with Swift 6 strict concurrency.
+@attached(member)
+public macro Interceptors(_ interceptors: [Any]) =
+  #externalMacro(module: "NetworkingMacros", type: "InterceptorsMacro")

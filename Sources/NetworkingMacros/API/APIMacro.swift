@@ -62,6 +62,10 @@ public struct APIMacro: MemberMacro {
     // Extract default timeout from @Timeout attribute
     let defaultTimeout = TimeoutMacro.extractDefaultTimeout(from: protocolDecl)
 
+    // Extract interceptors from @Interceptors attribute
+    let interceptorExprs = InterceptorsMacro.extractInterceptorExpressions(from: protocolDecl)
+    let hasInterceptors = !interceptorExprs.isEmpty
+
     // Build member declarations for the implementation struct
     var members: [DeclSyntax] = []
 
@@ -109,16 +113,48 @@ public struct APIMacro: MemberMacro {
       )
     }
 
-    // Initializer
-    members.append(
-      DeclSyntax(
-        """
-        public init(client: NetworkClient = .shared) {
-          self.client = client
-        }
-        """
+    // Interceptor chain property (if any)
+    if hasInterceptors {
+      members.append(
+        DeclSyntax(
+          """
+          private let interceptors: InterceptorChain
+          """
+        )
       )
-    )
+    }
+
+    // Initializer
+    if hasInterceptors {
+      // Generate interceptor chain initialization
+      let requestInterceptorsList = interceptorExprs.map { "\($0)" }.joined(separator: ", ")
+      let responseInterceptorsList = interceptorExprs.map { "\($0)" }.joined(separator: ", ")
+
+      members.append(
+        DeclSyntax(
+          """
+          public init(client: NetworkClient = .shared) {
+            self.client = client
+            self.interceptors = InterceptorChain(
+              requestInterceptors: [\(raw: requestInterceptorsList)],
+              responseInterceptors: [\(raw: responseInterceptorsList)]
+            )
+          }
+          """
+        )
+      )
+    } else {
+      // No interceptors - keep original simple initializer
+      members.append(
+        DeclSyntax(
+          """
+          public init(client: NetworkClient = .shared) {
+            self.client = client
+          }
+          """
+        )
+      )
+    }
 
     // Create the implementation struct
     let structDecl = StructDeclSyntax(

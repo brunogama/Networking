@@ -216,14 +216,38 @@ public struct GETMacro: PeerMacro {
     // Generate header code
     let headerCode = generateHeaderCode(headers)
 
-    return """
-      func \(functionName)(\(paramList)) async throws -> \(returnType) {
-        let path = \(pathCode)
-        var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)\(headerCode)\(queryParamCode)
-        let response = try await client.execute(request)
-        return try JSONDecoder().decode(\(returnType).self, from: response.data)
+    // Combine additional request code (headers + query params)
+    let additionalRequestCode = headerCode + queryParamCode
+
+    // Check if parent protocol has @Interceptors
+    let hasInterceptors =
+      findParentProtocol(function)
+      .map { InterceptorsMacro.hasInterceptors(from: $0) } ?? false
+
+    // Generate implementation using InterceptorCodeGenerator
+    return InterceptorCodeGenerator.generateMethodImplementation(
+      functionName: functionName,
+      parameters: paramList,
+      returnType: returnType,
+      pathCode: pathCode,
+      method: "GET",
+      additionalRequestCode: additionalRequestCode,
+      hasInterceptors: hasInterceptors
+    )
+  }
+
+  /// Finds the parent protocol declaration of a function.
+  private static func findParentProtocol(_ function: FunctionDeclSyntax) -> ProtocolDeclSyntax? {
+    var currentNode: Syntax? = Syntax(function)
+
+    while let node = currentNode {
+      if let protocolDecl = node.as(ProtocolDeclSyntax.self) {
+        return protocolDecl
       }
-      """
+      currentNode = node.parent
+    }
+
+    return nil
   }
 
   /// Generates code for adding custom headers to request.
