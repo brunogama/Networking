@@ -20,7 +20,7 @@ final class PATCHMacroTests: XCTestCase {
 
         func patchUser(id: String, updates: UserUpdate) async throws -> User {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .PATCH, path: path)
+          var request = HTTPRequest(method: .PATCH, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(updates))
           request.addHeader(name: "Content-Type", value: "application/json")
           let response = try await client.execute(request)
@@ -42,7 +42,7 @@ final class PATCHMacroTests: XCTestCase {
 
         func updateTask(projectId: String, taskId: String, updates: TaskUpdate) async throws -> Task {
           let path = "/projects/\\(projectId)/tasks/\\(taskId)"
-          var request = HTTPRequest(method: .PATCH, path: path)
+          var request = HTTPRequest(method: .PATCH, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(updates))
           request.addHeader(name: "Content-Type", value: "application/json")
           let response = try await client.execute(request)
@@ -64,7 +64,7 @@ final class PATCHMacroTests: XCTestCase {
 
         func patchUser(id: String, updates: UserUpdate, partial: Bool) async throws -> User {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .PATCH, path: path)
+          var request = HTTPRequest(method: .PATCH, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(updates))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addQueryParameter(name: "partial", value: \\(partial))
@@ -87,7 +87,7 @@ final class PATCHMacroTests: XCTestCase {
 
         func patchUser(id: String, updates: UserUpdate) async throws -> User {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .PATCH, path: path)
+          var request = HTTPRequest(method: .PATCH, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(updates))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addHeader(name: "If-Match", value: "etag456")
@@ -110,7 +110,7 @@ final class PATCHMacroTests: XCTestCase {
 
         func updateMember(teamId: String, memberId: String, updates: MemberUpdate, merge: Bool) async throws -> Member {
           let path = "/teams/\\(teamId)/members/\\(memberId)"
-          var request = HTTPRequest(method: .PATCH, path: path)
+          var request = HTTPRequest(method: .PATCH, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(updates))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addHeader(name: "X-Audit-User", value: "admin")

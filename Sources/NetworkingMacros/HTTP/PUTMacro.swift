@@ -254,7 +254,7 @@ public struct PUTMacro: PeerMacro {
     return """
       func \(functionName)(\(paramList)) async throws -> \(returnType) {
         let path = \(pathCode)
-        var request = HTTPRequest(method: .PUT, path: path)
+        var request = HTTPRequest(method: .PUT, path: path, baseURL: baseURL)
         request.setBody(try JSONEncoder().encode(\(bodyParameter)))
         request.addHeader(name: "Content-Type", value: "application/json")\(headerCode)\(queryParamCode)
         let response = try await client.execute(request)

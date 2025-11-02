@@ -20,7 +20,7 @@ final class GETMacroTests: XCTestCase {
 
         func getUsers() async throws -> [User] {
           let path = "/users"
-          var request = HTTPRequest(method: .GET, path: path)
+          var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
 
           let response = try await client.execute(request)
           return try JSONDecoder().decode([User].self, from: response.data)
@@ -41,7 +41,7 @@ final class GETMacroTests: XCTestCase {
 
         func getUser(id: String) async throws -> User {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .GET, path: path)
+          var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
 
           let response = try await client.execute(request)
           return try JSONDecoder().decode(User.self, from: response.data)
@@ -62,7 +62,7 @@ final class GETMacroTests: XCTestCase {
 
         func getPost(userId: String, postId: String) async throws -> Post {
           let path = "/users/\\(userId)/posts/\\(postId)"
-          var request = HTTPRequest(method: .GET, path: path)
+          var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
 
           let response = try await client.execute(request)
           return try JSONDecoder().decode(Post.self, from: response.data)
@@ -83,7 +83,7 @@ final class GETMacroTests: XCTestCase {
 
         func getUsers(page: Int, limit: Int) async throws -> [User] {
           let path = "/users"
-          var request = HTTPRequest(method: .GET, path: path)
+          var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
           request.addQueryParameter(name: "page", value: \\(page))
           request.addQueryParameter(name: "limit", value: \\(limit))
           let response = try await client.execute(request)
@@ -105,7 +105,7 @@ final class GETMacroTests: XCTestCase {
 
         func getUserPosts(id: String, status: String) async throws -> [Post] {
           let path = "/users/\\(id)/posts"
-          var request = HTTPRequest(method: .GET, path: path)
+          var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
           request.addQueryParameter(name: "status", value: \\(status))
           let response = try await client.execute(request)
           return try JSONDecoder().decode([Post].self, from: response.data)

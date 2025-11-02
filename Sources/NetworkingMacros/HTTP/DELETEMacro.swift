@@ -119,10 +119,12 @@ public struct DELETEMacro: PeerMacro {
 
     for argument in arguments {
       if argument.label?.text == "queryParameters",
-        let arrayExpr = argument.expression.as(ArrayExprSyntax.self) {
+        let arrayExpr = argument.expression.as(ArrayExprSyntax.self)
+      {
         return arrayExpr.elements.compactMap { element in
           if let stringLiteral = element.expression.as(StringLiteralExprSyntax.self),
-            let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self) {
+            let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+          {
             return segment.content.text
           }
           return nil
@@ -175,7 +177,7 @@ public struct DELETEMacro: PeerMacro {
     return """
       \(signature) {
         let path = \(pathCode)
-        var request = HTTPRequest(method: .DELETE, path: path)\(queryParamCode)
+        var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(queryParamCode)
         \(returnStatement)
       }
       """

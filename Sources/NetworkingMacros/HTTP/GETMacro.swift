@@ -103,7 +103,8 @@ public struct GETMacro: PeerMacro {
     // Extract string literal value
     if let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
       let segment = stringLiteral.segments.first,
-      case .stringSegment(let stringSegment) = segment {
+      case .stringSegment(let stringSegment) = segment
+    {
       return stringSegment.content.text
     }
 
@@ -130,11 +131,13 @@ public struct GETMacro: PeerMacro {
     for argument in list {
       if let label = argument.label?.text,
         label == "queryParameters",
-        let arrayExpr = argument.expression.as(ArrayExprSyntax.self) {
+        let arrayExpr = argument.expression.as(ArrayExprSyntax.self)
+      {
         return arrayExpr.elements.compactMap { element in
           if let stringLiteral = element.expression.as(StringLiteralExprSyntax.self),
             let segment = stringLiteral.segments.first,
-            case .stringSegment(let stringSegment) = segment {
+            case .stringSegment(let stringSegment) = segment
+          {
             return stringSegment.content.text
           }
           return nil
@@ -168,7 +171,7 @@ public struct GETMacro: PeerMacro {
     return """
       func \(functionName)(\(paramList)) async throws -> \(returnType) {
         let path = \(pathCode)
-        var request = HTTPRequest(method: .GET, path: path)
+        var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
         \(queryParamCode)
         let response = try await client.execute(request)
         return try JSONDecoder().decode(\(returnType).self, from: response.data)
