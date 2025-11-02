@@ -8,17 +8,9 @@ import Foundation
 @main
 struct NetworkingPlugin: CompilerPlugin {
   let providingMacros: [Macro.Type] = [
-    APIMacro.self,
-    GETMacro.self,
-    POSTMacro.self,
-    PUTMacro.self,
-    DELETEMacro.self,
-    PATCHMacro.self,
-    PathMacro.self,
-    BodyMacro.self,
-    QueryMacro.self,
-    HeaderMacro.self,
-    // Cache attribute macros will be added in later tasks
+    APIMacro.self
+    // GETMacro will be added in next batch
+    // POSTMacro, PUTMacro, PATCHMacro, DELETEMacro will be added in later tasks
   ]
 }
 
