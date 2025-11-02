@@ -330,8 +330,8 @@ public struct TransferControls: Sendable {
 
       // Automatically transition to active after a brief delay
       Task {
-        try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 second
-        try? await transitionToState(transferId: transferId, newState: .active)
+        _ = try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 second
+        _ = try? await transitionToState(transferId: transferId, newState: .active)
       }
     }
 
