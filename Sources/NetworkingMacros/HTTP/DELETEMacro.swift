@@ -200,7 +200,100 @@ public struct DELETEMacro: PeerMacro {
     // Generate header code
     let headerCode = generateHeaderCode(headers)
 
-    // Generate return statement based on return type
+    // Combine additional request code (headers + query params)
+    let additionalRequestCode = headerCode + queryParamCode
+
+    // Check if parent protocol has @Interceptors
+    let hasInterceptors =
+      findParentProtocol(function)
+      .map { InterceptorsMacro.hasInterceptors(from: $0) } ?? false
+
+    // Build the function signature
+    let signature: String
+    if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
+      signature = "func \(functionName)(\(paramList)) async throws -> \(returnType)"
+    } else {
+      signature = "func \(functionName)(\(paramList)) async throws"
+    }
+
+    // Generate implementation with or without interceptors
+    if hasInterceptors {
+      return generateWithInterceptors(
+        signature: signature,
+        pathCode: pathCode,
+        additionalRequestCode: additionalRequestCode,
+        returnType: returnType
+      )
+    } else {
+      return generateWithoutInterceptors(
+        signature: signature,
+        pathCode: pathCode,
+        additionalRequestCode: additionalRequestCode,
+        returnType: returnType
+      )
+    }
+  }
+
+  /// Generates DELETE implementation with interceptors.
+  private static func generateWithInterceptors(
+    signature: String,
+    pathCode: String,
+    additionalRequestCode: String,
+    returnType: String?
+  ) -> String {
+    let contextCreation = InterceptorCodeGenerator.generateContextCreation(
+      path: "path",
+      method: ".DELETE"
+    )
+    let requestHook: String
+    let responseHook = InterceptorCodeGenerator.generateResponseInterceptorHook()
+
+    if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
+      requestHook = InterceptorCodeGenerator.generateRequestInterceptorHook(returnType: returnType)
+
+      return """
+        \(signature) {
+          let path = \(pathCode)
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
+          \(contextCreation)
+
+          \(requestHook)
+
+          let response = try await client.execute(request)
+
+          \(responseHook)
+
+          return try JSONDecoder().decode(\(returnType).self, from: response.data)
+        }
+        """
+    } else {
+      // Void return type with interceptors
+      return """
+        \(signature) {
+          let path = \(pathCode)
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
+          \(contextCreation)
+
+          let requestResult = try await interceptors.executeRequestInterceptors(
+            request: &request, context: context
+          )
+          guard case .proceed = requestResult else {
+            throw InterceptorError.invalidResult(reason: "DELETE with Void return cannot short-circuit")
+          }
+
+          let _ = try await client.execute(request)
+        }
+        """
+    }
+  }
+
+  /// Generates DELETE implementation without interceptors.
+  private static func generateWithoutInterceptors(
+    signature: String,
+    pathCode: String,
+    additionalRequestCode: String,
+    returnType: String?
+  ) -> String {
     let returnStatement: String
     if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
       returnStatement = """
@@ -211,21 +304,27 @@ public struct DELETEMacro: PeerMacro {
       returnStatement = "let _ = try await client.execute(request)"
     }
 
-    // Build the function signature
-    let signature: String
-    if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
-      signature = "func \(functionName)(\(paramList)) async throws -> \(returnType)"
-    } else {
-      signature = "func \(functionName)(\(paramList)) async throws"
-    }
-
     return """
       \(signature) {
         let path = \(pathCode)
-        var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(headerCode)\(queryParamCode)
+        var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
         \(returnStatement)
       }
       """
+  }
+
+  /// Finds the parent protocol declaration of a function.
+  private static func findParentProtocol(_ function: FunctionDeclSyntax) -> ProtocolDeclSyntax? {
+    var currentNode: Syntax? = Syntax(function)
+
+    while let node = currentNode {
+      if let protocolDecl = node.as(ProtocolDeclSyntax.self) {
+        return protocolDecl
+      }
+      currentNode = node.parent
+    }
+
+    return nil
   }
 
   /// Generates code for adding custom headers to request.

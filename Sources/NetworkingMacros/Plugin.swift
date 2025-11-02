@@ -15,7 +15,8 @@ struct NetworkingPlugin: CompilerPlugin {
     PATCHMacro.self,
     DELETEMacro.self,
     DefaultHeadersMacro.self,
-    TimeoutMacro.self
+    TimeoutMacro.self,
+    InterceptorsMacro.self,
   ]
 }
 
