@@ -20,7 +20,7 @@ final class POSTMacroTests: XCTestCase {
 
         func createUser(user: User) async throws -> User {
           let path = "/users"
-          var request = HTTPRequest(method: .POST, path: path)
+          var request = HTTPRequest(method: .POST, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           let response = try await client.execute(request)
@@ -42,7 +42,7 @@ final class POSTMacroTests: XCTestCase {
 
         func addUserToTeam(teamId: String, user: User) async throws -> User {
           let path = "/teams/\\(teamId)/users"
-          var request = HTTPRequest(method: .POST, path: path)
+          var request = HTTPRequest(method: .POST, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           let response = try await client.execute(request)
@@ -64,7 +64,7 @@ final class POSTMacroTests: XCTestCase {
 
         func createUser(user: User, notify: Bool) async throws -> User {
           let path = "/users"
-          var request = HTTPRequest(method: .POST, path: path)
+          var request = HTTPRequest(method: .POST, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addQueryParameter(name: "notify", value: \\(notify))
@@ -87,7 +87,7 @@ final class POSTMacroTests: XCTestCase {
 
         func createUser(user: User) async throws -> User {
           let path = "/users"
-          var request = HTTPRequest(method: .POST, path: path)
+          var request = HTTPRequest(method: .POST, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addHeader(name: "X-API-Version", value: "v2")
@@ -110,7 +110,7 @@ final class POSTMacroTests: XCTestCase {
 
         func addUser(teamId: String, user: User, notify: Bool) async throws -> User {
           let path = "/teams/\\(teamId)/users"
-          var request = HTTPRequest(method: .POST, path: path)
+          var request = HTTPRequest(method: .POST, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addHeader(name: "X-Request-ID", value: "123")

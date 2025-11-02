@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - =� Circuit breaker pattern for system resilience and fault tolerance
 - <� Macro-based code generation for automatic API client creation
 
+#### Swift Macros - API Client Generation (Phase 5.1 - HTTPRequest Infrastructure)
+- 🏗️ HTTPRequestMacroSupport infrastructure for macro-generated code
+  - Path-based HTTPRequest initializer for macro convenience (method, path, baseURL)
+  - Mutating methods maintaining immutability: addQueryParameter, setBody, addHeader, setHeaders
+  - Foundation for Phase 5.2 custom headers support
+- 🔧 Fixed fundamental API mismatch in all HTTP method macros
+  - Updated all macros (GET, POST, PUT, PATCH, DELETE) to pass baseURL parameter
+  - Corrected HTTPRequest initialization to use proper API
+  - All macro-generated code now compiles and works correctly
+- ✅ Updated 74 macro tests to match new API expectations
+- ⚙️ Disabled SwiftLint opening_brace rule to prevent circular conflict with swift-format
+
 #### Swift Macros - API Client Generation (Phase 4 Complete - Configuration & DELETE Support)
 - ✨ @API macro for declarative protocol-based API client generation with automatic implementation struct creation
 - 🔧 HTTP method macros (@GET, @POST, @PUT, @PATCH, @DELETE) declarations with comprehensive DocC documentation

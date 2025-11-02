@@ -20,7 +20,7 @@ final class PUTMacroTests: XCTestCase {
 
         func updateUser(id: String, user: User) async throws -> User {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .PUT, path: path)
+          var request = HTTPRequest(method: .PUT, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           let response = try await client.execute(request)
@@ -42,7 +42,7 @@ final class PUTMacroTests: XCTestCase {
 
         func updateTeamUser(teamId: String, userId: String, user: User) async throws -> User {
           let path = "/teams/\\(teamId)/users/\\(userId)"
-          var request = HTTPRequest(method: .PUT, path: path)
+          var request = HTTPRequest(method: .PUT, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           let response = try await client.execute(request)
@@ -64,7 +64,7 @@ final class PUTMacroTests: XCTestCase {
 
         func updateUser(id: String, user: User, version: Int) async throws -> User {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .PUT, path: path)
+          var request = HTTPRequest(method: .PUT, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addQueryParameter(name: "version", value: \\(version))
@@ -87,7 +87,7 @@ final class PUTMacroTests: XCTestCase {
 
         func updateUser(id: String, user: User) async throws -> User {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .PUT, path: path)
+          var request = HTTPRequest(method: .PUT, path: path, baseURL: baseURL)
           request.setBody(try JSONEncoder().encode(user))
           request.addHeader(name: "Content-Type", value: "application/json")
           request.addHeader(name: "If-Match", value: "etag123")

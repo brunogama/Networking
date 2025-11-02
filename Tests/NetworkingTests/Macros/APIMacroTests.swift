@@ -21,7 +21,7 @@ final class APIMacroTests: XCTestCase {
 
             public struct UserAPIImplementation: UserAPI, Sendable {
                 private let client: NetworkClient
-
+                private let baseURL: String = "https://api.example.com"
                 public init(client: NetworkClient = .shared) {
                   self.client = client
                 }
@@ -44,7 +44,7 @@ final class APIMacroTests: XCTestCase {
 
             public struct MyComplexAPIServiceProtocolImplementation: MyComplexAPIServiceProtocol, Sendable {
                 private let client: NetworkClient
-
+                private let baseURL: String = "https://api.example.com/v2"
                 public init(client: NetworkClient = .shared) {
                   self.client = client
                 }

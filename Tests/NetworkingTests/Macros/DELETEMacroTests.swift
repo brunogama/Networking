@@ -20,7 +20,7 @@ final class DELETEMacroTests: XCTestCase {
 
         func deleteUser(id: String) async throws {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .DELETE, path: path)
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
           let _ = try await client.execute(request)
         }
         """,
@@ -39,7 +39,7 @@ final class DELETEMacroTests: XCTestCase {
 
         func deleteUser(id: String) async throws -> DeleteResponse {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .DELETE, path: path)
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
           let response = try await client.execute(request)
           return try JSONDecoder().decode(DeleteResponse.self, from: response.data)
         }
@@ -59,7 +59,7 @@ final class DELETEMacroTests: XCTestCase {
 
         func removeMember(teamId: String, memberId: String) async throws {
           let path = "/teams/\\(teamId)/members/\\(memberId)"
-          var request = HTTPRequest(method: .DELETE, path: path)
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
           let _ = try await client.execute(request)
         }
         """,
@@ -78,7 +78,7 @@ final class DELETEMacroTests: XCTestCase {
 
         func deleteUser(id: String, soft: Bool) async throws {
           let path = "/users/\\(id)"
-          var request = HTTPRequest(method: .DELETE, path: path)
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
           request.addQueryParameter(name: "soft", value: \\(soft))
           let _ = try await client.execute(request)
         }
@@ -98,7 +98,7 @@ final class DELETEMacroTests: XCTestCase {
 
         func deleteResource(id: String, cascade: Bool) async throws -> DeletionResult {
           let path = "/resources/\\(id)"
-          var request = HTTPRequest(method: .DELETE, path: path)
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
           request.addQueryParameter(name: "cascade", value: \\(cascade))
           let response = try await client.execute(request)
           return try JSONDecoder().decode(DeletionResult.self, from: response.data)
