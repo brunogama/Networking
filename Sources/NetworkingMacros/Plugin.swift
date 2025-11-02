@@ -10,7 +10,10 @@ struct NetworkingPlugin: CompilerPlugin {
   let providingMacros: [Macro.Type] = [
     APIMacro.self,
     GETMacro.self,
-    // POSTMacro, PUTMacro, PATCHMacro, DELETEMacro will be added in later tasks
+    POSTMacro.self,
+    PUTMacro.self,
+    PATCHMacro.self,
+    // DELETEMacro will be added in later tasks
   ]
 }
 

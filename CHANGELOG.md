@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - =� Circuit breaker pattern for system resilience and fault tolerance
 - <� Macro-based code generation for automatic API client creation
 
-#### Swift Macros - API Client Generation (Phase 2 Complete - GET Endpoints MVP)
+#### Swift Macros - API Client Generation (Phase 3 Complete - POST/PUT/PATCH with Bodies)
 - ✨ @API macro for declarative protocol-based API client generation with automatic implementation struct creation
 - 🔧 HTTP method macros (@GET, @POST, @PUT, @PATCH, @DELETE) declarations with comprehensive DocC documentation
 - 🏗️ APIMacro implementation conforming to SwiftSyntax MemberMacro protocol
@@ -27,14 +27,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic URL construction from base URL + path template
   - JSON response decoding with type safety
   - HTTPRequest builder integration
+- 📤 POSTMacro, PUTMacro, PATCHMacro implementations with request body support
+  - Automatic JSONEncoder integration for request bodies
+  - Content-Type: application/json header generation
+  - Body parameter validation and encoding
+  - Mixed path parameters, query parameters, and request bodies
+  - Custom header support for all HTTP methods
+  - Compile-time validation of body parameter existence
 - 📋 MacroHelpers utilities for validation, parameter extraction, and diagnostic reporting
 - 🛠️ PathTemplateParser for REST path template parsing (e.g., "/users/{id}")
 - ⚙️ SyntaxFactory utilities for SwiftSyntax code generation
 - 🔒 Swift 6 strict concurrency compliance with Sendable conformance
 - ✅ Centralized error handling with descriptive diagnostics (MacroExpansionError)
-- 🧪 Comprehensive unit test suite (16 tests) covering success and error cases
+- 🧪 Comprehensive unit test suite (50 tests) covering success and error cases
   - APIMacroTests: Protocol validation, base URL handling, error scenarios
   - GETMacroTests: Path params, query params, async/throws validation, diagnostics
+  - POSTMacroTests: Body params, path/query params, headers, error cases (12 tests)
+  - PUTMacroTests: Full update operations with body encoding (10 tests)
+  - PATCHMacroTests: Partial updates, all features combined (12 tests)
 
 #### Security Implementation (OWASP Top 10 Compliance)
 - = Header injection prevention with CRLF detection and sanitization
