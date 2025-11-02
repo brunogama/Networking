@@ -51,6 +51,7 @@ let package = Package(
       name: "NetworkingTests",
       dependencies: [
         "Networking",
+        "NetworkingMacros",
         .product(name: "MacroTesting", package: "swift-macro-testing"),
         .product(name: "SwiftCheck", package: "SwiftCheck"),
         .product(name: "Quick", package: "Quick"),

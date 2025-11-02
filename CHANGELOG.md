@@ -17,15 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - =� Circuit breaker pattern for system resilience and fault tolerance
 - <� Macro-based code generation for automatic API client creation
 
-#### Swift Macros - API Client Generation (Phase 2 Batch 1)
+#### Swift Macros - API Client Generation (Phase 2 Complete - GET Endpoints MVP)
 - ✨ @API macro for declarative protocol-based API client generation with automatic implementation struct creation
 - 🔧 HTTP method macros (@GET, @POST, @PUT, @PATCH, @DELETE) declarations with comprehensive DocC documentation
 - 🏗️ APIMacro implementation conforming to SwiftSyntax MemberMacro protocol
+- 🚀 GETMacro implementation with full code generation for GET endpoints
+  - Path parameter substitution with compile-time validation
+  - Query parameter handling and validation
+  - Automatic URL construction from base URL + path template
+  - JSON response decoding with type safety
+  - HTTPRequest builder integration
 - 📋 MacroHelpers utilities for validation, parameter extraction, and diagnostic reporting
 - 🛠️ PathTemplateParser for REST path template parsing (e.g., "/users/{id}")
 - ⚙️ SyntaxFactory utilities for SwiftSyntax code generation
 - 🔒 Swift 6 strict concurrency compliance with Sendable conformance
-- ✅ Centralized error handling with descriptive diagnostics (MacroError)
+- ✅ Centralized error handling with descriptive diagnostics (MacroExpansionError)
+- 🧪 Comprehensive unit test suite (16 tests) covering success and error cases
+  - APIMacroTests: Protocol validation, base URL handling, error scenarios
+  - GETMacroTests: Path params, query params, async/throws validation, diagnostics
 
 #### Security Implementation (OWASP Top 10 Compliance)
 - = Header injection prevention with CRLF detection and sanitization
