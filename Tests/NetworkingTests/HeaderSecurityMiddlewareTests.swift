@@ -59,6 +59,9 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
   // MARK: - Header Injection Detection Tests
 
   func testCRLFInjectionDetection() async throws {
+    // Use API config that doesn't sanitize, so it throws errors
+    let crlfMiddleware = HeaderSecurityMiddleware(configuration: .api)
+
     let maliciousHeaders = [
       "X-Test": "value\r\nX-Injected: malicious",
       "Authorization": "Bearer token\nLocation: http://evil.com",
@@ -71,7 +74,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
     )
 
     do {
-      _ = try await middleware.modifyRequest(request)
+      _ = try await crlfMiddleware.modifyRequest(request)
       XCTFail("Should have thrown security error for CRLF injection")
     } catch let error as HTTPError {
       switch error.category {
@@ -225,7 +228,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
     } catch let error as HTTPError {
       switch error.category {
       case .custom("Security", let message):
-        XCTAssertTrue(message.contains("too long"))
+        XCTAssertTrue(message.contains("too long"), "Expected 'too long' in message: '\(message)'")
 
       default:
         XCTFail("Expected security error about length, got: \(error)")
