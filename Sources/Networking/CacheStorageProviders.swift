@@ -297,7 +297,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
       guard let keyToEvict = await selectKeyForEviction() else { break }
       await remove(keyToEvict)
       evictionCount += 1
-    }
+        }
   }
 
   private func selectKeyForEviction() async -> String? {

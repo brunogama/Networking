@@ -125,11 +125,11 @@ final class SimplePropertyTests: XCTestCase {
       }
 
     property("HTTPError recovery context is consistent")
-      <- forAll { (isRetryable: Bool) in
-        let category: HTTPError.Category = isRetryable ? .timeout : .configuration("test")
+      <- forAll { (useTimeoutError: Bool) in
+        let category: HTTPError.Category = useTimeoutError ? .timeout : .cancelled
         let error = HTTPError(category: category)
 
-        let expectedRecoverable = isRetryable
+        let expectedRecoverable = useTimeoutError  // timeout is recoverable, cancelled is not
         let actualRecoverable = error.recoveryCategory != .nonRecoverable
 
         return expectedRecoverable == actualRecoverable
