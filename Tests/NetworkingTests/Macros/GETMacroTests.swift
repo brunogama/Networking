@@ -21,7 +21,6 @@ final class GETMacroTests: XCTestCase {
         func getUsers() async throws -> [User] {
           let path = "/users"
           var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
-
           let response = try await client.execute(request)
           return try JSONDecoder().decode([User].self, from: response.data)
         }
@@ -42,7 +41,6 @@ final class GETMacroTests: XCTestCase {
         func getUser(id: String) async throws -> User {
           let path = "/users/\\(id)"
           var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
-
           let response = try await client.execute(request)
           return try JSONDecoder().decode(User.self, from: response.data)
         }
@@ -63,7 +61,6 @@ final class GETMacroTests: XCTestCase {
         func getPost(userId: String, postId: String) async throws -> Post {
           let path = "/users/\\(userId)/posts/\\(postId)"
           var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
-
           let response = try await client.execute(request)
           return try JSONDecoder().decode(Post.self, from: response.data)
         }
@@ -222,6 +219,28 @@ final class GETMacroTests: XCTestCase {
           column: 1
         )
       ],
+      macros: ["GET": GETMacro.self]
+    )
+  }
+
+  func testGETWithCustomHeaders() throws {
+    SwiftSyntaxMacrosTestSupport.assertMacroExpansion(
+      """
+      @GET("/users", headers: ["X-Custom-Header": "CustomValue", "Authorization": "Bearer token"])
+      func getUsers() async throws -> [User]
+      """,
+      expandedSource: """
+        func getUsers() async throws -> [User]
+
+        func getUsers() async throws -> [User] {
+          let path = "/users"
+          var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
+          request.addHeader(name: "Authorization", value: "Bearer token")
+          request.addHeader(name: "X-Custom-Header", value: "CustomValue")
+          let response = try await client.execute(request)
+          return try JSONDecoder().decode([User].self, from: response.data)
+        }
+        """,
       macros: ["GET": GETMacro.self]
     )
   }

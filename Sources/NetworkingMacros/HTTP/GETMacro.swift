@@ -43,6 +43,9 @@ public struct GETMacro: PeerMacro {
     // Extract query parameters from macro arguments
     let queryParams = extractQueryParameters(from: node, context: context)
 
+    // Extract custom headers from macro arguments
+    let headers = extractHeaders(from: node, context: context)
+
     // Extract function parameters
     let functionParams = MacroHelpers.extractParameterNames(from: function)
 
@@ -75,6 +78,7 @@ public struct GETMacro: PeerMacro {
       function: function,
       path: path,
       queryParameters: queryParams,
+      headers: headers,
       returnType: returnType
     )
 
@@ -148,11 +152,52 @@ public struct GETMacro: PeerMacro {
     return []
   }
 
+  /// Extracts custom headers from the macro attribute.
+  private static func extractHeaders(
+    from attribute: AttributeSyntax,
+    context: some MacroExpansionContext
+  ) -> [String: String] {
+    guard let arguments = attribute.arguments,
+      case .argumentList(let list) = arguments
+    else {
+      return [:]
+    }
+
+    // Look for headers argument
+    for argument in list {
+      if let label = argument.label?.text,
+        label == "headers",
+        let dictExpr = argument.expression.as(DictionaryExprSyntax.self)
+      {
+        var headers: [String: String] = [:]
+
+        if case .elements(let elements) = dictExpr.content {
+          for element in elements {
+            if let keyString = element.key.as(StringLiteralExprSyntax.self),
+              let keySegment = keyString.segments.first,
+              case .stringSegment(let keyContent) = keySegment,
+              let valueString = element.value.as(StringLiteralExprSyntax.self),
+              let valueSegment = valueString.segments.first,
+              case .stringSegment(let valueContent) = valueSegment
+            {
+              headers[keyContent.content.text] = valueContent.content.text
+            }
+          }
+        }
+
+        return headers
+      }
+    }
+
+    return [:]
+  }
+
   /// Generates the complete method implementation.
   private static func generateImplementation(
     function: FunctionDeclSyntax,
     path: String,
     queryParameters: [String],
+    headers: [String: String],
     returnType: String
   ) -> String {
     let functionName = function.name.text
@@ -168,15 +213,28 @@ public struct GETMacro: PeerMacro {
     // Generate query parameter code
     let queryParamCode = generateQueryParameterCode(queryParameters)
 
+    // Generate header code
+    let headerCode = generateHeaderCode(headers)
+
     return """
       func \(functionName)(\(paramList)) async throws -> \(returnType) {
         let path = \(pathCode)
-        var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
-        \(queryParamCode)
+        var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)\(headerCode)\(queryParamCode)
         let response = try await client.execute(request)
         return try JSONDecoder().decode(\(returnType).self, from: response.data)
       }
       """
+  }
+
+  /// Generates code for adding custom headers to request.
+  private static func generateHeaderCode(_ headers: [String: String]) -> String {
+    guard !headers.isEmpty else { return "" }
+
+    let headerLines = headers.sorted(by: { $0.key < $1.key }).map { name, value in
+      "\n  request.addHeader(name: \"\(name)\", value: \"\(value)\")"
+    }.joined()
+
+    return headerLines
   }
 
   /// Generates code for adding query parameters to request.
@@ -184,9 +242,9 @@ public struct GETMacro: PeerMacro {
     guard !queryParams.isEmpty else { return "" }
 
     let queryLines = queryParams.map { param in
-      "request.addQueryParameter(name: \"\(param)\", value: \\(\(param)))"
-    }
+      "\n  request.addQueryParameter(name: \"\(param)\", value: \\(\(param)))"
+    }.joined()
 
-    return queryLines.joined(separator: "\n  ")
+    return queryLines
   }
 }

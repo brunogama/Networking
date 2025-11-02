@@ -13,6 +13,7 @@ repos:
     language: system
     files: \.swift$
     pass_filenames: true
+    stages: [ commit-msg ]
 
   - id: swift-sheriff
     name: 🤠 Linting Swift code...
@@ -20,6 +21,7 @@ repos:
     language: system
     files: \.swift$
     pass_filenames: true
+    stages: [ pre-commit ]
 
   - id: swift-package-tests
     name: 🧪 Running Swift package tests...
@@ -28,6 +30,7 @@ repos:
     pass_filenames: false
     always_run: false
     files: \.swift$
+    stages: [ pre-merge-commit, pre-push ]
 
   - id: swift-warning-guard
     name: ⚠️ Checking for Swift warnings...
@@ -36,6 +39,7 @@ repos:
     pass_filenames: false
     always_run: false
     files: \.swift$
+    stages: [ pre-merge-commit, pre-push ]
 
   - id: branch-guardian
     name: 🚫 Checking branch protection...
@@ -43,6 +47,7 @@ repos:
     language: system
     pass_filenames: false
     always_run: true
+    stages: [ pre-merge-commit, pre-push ]
 
   - id: license-year-updater
     name: 📅 Updating LICENSE year...
@@ -51,6 +56,7 @@ repos:
     files: ^LICENSE$
     pass_filenames: false
     always_run: true
+    stages: [ pre-merge-commit, pre-push ]
 
   - id: changelog-enforcer
     name: 📝 Checking CHANGELOG updates...
@@ -59,6 +65,7 @@ repos:
     pass_filenames: false
     always_run: true
     exclude: '^(\.pre-commit-config\.yaml|\.gitignore|CHANGELOG\.md)$'
+    stages: [ pre-merge-commit, pre-push ]
 
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v6.0.0
@@ -66,20 +73,26 @@ repos:
   - id: trailing-whitespace
     name: 🧹 Removing trailing whitespace...
     exclude: \.md$
+    stages: [ commit-msg ]
   - id: end-of-file-fixer
     name: 📝 Adding final newlines...
+    stages: [ commit-msg ]
   - id: check-yaml
     name: 🔍 Checking YAML syntax...
+    stages: [ commit-msg ]
   - id: check-added-large-files
     name: 📏 Checking file sizes...
     args: [ '--maxkb=1000' ]
+    stages: [ commit-msg ]
   - id: check-merge-conflict
     name: ⚔️ Checking for merge conflicts...
+    stages: [ commit-msg ]
   - id: check-case-conflict
     name: 🔤 Checking filename case conflicts...
+    stages: [ commit-msg ]
   - id: mixed-line-ending
     name: 📐 Fixing line endings...
     args: [ '--fix=lf' ]
-
+    stages: [ commit-msg ]
 # Global configuration
 fail_fast: true

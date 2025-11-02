@@ -52,6 +52,9 @@ public struct DELETEMacro: PeerMacro {
     // Extract query parameters (if any)
     let queryParams = extractQueryParameters(from: node, context: context)
 
+    // Extract custom headers from macro arguments
+    let headers = extractHeaders(from: node, context: context)
+
     // Extract function parameters
     let functionParams = MacroHelpers.extractParameterNames(from: function)
 
@@ -79,6 +82,7 @@ public struct DELETEMacro: PeerMacro {
       function: function,
       path: path,
       queryParameters: queryParams,
+      headers: headers,
       returnType: returnType
     )
 
@@ -135,6 +139,43 @@ public struct DELETEMacro: PeerMacro {
     return []
   }
 
+  /// Extracts custom headers from the macro attribute.
+  private static func extractHeaders(
+    from node: AttributeSyntax,
+    context: some MacroExpansionContext
+  ) -> [String: String] {
+    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
+      return [:]
+    }
+
+    // Look for headers argument
+    for argument in arguments {
+      if argument.label?.text == "headers",
+        let dictExpr = argument.expression.as(DictionaryExprSyntax.self)
+      {
+        var headers: [String: String] = [:]
+
+        if case .elements(let elements) = dictExpr.content {
+          for element in elements {
+            if let keyString = element.key.as(StringLiteralExprSyntax.self),
+              let keySegment = keyString.segments.first,
+              case .stringSegment(let keyContent) = keySegment,
+              let valueString = element.value.as(StringLiteralExprSyntax.self),
+              let valueSegment = valueString.segments.first,
+              case .stringSegment(let valueContent) = valueSegment
+            {
+              headers[keyContent.content.text] = valueContent.content.text
+            }
+          }
+        }
+
+        return headers
+      }
+    }
+
+    return [:]
+  }
+
   // MARK: - Code Generation
 
   /// Generates the implementation code for the DELETE request.
@@ -142,6 +183,7 @@ public struct DELETEMacro: PeerMacro {
     function: FunctionDeclSyntax,
     path: String,
     queryParameters: [String],
+    headers: [String: String],
     returnType: String?
   ) -> String {
     let functionName = function.name.text
@@ -154,6 +196,9 @@ public struct DELETEMacro: PeerMacro {
 
     // Generate query parameter code
     let queryParamCode = generateQueryParameterCode(queryParameters)
+
+    // Generate header code
+    let headerCode = generateHeaderCode(headers)
 
     // Generate return statement based on return type
     let returnStatement: String
@@ -177,10 +222,21 @@ public struct DELETEMacro: PeerMacro {
     return """
       \(signature) {
         let path = \(pathCode)
-        var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(queryParamCode)
+        var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(headerCode)\(queryParamCode)
         \(returnStatement)
       }
       """
+  }
+
+  /// Generates code for adding custom headers to request.
+  private static func generateHeaderCode(_ headers: [String: String]) -> String {
+    guard !headers.isEmpty else { return "" }
+
+    let headerLines = headers.sorted(by: { $0.key < $1.key }).map { name, value in
+      "\n  request.addHeader(name: \"\(name)\", value: \"\(value)\")"
+    }.joined()
+
+    return headerLines
   }
 
   /// Generates code for adding query parameters.
@@ -188,11 +244,9 @@ public struct DELETEMacro: PeerMacro {
     guard !queryParameters.isEmpty else { return "" }
 
     let paramCode = queryParameters.map { param in
-      """
-        request.addQueryParameter(name: "\(param)", value: \\(\(param)))
-      """
-    }.joined(separator: "\n")
+      "\n  request.addQueryParameter(name: \"\(param)\", value: \\(\(param)))"
+    }.joined()
 
-    return "\n\(paramCode)"
+    return paramCode
   }
 }

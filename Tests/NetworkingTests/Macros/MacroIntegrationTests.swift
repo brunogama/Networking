@@ -24,7 +24,7 @@ final class MacroIntegrationTests: XCTestCase {
 
           func deleteUser(id: String) async throws {
             let path = "/users/\\(id)"
-            var request = HTTPRequest(method: .DELETE, path: path)
+            var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
             let _ = try await client.execute(request)
           }
 
@@ -59,7 +59,7 @@ final class MacroIntegrationTests: XCTestCase {
 
           func deleteResource(id: String) async throws -> DeletionResponse {
             let path = "/resources/\\(id)"
-            var request = HTTPRequest(method: .DELETE, path: path)
+            var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
             let response = try await client.execute(request)
             return try JSONDecoder().decode(DeletionResponse.self, from: response.data)
           }
@@ -95,12 +95,11 @@ final class MacroIntegrationTests: XCTestCase {
       """,
       expandedSource: """
         protocol SecureAPI {
-          @GET("/data")
           func getData() async throws -> Data
 
           func getData() async throws -> Data {
             let path = "/data"
-            var request = HTTPRequest(method: .GET, path: path)
+            var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
             let response = try await client.execute(request)
             return try JSONDecoder().decode(Data.self, from: response.data)
           }
@@ -108,7 +107,7 @@ final class MacroIntegrationTests: XCTestCase {
             public struct SecureAPIImplementation: SecureAPI, Sendable {
                 private let client: NetworkClient
                 private let baseURL: String = "https://api.example.com"
-                private let defaultHeaders: [String: String] = ["Authorization": "Bearer token", "Accept": "application/json"]
+                private let defaultHeaders: [String: String] = ["Accept": "application/json", "Authorization": "Bearer token"]
                 private let defaultTimeout: Double = 60.0
                 public init(client: NetworkClient = .shared) {
                   self.client = client
@@ -143,34 +142,29 @@ final class MacroIntegrationTests: XCTestCase {
       """,
       expandedSource: """
         protocol CRUDApi {
-          @GET("/items/{id}")
           func getItem(id: String) async throws -> Item
 
           func getItem(id: String) async throws -> Item {
             let path = "/items/\\(id)"
-            var request = HTTPRequest(method: .GET, path: path)
+            var request = HTTPRequest(method: .GET, path: path, baseURL: baseURL)
             let response = try await client.execute(request)
             return try JSONDecoder().decode(Item.self, from: response.data)
           }
-
-          @POST("/items", body: "item")
           func createItem(item: Item) async throws -> Item
 
           func createItem(item: Item) async throws -> Item {
             let path = "/items"
-            var request = HTTPRequest(method: .POST, path: path)
+            var request = HTTPRequest(method: .POST, path: path, baseURL: baseURL)
             request.setBody(try JSONEncoder().encode(item))
             request.addHeader(name: "Content-Type", value: "application/json")
             let response = try await client.execute(request)
             return try JSONDecoder().decode(Item.self, from: response.data)
           }
-
-          @DELETE("/items/{id}")
           func deleteItem(id: String) async throws
 
           func deleteItem(id: String) async throws {
             let path = "/items/\\(id)"
-            var request = HTTPRequest(method: .DELETE, path: path)
+            var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
             let _ = try await client.execute(request)
           }
 
@@ -206,12 +200,11 @@ final class MacroIntegrationTests: XCTestCase {
       """,
       expandedSource: """
         protocol AdminAPI {
-          @DELETE("/users/{id}", queryParameters: ["force", "cascade"])
           func deleteUser(id: String, force: Bool, cascade: Bool) async throws -> DeletionResult
 
           func deleteUser(id: String, force: Bool, cascade: Bool) async throws -> DeletionResult {
             let path = "/users/\\(id)"
-            var request = HTTPRequest(method: .DELETE, path: path)
+            var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
             request.addQueryParameter(name: "force", value: \\(force))
             request.addQueryParameter(name: "cascade", value: \\(cascade))
             let response = try await client.execute(request)
