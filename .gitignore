@@ -48,7 +48,7 @@ Tuist/Cache/
 Thumbs.db
 ############################################################################################## 
 
-# Cursor Automation
+# AI Assistant Configurations
 ##############################################################################################
 .cursorrules
 .cursorignore
@@ -57,15 +57,33 @@ Thumbs.db
 .cursorignore.yaml
 .cursorignore.yml
 .cursorignore.json
-.env
-CLAUDE.md
-.cursor/settings.local.json
+.cursor/
 .claude/
+.augment/
+.clinerules/
+.kilocode/
+.opencode/
+.specify/
+.github/prompts/
+
+# AI Assistant Files
+AGENTS.md
+CLINE.md
+mindset.md
+rules.md
+specs/
+
+# AI Documentation Directories
 **/PRPs/*
 **/ai_docs/*
 **/ai_docsd/*
-**/ai_docsd/*
-**/ai_docsd/*
+
+# Backup Files
+*.bak
+
+# Environment
+.env
+CLAUDE.md
 
 ##############################################################################################
 
