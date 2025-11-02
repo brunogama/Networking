@@ -110,7 +110,118 @@ Task {
 
 ---
 
-## 7. Optional Development Tools
+## 7. Using Interceptors
+
+ModernNetworking includes a powerful interceptor system for cross-cutting concerns:
+
+### Basic Interceptor Usage
+
+```swift
+import Networking
+
+// Create interceptors
+let auth = AuthenticationInterceptor {
+    return try await getAccessToken()
+}
+let retry = RetryInterceptor(maxAttempts: 3)
+let cache = CachingInterceptor(ttl: 300)
+
+// Chain interceptors (order matters!)
+let chain = InterceptorChain(
+    requestInterceptors: [auth, rateLimit],
+    responseInterceptors: [cache, retry]
+)
+```
+
+### Common Interceptors
+
+**Authentication** - Add auth headers:
+```swift
+// Dynamic token
+let auth = AuthenticationInterceptor {
+    return try await tokenProvider.getToken()
+}
+
+// Static token (for testing)
+let auth = AuthenticationInterceptor.bearer("your-token")
+```
+
+**Retry** - Automatic retry with exponential backoff:
+```swift
+let retry = RetryInterceptor(maxAttempts: 3, baseDelay: 0.5)
+```
+
+**Caching** - Response caching:
+```swift
+let cache = CachingInterceptor(ttl: 300, maxEntries: 100)
+```
+
+**Rate Limiting** - Prevent API abuse:
+```swift
+let rateLimit = RateLimitInterceptor.lenient  // 100 req/min
+// Or custom:
+let custom = RateLimitInterceptor(
+    requestsPerWindow: 50,
+    windowDuration: 60.0,
+    strategy: .delay
+)
+```
+
+**Logging** - Request/response logging:
+```swift
+let logging = LoggingInterceptor(level: .basic) { message in
+    print(message)
+}
+```
+
+**Token Refresh** - Automatic token refresh on 401:
+```swift
+let tokenRefresh = TokenRefreshInterceptor(
+    refreshHandler: { refreshToken in
+        return try await refreshAccessToken(refreshToken)
+    },
+    tokenUpdateHandler: { accessToken, refreshToken in
+        await tokenStore.save(accessToken, refreshToken)
+    }
+)
+```
+
+### Full Example
+
+```swift
+// Create complete interceptor chain
+let auth = AuthenticationInterceptor.bearer("token")
+let retry = RetryInterceptor(maxAttempts: 3)
+let cache = CachingInterceptor(ttl: 300)
+let rateLimit = RateLimitInterceptor.lenient
+let logging = LoggingInterceptor(level: .basic) { print($0) }
+
+let chain = InterceptorChain(
+    requestInterceptors: [logging, auth, rateLimit],
+    responseInterceptors: [logging, cache, retry]
+)
+
+// Use with your requests
+var request = HTTPRequest(method: .get, path: "/api/data", baseURL: baseURL)
+let context = InterceptorContext(path: "/api/data", method: .get)
+
+let requestResult = try await chain.executeRequestInterceptors(
+    request: &request,
+    context: context
+)
+
+// Execute network call...
+let response = try await execute(request)
+
+let responseResult = try await chain.executeResponseInterceptors(
+    response: response,
+    context: context
+)
+```
+
+---
+
+## 8. Optional Development Tools
 
 ```bash
 # Install pre-commit hooks
@@ -123,7 +234,7 @@ brew install swift-format swiftlint
 
 ---
 
-## Common Commands
+## 9. Common Commands
 
 ### Build
 ```bash
@@ -153,7 +264,7 @@ swift package clean                            # Clean package
 
 ---
 
-## Quick Reference
+## 10. Quick Reference
 
 ### Project Structure
 ```
@@ -179,7 +290,7 @@ ModernNetworking/
 
 ---
 
-## Troubleshooting
+## 11. Troubleshooting
 
 ### Swift Version Error
 ```bash
@@ -203,7 +314,7 @@ swift test -v
 
 ---
 
-## Next Steps
+## 12. Next Steps
 
 1. **Read** `ONBOARDING.md` for comprehensive documentation
 2. **Explore** `Samples/Arena-Playground/` for examples
@@ -212,7 +323,7 @@ swift test -v
 
 ---
 
-## Support
+## 13. Support
 
 - **Documentation**: See `ONBOARDING.md`
 - **Issues**: https://github.com/brunogama/Networking/issues
