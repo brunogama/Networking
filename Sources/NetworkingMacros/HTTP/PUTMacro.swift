@@ -153,7 +153,8 @@ public struct PUTMacro: PeerMacro {
     for argument in arguments {
       if argument.label?.text == "body",
         let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
-        let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self) {
+        let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+      {
         return segment.content.text
       }
     }
@@ -177,10 +178,12 @@ public struct PUTMacro: PeerMacro {
 
     for argument in arguments {
       if argument.label?.text == "queryParameters",
-        let arrayExpr = argument.expression.as(ArrayExprSyntax.self) {
+        let arrayExpr = argument.expression.as(ArrayExprSyntax.self)
+      {
         return arrayExpr.elements.compactMap { element in
           if let stringLiteral = element.expression.as(StringLiteralExprSyntax.self),
-            let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self) {
+            let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+          {
             return segment.content.text
           }
           return nil
@@ -202,14 +205,16 @@ public struct PUTMacro: PeerMacro {
 
     for argument in arguments {
       if argument.label?.text == "headers",
-        let dictExpr = argument.expression.as(DictionaryExprSyntax.self) {
+        let dictExpr = argument.expression.as(DictionaryExprSyntax.self)
+      {
         var headers: [String: String] = [:]
 
         for element in dictExpr.content.as(DictionaryElementListSyntax.self) ?? [] {
           if let keyString = element.key.as(StringLiteralExprSyntax.self),
             let keySegment = keyString.segments.first?.as(StringSegmentSyntax.self),
             let valueString = element.value.as(StringLiteralExprSyntax.self),
-            let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self) {
+            let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self)
+          {
             headers[keySegment.content.text] = valueSegment.content.text
           }
         }

@@ -165,7 +165,8 @@ public struct APIMacro: MemberMacro {
     // Extract string literal value
     if let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
       let segment = stringLiteral.segments.first,
-      case .stringSegment(let stringSegment) = segment {
+      case .stringSegment(let stringSegment) = segment
+    {
       return stringSegment.content.text
     }
 
