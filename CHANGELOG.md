@@ -17,6 +17,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - =� Circuit breaker pattern for system resilience and fault tolerance
 - <� Macro-based code generation for automatic API client creation
 
+#### Swift Macros - API Client Generation (Phase 5.2 - Custom Headers Support)
+- ✨ Added custom headers parameter support to all HTTP method macros
+  - `headers: [String: String]` parameter in @GET, @POST, @PUT, @PATCH, @DELETE macros
+  - Alphabetically sorted header generation for consistent test outputs
+  - Headers added via `request.addHeader(name:value:)` in generated code
+- 📝 Comprehensive test coverage for custom headers feature
+  - Added testGETWithCustomHeaders to GETMacroTests (11/11 tests passing)
+  - Added testDELETEWithCustomHeaders to DELETEMacroTests (11/11 tests passing)
+  - POST/PUT/PATCH already had header tests from Phase 4 (all passing)
+- 🔧 Fixed dictionary ordering consistency in APIMacro
+  - Sorted defaultHeaders generation alphabetically
+  - Ensures deterministic test output across all platforms
+- ✅ All 83 macro tests passing (GET: 11, POST: 12, PATCH: 12, PUT: 10, DELETE: 11, API: 15, Integration: 6, Configuration: 6)
+- 🎯 SwiftLint configuration optimized
+  - Comprehensive analysis of swift-format rules
+  - Disabled all 20+ formatting-related SwiftLint rules
+  - Clear separation: swift-format handles ALL formatting, SwiftLint handles logic/style validation
+  - Eliminated circular validation deadlocks between tools
+
 #### Swift Macros - API Client Generation (Phase 5.1 - HTTPRequest Infrastructure)
 - 🏗️ HTTPRequestMacroSupport infrastructure for macro-generated code
   - Path-based HTTPRequest initializer for macro convenience (method, path, baseURL)

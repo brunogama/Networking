@@ -108,6 +108,27 @@ final class DELETEMacroTests: XCTestCase {
     )
   }
 
+  func testDELETEWithCustomHeaders() throws {
+    SwiftSyntaxMacrosTestSupport.assertMacroExpansion(
+      """
+      @DELETE("/users/{id}", headers: ["X-Request-ID": "12345", "Authorization": "Bearer token"])
+      func deleteUser(id: String) async throws
+      """,
+      expandedSource: """
+        func deleteUser(id: String) async throws
+
+        func deleteUser(id: String) async throws {
+          let path = "/users/\\(id)"
+          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)
+          request.addHeader(name: "Authorization", value: "Bearer token")
+          request.addHeader(name: "X-Request-ID", value: "12345")
+          let _ = try await client.execute(request)
+        }
+        """,
+      macros: ["DELETE": DELETEMacro.self]
+    )
+  }
+
   // MARK: - Error Cases
 
   func testDELETERequiresAsyncThrows() {

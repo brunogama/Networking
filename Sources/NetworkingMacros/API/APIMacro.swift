@@ -85,7 +85,7 @@ public struct APIMacro: MemberMacro {
 
     // Default headers property (if any)
     if !defaultHeaders.isEmpty {
-      let headersDict = defaultHeaders.map { key, value in
+      let headersDict = defaultHeaders.sorted(by: { $0.key < $1.key }).map { key, value in
         "\"\(key)\": \"\(value)\""
       }.joined(separator: ", ")
 
