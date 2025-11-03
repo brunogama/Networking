@@ -18,6 +18,7 @@ struct NetworkingPlugin: CompilerPlugin {
     TimeoutMacro.self,
     InterceptorsMacro.self,
     BodyMacro.self,
+    HeadersMacro.self,
   ]
 }
 
