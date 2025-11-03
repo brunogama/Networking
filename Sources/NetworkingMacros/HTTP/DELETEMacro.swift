@@ -49,11 +49,49 @@ public struct DELETEMacro: PeerMacro {
     // Validate path template syntax
     try MacroHelpers.validatePathTemplate(path, context: context)
 
+    // Detect syntax style (old vs new)
+    let usesOldSyntax = function.usesOldMacroSyntax()
+    let newHeaders = function.detectHeadersMacro()
+
+    // Check for mixing old and new syntax
+    if usesOldSyntax && !newHeaders.isEmpty {
+      MacroHelpers.emitError(
+        """
+        Cannot mix old and new syntax. Use either:
+        - Old: @DELETE("/path", headers: [...])
+        - New: @DELETE("/path") with @Headers { ... }
+        """,
+        node: node,
+        context: context
+      )
+      return []
+    }
+
+    // Emit deprecation warning for old syntax
+    if usesOldSyntax {
+      MacroHelpers.emitWarning(
+        """
+        Old syntax is deprecated. Use @Headers attached macro instead:
+        @DELETE("/path")
+        @Headers { H("name", "value") }
+        func myMethod(...)
+        """,
+        node: Syntax(node),
+        context: context
+      )
+    }
+
     // Extract query parameters (if any)
     let queryParams = extractQueryParameters(from: node, context: context)
 
-    // Extract custom headers from macro arguments
-    let headers = extractHeaders(from: node, context: context)
+    // Extract headers (new syntax takes precedence)
+    let headers: [(name: String, value: String, isParameter: Bool)]
+    if !newHeaders.isEmpty {
+      headers = newHeaders
+    } else {
+      let oldHeaders = extractHeaders(from: node, context: context)
+      headers = oldHeaders.map { (name: $0.key, value: $0.value, isParameter: false) }
+    }
 
     // Extract function parameters
     let functionParams = MacroHelpers.extractParameterNames(from: function)
@@ -183,7 +221,7 @@ public struct DELETEMacro: PeerMacro {
     function: FunctionDeclSyntax,
     path: String,
     queryParameters: [String],
-    headers: [String: String],
+    headers: [(name: String, value: String, isParameter: Bool)],
     returnType: String?
   ) -> String {
     let functionName = function.name.text
@@ -328,11 +366,19 @@ public struct DELETEMacro: PeerMacro {
   }
 
   /// Generates code for adding custom headers to request.
-  private static func generateHeaderCode(_ headers: [String: String]) -> String {
+  private static func generateHeaderCode(
+    _ headers: [(name: String, value: String, isParameter: Bool)]
+  ) -> String {
     guard !headers.isEmpty else { return "" }
 
-    let headerLines = headers.sorted(by: { $0.key < $1.key }).map { name, value in
-      "\n  request.addHeader(name: \"\(name)\", value: \"\(value)\")"
+    let headerLines = headers.map { header in
+      if header.isParameter {
+        // Parameter reference: interpolate the parameter value
+        "\n  request.addHeader(name: \"\(header.name)\", value: \\(\(header.value)))"
+      } else {
+        // Literal value: use as-is
+        "\n  request.addHeader(name: \"\(header.name)\", value: \"\(header.value)\")"
+      }
     }.joined()
 
     return headerLines

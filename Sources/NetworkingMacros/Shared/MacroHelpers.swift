@@ -339,3 +339,102 @@ public enum MacroExpansionError: Error, CustomStringConvertible {
     }
   }
 }
+
+// MARK: - Attached Macro Detection
+
+extension FunctionDeclSyntax {
+  /// Detects @Body macro on this function and returns parameter name
+  ///
+  /// - Returns: The parameter name from @Body("paramName"), or nil if not found
+  func detectBodyMacro() -> String? {
+    for attribute in attributes {
+      guard case .attribute(let attr) = attribute,
+        let identType = attr.attributeName.as(IdentifierTypeSyntax.self),
+        identType.name.text == "Body",
+        case .argumentList(let arguments) = attr.arguments,
+        let firstArg = arguments.first,
+        let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
+        let segment = stringLiteral.segments.first,
+        case .stringSegment(let text) = segment
+      else {
+        continue
+      }
+      return text.content.text
+    }
+    return nil
+  }
+
+  /// Detects @Headers macro on this function and returns header configurations
+  ///
+  /// - Returns: Array of (name, value, isParameter) tuples for each header
+  func detectHeadersMacro() -> [(name: String, value: String, isParameter: Bool)] {
+    var headers: [(String, String, Bool)] = []
+
+    for attribute in attributes {
+      guard case .attribute(let attr) = attribute,
+        let identType = attr.attributeName.as(IdentifierTypeSyntax.self),
+        identType.name.text == "Headers",
+        case .argumentList(let arguments) = attr.arguments,
+        let closureArg = arguments.first,
+        let closure = closureArg.expression.as(ClosureExprSyntax.self)
+      else {
+        continue
+      }
+
+      // Extract parameter names from function signature
+      let paramNames = Set(
+        self.signature.parameterClause.parameters.map {
+          $0.secondName?.text ?? $0.firstName.text
+        }
+      )
+
+      // Parse H() calls from closure
+      for statement in closure.statements {
+        if let funcCall = statement.item.as(FunctionCallExprSyntax.self),
+          let identExpr = funcCall.calledExpression.as(DeclReferenceExprSyntax.self),
+          identExpr.baseName.text == "H"
+        {
+          let args = Array(funcCall.arguments)
+          guard args.count == 2,
+            let nameLiteral = args[0].expression.as(StringLiteralExprSyntax.self),
+            let valueLiteral = args[1].expression.as(StringLiteralExprSyntax.self),
+            let nameSegment = nameLiteral.segments.first,
+            let valueSegment = valueLiteral.segments.first,
+            case .stringSegment(let nameText) = nameSegment,
+            case .stringSegment(let valueText) = valueSegment
+          else {
+            continue
+          }
+
+          let isParam = paramNames.contains(valueText.content.text)
+          headers.append((nameText.content.text, valueText.content.text, isParam))
+        }
+      }
+    }
+
+    return headers
+  }
+
+  /// Checks if function uses old syntax (body/headers in macro arguments)
+  ///
+  /// - Returns: true if old syntax detected (body: or headers: labeled arguments)
+  func usesOldMacroSyntax() -> Bool {
+    for attribute in attributes {
+      guard case .attribute(let attr) = attribute,
+        case .argumentList(let arguments) = attr.arguments
+      else {
+        continue
+      }
+
+      // Check for 'body:' or 'headers:' labeled arguments
+      for argument in arguments {
+        if let label = argument.label?.text,
+          label == "body" || label == "headers"
+        {
+          return true
+        }
+      }
+    }
+    return false
+  }
+}
