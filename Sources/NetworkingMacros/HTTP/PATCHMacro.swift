@@ -52,16 +52,70 @@ public struct PATCHMacro: PeerMacro {
     // Validate path template syntax
     try MacroHelpers.validatePathTemplate(path, context: context)
 
-    // Extract body parameter name from macro arguments
-    guard let bodyParam = extractBodyParameter(from: node, context: context) else {
+    // Detect syntax style (old vs new)
+    let usesOldSyntax = function.usesOldMacroSyntax()
+    let newBodyParam = function.detectBodyMacro()
+    let newHeaders = function.detectHeadersMacro()
+
+    // Check for mixing old and new syntax
+    if usesOldSyntax && (newBodyParam != nil || !newHeaders.isEmpty) {
+      MacroHelpers.emitError(
+        """
+        Cannot mix old and new syntax. Use either:
+        - Old: @PATCH("/path", body: "param", headers: [...])
+        - New: @PATCH("/path") with @Body("param") and @Headers { ... }
+        """,
+        node: node,
+        context: context
+      )
+      return []
+    }
+
+    // Emit deprecation warning for old syntax
+    if usesOldSyntax {
+      MacroHelpers.emitWarning(
+        """
+        Old syntax is deprecated. Use @Body and @Headers attached macros instead:
+        @PATCH("/path")
+        @Body("paramName")
+        @Headers { H("name", "value") }
+        func myMethod(...)
+        """,
+        node: Syntax(node),
+        context: context
+      )
+    }
+
+    // Extract body parameter (try new syntax first, then old)
+    let bodyParam: String?
+    if let newBody = newBodyParam {
+      bodyParam = newBody
+    } else if let oldBody = extractBodyParameter(from: node, context: context) {
+      bodyParam = oldBody
+    } else {
+      MacroHelpers.emitError(
+        "@PATCH requires a body parameter. Use @Body(\"paramName\") or body: argument",
+        node: node,
+        context: context
+      )
+      return []
+    }
+
+    guard let body = bodyParam else {
       return []
     }
 
     // Extract query parameters (if any)
     let queryParams = extractQueryParameters(from: node, context: context)
 
-    // Extract headers (if any)
-    let headers = extractHeaders(from: node, context: context)
+    // Extract headers (new syntax takes precedence)
+    let headers: [(name: String, value: String, isParameter: Bool)]
+    if !newHeaders.isEmpty {
+      headers = newHeaders
+    } else {
+      let oldHeaders = extractHeaders(from: node, context: context)
+      headers = oldHeaders.map { (name: $0.key, value: $0.value, isParameter: false) }
+    }
 
     // Extract function parameters
     let functionParams = MacroHelpers.extractParameterNames(from: function)
@@ -82,13 +136,6 @@ public struct PATCHMacro: PeerMacro {
       )
     }
 
-    // Validate body parameter exists in function signature
-    try MacroHelpers.validateBodyParameter(
-      bodyParam,
-      functionParameters: functionParams,
-      context: context
-    )
-
     // Extract return type
     guard let returnType = MacroHelpers.extractReturnType(from: function) else {
       MacroHelpers.emitError(
@@ -103,7 +150,7 @@ public struct PATCHMacro: PeerMacro {
     let implementation = generateImplementation(
       function: function,
       path: path,
-      bodyParameter: bodyParam,
+      bodyParameter: body,
       queryParameters: queryParams,
       headers: headers,
       returnType: returnType
@@ -234,7 +281,7 @@ public struct PATCHMacro: PeerMacro {
     path: String,
     bodyParameter: String,
     queryParameters: [String],
-    headers: [String: String],
+    headers: [(name: String, value: String, isParameter: Bool)],
     returnType: String
   ) -> String {
     let functionName = function.name.text
@@ -306,13 +353,23 @@ public struct PATCHMacro: PeerMacro {
   }
 
   /// Generates code for adding custom headers.
-  private static func generateHeaderCode(_ headers: [String: String]) -> String {
+  private static func generateHeaderCode(
+    _ headers: [(name: String, value: String, isParameter: Bool)]
+  ) -> String {
     guard !headers.isEmpty else { return "" }
 
-    let headerCode = headers.map { name, value in
-      """
-        request.addHeader(name: "\(name)", value: "\(value)")
-      """
+    let headerCode = headers.map { header in
+      if header.isParameter {
+        // Parameter reference: interpolate the parameter value
+        """
+          request.addHeader(name: "\(header.name)", value: \\(\(header.value)))
+        """
+      } else {
+        // Literal value: use as-is
+        """
+          request.addHeader(name: "\(header.name)", value: "\(header.value)")
+        """
+      }
     }.joined(separator: "\n")
 
     return "\n\(headerCode)"
