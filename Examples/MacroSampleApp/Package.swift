@@ -4,14 +4,17 @@ import PackageDescription
 let package = Package(
   name: "MacroSampleApp",
   platforms: [.macOS(.v14)],
+  products: [
+    .executable(name: "MacroSampleApp", targets: ["MacroSampleApp"])
+  ],
   dependencies: [
-    .package(path: "../../")
+    .package(name: "Networking", path: "../..")
   ],
   targets: [
     .executableTarget(
       name: "MacroSampleApp",
       dependencies: [
-        .product(name: "Networking", package: "ModernNetworking")
+        .product(name: "Networking", package: "Networking")
       ]
     )
   ]

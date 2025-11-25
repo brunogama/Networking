@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `HTTPieMiddleware` for request/response logging in HTTPie command format
-- `MacroSampleApp` example demonstrating macro-generated API clients
+- `MacroSampleApp` SwiftUI example with Dog API demonstrating macro-generated clients
 - Generic `QueryParam` initializers for `LosslessStringConvertible` and `CustomStringConvertible` types
 - `combinePath` helper for consistent URL path handling with base URLs
 
