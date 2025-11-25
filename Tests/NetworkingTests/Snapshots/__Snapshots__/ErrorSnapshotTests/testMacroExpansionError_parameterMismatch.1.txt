@@ -1,0 +1,13 @@
+=== MacroExpansionError ===
+Description:
+Path parameter mismatch in '/users/{userId}':
+- Function parameters: id
+- Required path parameters: userId
+
+Error Description:
+Path parameter mismatch in '/users/{userId}':
+- Function parameters: id
+- Required path parameters: userId
+
+Recovery Suggestion:
+Ensure path parameter names in {braces} match function parameter names exactly.

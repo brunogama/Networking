@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: encoding("Failed to encode request body")
+Severity: medium
+Recovery Category: nonRecoverable
+
+Error Description:
+Encoding error: Failed to encode request body
+
+User Friendly Description:
+Encoding error: Failed to encode request body. There was an issue preparing your request.
+
+Recovery Suggestions:
+  1. There was an issue preparing your request.
+  2. Please check your input and try again.
+
+Debug Description:
+HTTPError:, Category: encoding("Failed to encode request body"), Severity: medium, Recovery: nonRecoverable
+
+Is Client Error: true
+Is Server Error: false
+Is Transient Error: false

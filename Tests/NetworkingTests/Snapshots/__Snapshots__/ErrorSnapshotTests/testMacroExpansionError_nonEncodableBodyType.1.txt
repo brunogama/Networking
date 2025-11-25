@@ -1,0 +1,9 @@
+=== MacroExpansionError ===
+Description:
+Body parameter type 'CustomRequest' must conform to Encodable
+
+Error Description:
+Body parameter type 'CustomRequest' must conform to Encodable
+
+Recovery Suggestion:
+Add Encodable conformance: struct Type: Encodable { ... }

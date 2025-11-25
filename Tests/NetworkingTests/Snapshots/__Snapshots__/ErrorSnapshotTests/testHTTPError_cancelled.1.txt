@@ -1,0 +1,20 @@
+=== HTTPError ===
+Category: cancelled
+Severity: low
+Recovery Category: nonRecoverable
+
+Error Description:
+Request was cancelled
+
+User Friendly Description:
+Request was cancelled. The request was cancelled. You can try again if needed.
+
+Recovery Suggestions:
+  1. The request was cancelled. You can try again if needed.
+
+Debug Description:
+HTTPError:, Category: cancelled, Severity: low, Recovery: nonRecoverable
+
+Is Client Error: false
+Is Server Error: false
+Is Transient Error: false

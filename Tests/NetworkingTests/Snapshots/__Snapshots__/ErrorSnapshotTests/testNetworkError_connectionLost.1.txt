@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: network(Networking.HTTPError.NetworkError.connectionLost)
+Severity: high
+Recovery Category: retryableWithDelay
+
+Error Description:
+Network error: connectionLost
+
+User Friendly Description:
+Network error: connectionLost. Your connection was interrupted. Please try again.
+
+Recovery Suggestions:
+  1. Your connection was interrupted. Please try again.
+  2. Check your network stability.
+
+Debug Description:
+HTTPError:, Category: network(Networking.HTTPError.NetworkError.connectionLost), Severity: high, Recovery: retryableWithDelay
+
+Is Client Error: false
+Is Server Error: true
+Is Transient Error: true

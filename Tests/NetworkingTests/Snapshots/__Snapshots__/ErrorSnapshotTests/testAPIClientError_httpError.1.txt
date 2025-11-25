@@ -1,0 +1,12 @@
+=== APIClientError ===
+Description:
+HTTP error 404: not found
+
+Error Description:
+HTTP error 404: not found
+
+Failure Reason:
+Server returned status code 404
+
+Recovery Suggestion:
+Resource not found. Verify the endpoint path.

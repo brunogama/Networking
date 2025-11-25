@@ -11,7 +11,8 @@ final class ErrorSnapshotTests: XCTestCase {
 
   override func invokeTest() {
     // Set record mode to generate/update snapshots:
-    withSnapshotTesting(record: .all) { super.invokeTest() }
+    // withSnapshotTesting(record: .all) { super.invokeTest() }
+    super.invokeTest()
   }
 
   // MARK: - HTTPError Network Errors

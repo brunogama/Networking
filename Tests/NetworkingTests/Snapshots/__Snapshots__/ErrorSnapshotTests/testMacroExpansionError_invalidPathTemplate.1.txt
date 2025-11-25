@@ -1,0 +1,11 @@
+=== MacroExpansionError ===
+Description:
+Invalid path template: '/users/{id'
+  Suggestion: Use /users/{id} with closing brace
+
+Error Description:
+Invalid path template: '/users/{id'
+  Suggestion: Use /users/{id} with closing brace
+
+Recovery Suggestion:
+Use {parameterName} syntax for path parameters. Example: /users/{id}

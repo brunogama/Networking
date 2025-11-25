@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: network(Networking.HTTPError.NetworkError.serverUnreachable)
+Severity: medium
+Recovery Category: retryableWithDelay
+
+Error Description:
+Network error: serverUnreachable
+
+User Friendly Description:
+Network error: serverUnreachable. The server is temporarily unavailable. Please try again later.
+
+Recovery Suggestions:
+  1. The server is temporarily unavailable. Please try again later.
+  2. Check if the service is down for maintenance.
+
+Debug Description:
+HTTPError:, Category: network(Networking.HTTPError.NetworkError.serverUnreachable), Severity: medium, Recovery: retryableWithDelay
+
+Is Client Error: false
+Is Server Error: true
+Is Transient Error: true

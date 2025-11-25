@@ -1,0 +1,11 @@
+=== MacroExpansionError ===
+Description:
+Query parameter 'pageSize' not found in function signature.
+Available parameters: page, limit, offset
+
+Error Description:
+Query parameter 'pageSize' not found in function signature.
+Available parameters: page, limit, offset
+
+Recovery Suggestion:
+Add a 'pageSize' parameter to the function, or remove it from queryParameters.
