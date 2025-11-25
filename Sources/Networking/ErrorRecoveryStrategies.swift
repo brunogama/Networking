@@ -163,7 +163,7 @@ public struct ErrorRecoveryStrategies: Sendable {
     private let failureThreshold: Int
     private let recoveryTimeout: TimeInterval
 
-    public nonisolated let maxRecoveryAttempts: Int = 1
+    nonisolated public let maxRecoveryAttempts: Int = 1
 
     public init(
       failureThreshold: Int = 5,
@@ -173,7 +173,7 @@ public struct ErrorRecoveryStrategies: Sendable {
       self.recoveryTimeout = recoveryTimeout
     }
 
-    public nonisolated func canRecover(from error: HTTPError) -> Bool {
+    nonisolated public func canRecover(from error: HTTPError) -> Bool {
       error.isServerError
     }
 
