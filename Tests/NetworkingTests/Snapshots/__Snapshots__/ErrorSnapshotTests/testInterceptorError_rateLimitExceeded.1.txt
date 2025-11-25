@@ -1,0 +1,9 @@
+=== InterceptorError ===
+Error Description:
+Rate limit exceeded for endpoint '/api/users'. Maximum of 100 requests allowed per 60.0 seconds.
+
+Failure Reason:
+Rate limit exceeded for the endpoint
+
+Recovery Suggestion:
+Wait before retrying the request, or implement exponential backoff. Consider increasing the rate limit if your use case requires more requests.

@@ -1,0 +1,12 @@
+=== APIClientError ===
+Description:
+Network error: The Internet connection appears to be offline.
+
+Error Description:
+Network error: The Internet connection appears to be offline.
+
+Failure Reason:
+Network connection failed
+
+Recovery Suggestion:
+Check your internet connection and try again.

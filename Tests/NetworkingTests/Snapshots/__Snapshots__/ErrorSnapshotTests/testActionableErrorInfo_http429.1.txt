@@ -1,0 +1,17 @@
+=== ActionableErrorInfo ===
+User Message:
+HTTP error: 200. Please try again or contact support if the problem continues.
+
+Technical Summary:
+HTTPError:, Category: http(Networking.HTTPStatus(rawValue: 200)), Severity: low, Recovery: retryable
+Context: Attempt 1, Network: unknown, Device: normal
+
+Impact Level: minimal
+Confidence Level: high
+
+Recovery Actions:
+  1. Retry Request
+     Type: delayed
+     Description: Retry the request after a brief delay
+     Can Auto Execute: true
+     Estimated Duration: 30.0s

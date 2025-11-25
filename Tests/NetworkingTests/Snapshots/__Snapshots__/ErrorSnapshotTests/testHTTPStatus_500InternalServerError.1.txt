@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: http(Networking.HTTPStatus(rawValue: 500))
+Severity: high
+Recovery Category: retryableWithDelay
+
+Error Description:
+HTTP error: 500
+
+User Friendly Description:
+HTTP error: 500. The server is experiencing issues. Please try again later.
+
+Recovery Suggestions:
+  1. The server is experiencing issues. Please try again later.
+  2. Contact support if this problem continues.
+
+Debug Description:
+HTTPError:, Category: http(Networking.HTTPStatus(rawValue: 500)), Severity: high, Recovery: retryableWithDelay
+
+Is Client Error: false
+Is Server Error: true
+Is Transient Error: true

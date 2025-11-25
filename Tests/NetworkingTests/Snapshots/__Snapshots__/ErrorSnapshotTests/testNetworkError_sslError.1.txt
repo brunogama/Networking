@@ -1,0 +1,22 @@
+=== HTTPError ===
+Category: network(Networking.HTTPError.NetworkError.sslError)
+Severity: critical
+Recovery Category: userActionRequired
+
+Error Description:
+Network error: sslError
+
+User Friendly Description:
+Network error: sslError. There's a security issue with the connection.
+
+Recovery Suggestions:
+  1. There's a security issue with the connection.
+  2. Check your device's date and time settings.
+  3. Contact support if this continues.
+
+Debug Description:
+HTTPError:, Category: network(Networking.HTTPError.NetworkError.sslError), Severity: critical, Recovery: userActionRequired
+
+Is Client Error: false
+Is Server Error: true
+Is Transient Error: false

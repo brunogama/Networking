@@ -1,0 +1,12 @@
+=== APIClientError ===
+Description:
+Failed to decode response: Expected Int but found String at keyPath $.id
+
+Error Description:
+Failed to decode response: Expected Int but found String at keyPath $.id
+
+Failure Reason:
+Response body could not be decoded
+
+Recovery Suggestion:
+Response format may have changed. Verify your data models match the API response.

@@ -1,0 +1,27 @@
+=== ActionableErrorInfo ===
+User Message:
+Request timed out. The request took too long to complete. Please try again.
+
+Technical Summary:
+HTTPError:, Category: timeout, Severity: medium, Recovery: retryableWithDelay
+Context: Attempt 1, Network: unknown, Device: normal
+
+Impact Level: minimal
+Confidence Level: high
+
+Recovery Actions:
+  1. Retry with Extended Timeout
+     Type: immediate
+     Description: Retry the request with a longer timeout period
+     Can Auto Execute: true
+     Estimated Duration: 15.0s
+  2. Check Network Speed
+     Type: userInteraction
+     Description: Test your internet connection speed
+     Can Auto Execute: false
+     Estimated Duration: 120.0s
+  3. Switch to Faster Network
+     Type: userInteraction
+     Description: Connect to a faster network if available
+     Can Auto Execute: false
+     Estimated Duration: 180.0s

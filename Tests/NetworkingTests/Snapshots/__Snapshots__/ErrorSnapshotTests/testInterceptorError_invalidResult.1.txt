@@ -1,0 +1,9 @@
+=== InterceptorError ===
+Error Description:
+Invalid interceptor result: Missing response body. The interceptor returned an unexpected or malformed result.
+
+Failure Reason:
+An interceptor returned an invalid result
+
+Recovery Suggestion:
+Review the interceptor's logic to ensure it returns valid InterceptorResult values. Ensure .shortCircuit results include a valid HTTPResponse.

@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: decoding("Invalid JSON format")
+Severity: medium
+Recovery Category: nonRecoverable
+
+Error Description:
+Decoding error: Invalid JSON format
+
+User Friendly Description:
+Decoding error: Invalid JSON format. There was an issue processing the server response.
+
+Recovery Suggestions:
+  1. There was an issue processing the server response.
+  2. Please try again or contact support.
+
+Debug Description:
+HTTPError:, Category: decoding("Invalid JSON format"), Severity: medium, Recovery: nonRecoverable
+
+Is Client Error: false
+Is Server Error: false
+Is Transient Error: false

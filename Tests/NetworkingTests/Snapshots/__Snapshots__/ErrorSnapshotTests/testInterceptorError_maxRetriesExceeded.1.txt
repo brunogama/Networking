@@ -1,0 +1,9 @@
+=== InterceptorError ===
+Error Description:
+Maximum retry attempts (3) exceeded. The request was retried 3 times but continued to fail.
+
+Failure Reason:
+The maximum number of retry attempts was exceeded
+
+Recovery Suggestion:
+Check network connectivity and server status. Consider increasing the max retry limit if transient errors are expected.

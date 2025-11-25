@@ -1,0 +1,9 @@
+=== MacroExpansionError ===
+Description:
+Function 'getUsers' must be marked 'throws'
+
+Error Description:
+Function 'getUsers' must be marked 'throws'
+
+Recovery Suggestion:
+Add 'throws' keyword: func methodName(...) async throws -> Type

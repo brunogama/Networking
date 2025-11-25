@@ -1,0 +1,22 @@
+=== HTTPError ===
+Category: network(Networking.HTTPError.NetworkError.noConnection)
+Severity: high
+Recovery Category: retryableWithDelay
+
+Error Description:
+Network error: noConnection
+
+User Friendly Description:
+Network error: noConnection. Check your internet connection and try again.
+
+Recovery Suggestions:
+  1. Check your internet connection and try again.
+  2. Make sure you're connected to WiFi or cellular data.
+  3. Try switching between WiFi and cellular data.
+
+Debug Description:
+HTTPError:, Category: network(Networking.HTTPError.NetworkError.noConnection), Severity: high, Recovery: retryableWithDelay
+
+Is Client Error: false
+Is Server Error: true
+Is Transient Error: true

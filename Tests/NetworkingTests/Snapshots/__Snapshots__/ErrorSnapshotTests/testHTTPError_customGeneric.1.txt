@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: custom("validation", "Invalid input data")
+Severity: medium
+Recovery Category: retryableWithDelay
+
+Error Description:
+validation error: Invalid input data
+
+User Friendly Description:
+validation error: Invalid input data. validation issue: Invalid input data
+
+Recovery Suggestions:
+  1. validation issue: Invalid input data
+  2. Please try again or contact support if the problem continues.
+
+Debug Description:
+HTTPError:, Category: custom("validation", "Invalid input data"), Severity: medium, Recovery: retryableWithDelay
+
+Is Client Error: false
+Is Server Error: false
+Is Transient Error: true

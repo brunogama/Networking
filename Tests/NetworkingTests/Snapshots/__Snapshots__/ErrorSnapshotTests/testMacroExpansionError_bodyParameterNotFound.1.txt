@@ -1,0 +1,11 @@
+=== MacroExpansionError ===
+Description:
+Body parameter 'userRequest' not found in function signature.
+Available parameters: user, data, payload
+
+Error Description:
+Body parameter 'userRequest' not found in function signature.
+Available parameters: user, data, payload
+
+Recovery Suggestion:
+Add a 'userRequest' parameter to the function, or change the body attribute.

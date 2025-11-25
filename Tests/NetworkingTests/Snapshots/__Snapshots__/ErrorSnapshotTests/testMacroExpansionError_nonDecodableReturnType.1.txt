@@ -1,0 +1,9 @@
+=== MacroExpansionError ===
+Description:
+Return type 'CustomResponse' must conform to Decodable
+
+Error Description:
+Return type 'CustomResponse' must conform to Decodable
+
+Recovery Suggestion:
+Add Decodable conformance: struct Type: Decodable { ... }

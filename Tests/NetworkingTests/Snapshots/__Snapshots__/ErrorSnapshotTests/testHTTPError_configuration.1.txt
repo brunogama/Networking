@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: configuration("Missing API key")
+Severity: critical
+Recovery Category: userActionRequired
+
+Error Description:
+Configuration error: Missing API key
+
+User Friendly Description:
+Configuration error: Missing API key. There's a configuration issue with the app.
+
+Recovery Suggestions:
+  1. There's a configuration issue with the app.
+  2. Please contact support or reinstall the app.
+
+Debug Description:
+HTTPError:, Category: configuration("Missing API key"), Severity: critical, Recovery: userActionRequired
+
+Is Client Error: true
+Is Server Error: false
+Is Transient Error: false

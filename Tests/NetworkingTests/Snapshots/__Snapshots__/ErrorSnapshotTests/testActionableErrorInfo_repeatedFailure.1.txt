@@ -1,0 +1,38 @@
+=== ActionableErrorInfo ===
+User Message:
+Network error: connectionLost. Your connection was interrupted. Please try again. This is attempt #4.
+
+Technical Summary:
+HTTPError:, Category: network(Networking.HTTPError.NetworkError.connectionLost), Severity: high, Recovery: retryableWithDelay
+Context: Attempt 4, Network: poor, Device: normal
+Triggered by: Refreshing feed
+
+Impact Level: significant
+Confidence Level: low
+
+Recovery Actions:
+  1. Automatic Retry
+     Type: immediate
+     Description: Retry the request automatically
+     Can Auto Execute: true
+     Estimated Duration: 5.0s
+  2. Wait Before Retry
+     Type: delayed
+     Description: Wait longer before attempting again
+     Can Auto Execute: true
+     Estimated Duration: 120.0s
+  3. Check Network Stability
+     Type: userInteraction
+     Description: Ensure your network connection is stable
+     Can Auto Execute: false
+     Estimated Duration: 60.0s
+  4. Improve Network Connection
+     Type: userInteraction
+     Description: Move to an area with better signal or connect to WiFi
+     Can Auto Execute: false
+     Estimated Duration: 180.0s
+  5. Contact Technical Support
+     Type: contactSupport
+     Description: Multiple attempts have failed. Technical support can help diagnose the issue.
+     Can Auto Execute: false
+     Estimated Duration: 1800.0s

@@ -1,0 +1,22 @@
+=== HTTPError ===
+Category: custom("security", "Certificate validation failed")
+Severity: high
+Recovery Category: userActionRequired
+
+Error Description:
+security error: Certificate validation failed
+
+User Friendly Description:
+security error: Certificate validation failed. Security issue detected: Certificate validation failed
+
+Recovery Suggestions:
+  1. Security issue detected: Certificate validation failed
+  2. Please check your request and ensure it follows security guidelines.
+  3. Contact support if this continues.
+
+Debug Description:
+HTTPError:, Category: custom("security", "Certificate validation failed"), Severity: high, Recovery: userActionRequired
+
+Is Client Error: false
+Is Server Error: false
+Is Transient Error: false

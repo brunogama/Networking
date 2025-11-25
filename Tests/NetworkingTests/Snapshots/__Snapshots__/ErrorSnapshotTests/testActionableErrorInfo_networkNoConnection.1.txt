@@ -1,0 +1,27 @@
+=== ActionableErrorInfo ===
+User Message:
+Network error: noConnection. Check your internet connection and try again.
+
+Technical Summary:
+HTTPError:, Category: network(Networking.HTTPError.NetworkError.noConnection), Severity: high, Recovery: retryableWithDelay
+Context: Attempt 1, Network: unknown, Device: normal
+
+Impact Level: significant
+Confidence Level: high
+
+Recovery Actions:
+  1. Retry When Connected
+     Type: delayed
+     Description: Automatically retry when connection is restored
+     Can Auto Execute: true
+     Estimated Duration: 60.0s
+  2. Check Internet Connection
+     Type: userInteraction
+     Description: Verify that your device is connected to WiFi or cellular data
+     Can Auto Execute: false
+     Estimated Duration: 30.0s
+  3. Switch Network
+     Type: userInteraction
+     Description: Try switching between WiFi and cellular data
+     Can Auto Execute: false
+     Estimated Duration: 15.0s

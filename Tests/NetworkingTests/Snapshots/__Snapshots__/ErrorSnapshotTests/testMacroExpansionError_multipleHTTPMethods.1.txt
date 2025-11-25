@@ -1,0 +1,13 @@
+=== MacroExpansionError ===
+Description:
+Multiple HTTP method macros on 'createUser':
+Found: @GET, @POST
+Only one HTTP method macro allowed per function.
+
+Error Description:
+Multiple HTTP method macros on 'createUser':
+Found: @GET, @POST
+Only one HTTP method macro allowed per function.
+
+Recovery Suggestion:
+Remove all but one HTTP method macro (@GET, @POST, @PUT, @PATCH, @DELETE).

@@ -1,0 +1,22 @@
+=== HTTPError ===
+Category: network(Networking.HTTPError.NetworkError.dnsFailure)
+Severity: medium
+Recovery Category: userActionRequired
+
+Error Description:
+Network error: dnsFailure
+
+User Friendly Description:
+Network error: dnsFailure. Check that the server address is correct.
+
+Recovery Suggestions:
+  1. Check that the server address is correct.
+  2. Try again in a moment as this might be a temporary issue.
+  3. Contact your network administrator if this persists.
+
+Debug Description:
+HTTPError:, Category: network(Networking.HTTPError.NetworkError.dnsFailure), Severity: medium, Recovery: userActionRequired
+
+Is Client Error: false
+Is Server Error: true
+Is Transient Error: false

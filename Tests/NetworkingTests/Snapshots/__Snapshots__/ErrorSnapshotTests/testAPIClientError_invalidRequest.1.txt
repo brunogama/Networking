@@ -1,0 +1,12 @@
+=== APIClientError ===
+Description:
+Invalid request: URL contains invalid characters
+
+Error Description:
+Invalid request: URL contains invalid characters
+
+Failure Reason:
+Request configuration is invalid
+
+Recovery Suggestion:
+Fix the request configuration and try again.

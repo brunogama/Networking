@@ -1,0 +1,20 @@
+=== HTTPError ===
+Category: http(Networking.HTTPStatus(rawValue: 200))
+Severity: low
+Recovery Category: retryable
+
+Error Description:
+HTTP error: 200
+
+User Friendly Description:
+HTTP error: 200. Please try again or contact support if the problem continues.
+
+Recovery Suggestions:
+  1. Please try again or contact support if the problem continues.
+
+Debug Description:
+HTTPError:, Category: http(Networking.HTTPStatus(rawValue: 200)), Severity: low, Recovery: retryable
+
+Is Client Error: false
+Is Server Error: false
+Is Transient Error: true
