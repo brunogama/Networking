@@ -202,6 +202,166 @@ final class SimplePropertyTests: XCTestCase {
         }
       }
   }
+
+  // MARK: - HTTPMethod Property Tests
+
+  func testHTTPMethodNormalizationProperties() {
+    property("HTTPMethod uppercases any input string")
+      <- forAll { (methodString: String) in
+        guard !methodString.isEmpty else { return Discard() }
+        let method = HTTPMethod(rawValue: methodString)
+        return method.rawValue == methodString.uppercased()
+      }
+
+    property("HTTPMethod equality is reflexive")
+      <- forAll { (method: HTTPMethod) in
+        method == method
+      }
+
+    property("HTTPMethod rawValue round-trip preserves identity")
+      <- forAll { (method: HTTPMethod) in
+        let reconstructed = HTTPMethod(rawValue: method.rawValue)
+        return reconstructed == method
+      }
+
+    property("HTTPMethod hash consistency with equality")
+      <- forAll { (m1: HTTPMethod, m2: HTTPMethod) in
+        // If two methods are equal, they must have equal hash values
+        if m1 == m2 {
+          return m1.hashValue == m2.hashValue
+        }
+        return true
+      }
+
+    property("HTTPMethod string literal normalization")
+      <- forAll { (useUppercase: Bool) in
+        let input = useUppercase ? "GET" : "get"
+        let method = HTTPMethod(stringLiteral: input)
+        return method.rawValue == "GET"
+      }
+  }
+
+  // MARK: - HTTPStatus Extended Property Tests
+
+  func testHTTPStatusExtendedProperties() {
+    property("HTTPStatus equality is reflexive")
+      <- forAll { (statusCode: Int) in
+        guard statusCode >= 100 && statusCode <= 599 else { return Discard() }
+        let status = HTTPStatus(rawValue: statusCode)
+        return status == status
+      }
+
+    property("HTTPStatus hash consistency with equality")
+      <- forAll { (s1Code: Int, s2Code: Int) in
+        guard s1Code >= 100 && s1Code <= 599 else { return Discard() }
+        guard s2Code >= 100 && s2Code <= 599 else { return Discard() }
+
+        let s1 = HTTPStatus(rawValue: s1Code)
+        let s2 = HTTPStatus(rawValue: s2Code)
+
+        if s1 == s2 {
+          return s1.hashValue == s2.hashValue
+        }
+        return true
+      }
+
+    property("HTTPStatus category ranges are correct")
+      <- forAll { (statusCode: Int) in
+        guard statusCode >= 100 && statusCode <= 599 else { return Discard() }
+        let status = HTTPStatus(rawValue: statusCode)
+
+        let expectedInformational = (100...199).contains(statusCode)
+        let expectedSuccess = (200...299).contains(statusCode)
+        let expectedRedirection = (300...399).contains(statusCode)
+        let expectedClientError = (400...499).contains(statusCode)
+        let expectedServerError = (500...599).contains(statusCode)
+
+        return status.isInformational == expectedInformational
+          && status.isSuccess == expectedSuccess
+          && status.isRedirection == expectedRedirection
+          && status.isClientError == expectedClientError
+          && status.isServerError == expectedServerError
+      }
+  }
+
+  // MARK: - InterceptorContext Property Tests
+
+  func testInterceptorContextIncrementProperties() {
+    property("InterceptorContext incrementingAttempt increases count by 1")
+      <- forAll { (context: InterceptorContext) in
+        let incremented = context.incrementingAttempt()
+        return incremented.attemptCount == context.attemptCount + 1
+      }
+
+    property("InterceptorContext incrementingAttempt preserves path")
+      <- forAll { (context: InterceptorContext) in
+        let incremented = context.incrementingAttempt()
+        return incremented.path == context.path
+      }
+
+    property("InterceptorContext incrementingAttempt preserves method")
+      <- forAll { (context: InterceptorContext) in
+        let incremented = context.incrementingAttempt()
+        return incremented.method == context.method
+      }
+
+    property("InterceptorContext incrementingAttempt preserves metadata count")
+      <- forAll { (context: InterceptorContext) in
+        let incremented = context.incrementingAttempt()
+        return incremented.metadata.count == context.metadata.count
+      }
+
+    property("InterceptorContext multiple increments are additive")
+      <- forAll { (context: InterceptorContext, n: UInt8) in
+        let incrementCount = Int(n % 10)
+        var current = context
+        for _ in 0..<incrementCount {
+          current = current.incrementingAttempt()
+        }
+        return current.attemptCount == context.attemptCount + incrementCount
+      }
+  }
+
+  func testInterceptorContextMetadataProperties() {
+    property("InterceptorContext addingMetadata preserves existing keys")
+      <- forAll { (context: InterceptorContext) in
+        let newMetadata: [String: AnySendable] = ["newTestKey": .string("newValue")]
+        let updated = context.addingMetadata(newMetadata)
+
+        // All original keys should still be present
+        for key in context.metadata.keys {
+          guard updated.metadata[key] != nil else { return false }
+        }
+        return true
+      }
+
+    property("InterceptorContext addingMetadata includes new keys")
+      <- forAll { (context: InterceptorContext, newValue: Int) in
+        let newMetadata: [String: AnySendable] = ["testKey": .int(newValue)]
+        let updated = context.addingMetadata(newMetadata)
+
+        guard case .int(let storedValue) = updated.metadata["testKey"] else {
+          return false
+        }
+        return storedValue == newValue
+      }
+
+    property("InterceptorContext addingMetadata uses right-bias override")
+      <- forAll { (newValue: Int) in
+        let original = InterceptorContext(
+          path: "/test",
+          method: .get,
+          attemptCount: 0,
+          metadata: ["key": .int(100)]
+        )
+        let updated = original.addingMetadata(["key": .int(newValue)])
+
+        guard case .int(let storedValue) = updated.metadata["key"] else {
+          return false
+        }
+        return storedValue == newValue
+      }
+  }
 }
 
 // MARK: - SwiftCheck Generators
@@ -228,6 +388,51 @@ extension Gen where A == URL {
   static var arbitraryHTTPURL: Gen<URL> {
     String.arbitraryURLPath.map { path in
       URL(string: "https://example.com/\(path)")!
+    }
+  }
+}
+
+// InterceptorContext generator for property tests
+extension InterceptorContext: Arbitrary {
+  public static var arbitrary: Gen<InterceptorContext> {
+    Gen<InterceptorContext>.compose { composer in
+      // Generate path segments
+      let segmentCount = composer.generate(using: Gen.choose((1, 4)))
+      let pathChars = Array("abcdefghijklmnopqrstuvwxyz0123456789")
+      let pathParts = (0..<segmentCount).map { _ -> String in
+        let length = composer.generate(using: Gen.choose((1, 8)))
+        let chars = (0..<length).compactMap { _ -> Character? in
+          composer.generate(using: Gen<Character>.fromElements(of: pathChars))
+        }
+        return String(chars)
+      }
+      let path = "/" + pathParts.joined(separator: "/")
+
+      // Generate method
+      let method = composer.generate(using: HTTPMethod.arbitrary)
+
+      // Generate attempt count (0-50)
+      let attemptCount = composer.generate(using: Gen.choose((0, 50)))
+
+      // Generate metadata (0-3 entries)
+      let metadataCount = composer.generate(using: Gen.choose((0, 3)))
+      var metadata: [String: AnySendable] = [:]
+      for i in 0..<metadataCount {
+        let useString = composer.generate(using: Bool.arbitrary)
+        if useString {
+          metadata["key\(i)"] = .string("value\(i)")
+        } else {
+          let intVal = composer.generate(using: Int.arbitrary)
+          metadata["key\(i)"] = .int(intVal)
+        }
+      }
+
+      return InterceptorContext(
+        path: path,
+        method: method,
+        attemptCount: attemptCount,
+        metadata: metadata
+      )
     }
   }
 }
