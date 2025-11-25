@@ -61,7 +61,7 @@ public struct GherkinFeature: Sendable, Identifiable, Equatable {
     tags: [Tag] = [],
     background: GherkinBackground? = nil,
     scenarios: [GherkinScenario] = [],
-    location: SourceLocation = .unknown
+    location: GherkinSourceLocation = .unknown
   ) {
     self.id = id
     self.name = name
@@ -87,7 +87,7 @@ public struct GherkinBackground: Sendable, Equatable {
   public let steps: [GherkinStep]
 
   /// Source location where this background was defined.
-  public let location: SourceLocation
+  public let location: GherkinSourceLocation
 
   /// Creates a new background.
   ///
@@ -98,7 +98,7 @@ public struct GherkinBackground: Sendable, Equatable {
   public init(
     name: String? = nil,
     steps: [GherkinStep] = [],
-    location: SourceLocation = .unknown
+    location: GherkinSourceLocation = .unknown
   ) {
     self.name = name
     self.steps = steps
@@ -149,7 +149,7 @@ public enum GherkinScenario: Sendable, Identifiable, Equatable {
   }
 
   /// Source location where this scenario was defined.
-  public var location: SourceLocation {
+  public var location: GherkinSourceLocation {
     switch self {
     case .scenario(let def): return def.location
     case .outline(let def): return def.location
@@ -177,7 +177,7 @@ public struct ScenarioDefinition: Sendable, Identifiable, Equatable {
   public let steps: [GherkinStep]
 
   /// Source location.
-  public let location: SourceLocation
+  public let location: GherkinSourceLocation
 
   /// Creates a new scenario definition.
   public init(
@@ -186,7 +186,7 @@ public struct ScenarioDefinition: Sendable, Identifiable, Equatable {
     description: String? = nil,
     tags: [Tag] = [],
     steps: [GherkinStep] = [],
-    location: SourceLocation = .unknown
+    location: GherkinSourceLocation = .unknown
   ) {
     self.id = id
     self.name = name
@@ -236,7 +236,7 @@ public struct ScenarioOutlineDefinition: Sendable, Identifiable, Equatable {
   public let examples: [ExamplesTable]
 
   /// Source location.
-  public let location: SourceLocation
+  public let location: GherkinSourceLocation
 
   /// Creates a new scenario outline definition.
   public init(
@@ -246,7 +246,7 @@ public struct ScenarioOutlineDefinition: Sendable, Identifiable, Equatable {
     tags: [Tag] = [],
     steps: [GherkinStep] = [],
     examples: [ExamplesTable] = [],
-    location: SourceLocation = .unknown
+    location: GherkinSourceLocation = .unknown
   ) {
     self.id = id
     self.name = name
@@ -304,7 +304,7 @@ public struct ExamplesTable: Sendable, Equatable {
   public let rows: [[String]]
 
   /// Source location.
-  public let location: SourceLocation
+  public let location: GherkinSourceLocation
 
   /// Creates a new examples table.
   public init(
@@ -312,7 +312,7 @@ public struct ExamplesTable: Sendable, Equatable {
     tags: [Tag] = [],
     headers: [String] = [],
     rows: [[String]] = [],
-    location: SourceLocation = .unknown
+    location: GherkinSourceLocation = .unknown
   ) {
     self.name = name
     self.tags = tags
@@ -351,7 +351,7 @@ public struct GherkinStep: Sendable, Equatable {
   public let docString: DocString?
 
   /// Source location.
-  public let location: SourceLocation
+  public let location: GherkinSourceLocation
 
   /// Creates a new step.
   public init(
@@ -359,7 +359,7 @@ public struct GherkinStep: Sendable, Equatable {
     text: String,
     dataTable: DataTable? = nil,
     docString: DocString? = nil,
-    location: SourceLocation = .unknown
+    location: GherkinSourceLocation = .unknown
   ) {
     self.keyword = keyword
     self.text = text
