@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated all target names and module references
   - Updated all documentation and examples
 
+### Fixed
+- Static query parameters in `@API` macro now correctly added to generated request builder
+  - Values without placeholders (e.g., `api_key=DEMO_KEY`) were previously ignored
+
 ### Added
 - `HTTPieMiddleware` for request/response logging in HTTPie command format
 - `MacroSampleApp` example demonstrating macro-generated API clients

@@ -27,7 +27,6 @@ import Foundation
 /// **Note**: Due to Swift limitations, these cannot be used in protocol definitions.
 /// Use the RequestBuilder DSL directly instead.
 public enum Param {
-
   // MARK: - Path Parameter
 
   /// A property wrapper that marks a parameter as a URL path component.

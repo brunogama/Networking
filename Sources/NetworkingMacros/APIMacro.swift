@@ -107,7 +107,8 @@ public struct APIMacro: PeerMacro {
     let requestBuilding = generateRequestBuilding(
       httpMethod: httpInfo.method,
       path: httpInfo.path,
-      params: classifiedParams
+      params: classifiedParams,
+      staticQuery: httpInfo.query
     )
 
     // Generate return handling
@@ -348,7 +349,8 @@ public struct APIMacro: PeerMacro {
   private static func generateRequestBuilding(
     httpMethod: String,
     path: String,
-    params: ClassifiedParameters
+    params: ClassifiedParameters,
+    staticQuery: [String: String]
   ) -> String {
     var components: [String] = []
 
@@ -363,7 +365,14 @@ public struct APIMacro: PeerMacro {
     }
     components.append("\(httpMethod)(\(pathExpr))")
 
-    // Query parameters
+    // Static query parameters (values without placeholders)
+    for (key, value) in staticQuery {
+      if !value.contains("{") {
+        components.append("QueryParam(\"\(key)\", \"\(value)\")")
+      }
+    }
+
+    // Dynamic query parameters (from function arguments)
     for param in params.query {
       components.append("QueryParam(\"\(param.mappedName ?? param.name)\", \(param.localName))")
     }
