@@ -97,6 +97,7 @@ disabled_rules:
 - sorted_imports # Handled by SwiftFormat
 - type_contents_order # Too strict for SwiftUI projects
 - multiline_parameters # Conflicts with SwiftUI ViewBuilder syntax
+- opening_brace # Conflicts with SwiftFormat's brace placement
 
 # Rule configurations
 analyzer_rules:

@@ -12,7 +12,8 @@ public protocol ResponseTransformationPipeline: Sendable {
 
 /// A transformation pipeline that chains multiple transformers
 public struct ChainedTransformationPipeline<Input: Sendable, Output: Sendable>:
-  ResponseTransformationPipeline, Sendable {
+  ResponseTransformationPipeline, Sendable
+{
   private let transformations: [@Sendable (any Sendable) async throws -> any Sendable]
 
   internal init(transformations: [@Sendable (any Sendable) async throws -> any Sendable]) {
@@ -94,7 +95,8 @@ extension AsyncTransformationChain {
   }
 
   /// Applies a custom async transformation using a closure
-  public func map<U>(_ transform: (T) async throws -> U) async throws -> AsyncTransformationChain<U> {
+  public func map<U>(_ transform: (T) async throws -> U) async throws -> AsyncTransformationChain<U>
+  {
     let transformedValue = try await transform(value)
     return AsyncTransformationChain<U>(response: response, value: transformedValue)
   }
@@ -189,12 +191,14 @@ public struct AsyncImageDecoderTransformer: AsyncResponseTransformer {
     }
 
     // PNG: 89 50 4E 47
-    if signature[0] == 0x89 && signature[1] == 0x50 && signature[2] == 0x4E && signature[3] == 0x47 {
+    if signature[0] == 0x89 && signature[1] == 0x50 && signature[2] == 0x4E && signature[3] == 0x47
+    {
       return .png
     }
 
     // GIF: 47 49 46 38
-    if signature[0] == 0x47 && signature[1] == 0x49 && signature[2] == 0x46 && signature[3] == 0x38 {
+    if signature[0] == 0x47 && signature[1] == 0x49 && signature[2] == 0x46 && signature[3] == 0x38
+    {
       return .gif
     }
 
@@ -203,7 +207,8 @@ public struct AsyncImageDecoderTransformer: AsyncResponseTransformer {
       let riffCheck = data.prefix(4)
       let webpCheck = data.subdata(in: 8..<12)
       if riffCheck.elementsEqual([0x52, 0x49, 0x46, 0x46])
-        && webpCheck.elementsEqual([0x57, 0x45, 0x42, 0x50]) {
+        && webpCheck.elementsEqual([0x57, 0x45, 0x42, 0x50])
+      {
         return .webp
       }
     }
@@ -277,7 +282,8 @@ public struct HTTPResponseToDataPipeline: ComposableTransformationPipeline {
 
 /// Pipeline adapter for async transformers
 public struct AsyncTransformerPipeline<T: AsyncResponseTransformer>:
-  ComposableTransformationPipeline {
+  ComposableTransformationPipeline
+{
   public typealias Input = T.Input
   public typealias Output = T.Output
 

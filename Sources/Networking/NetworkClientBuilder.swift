@@ -24,9 +24,15 @@ public struct NetworkClientBuilder {
   }
 
   public static func buildBlock(
-    _ components: any ConfigurationComponent...
+    _ components: [any ConfigurationComponent]...
   ) -> [any ConfigurationComponent] {
-    components
+    components.flatMap { $0 }
+  }
+
+  public static func buildExpression(
+    _ expression: any ConfigurationComponent
+  ) -> [any ConfigurationComponent] {
+    [expression]
   }
 
   public static func buildOptional(

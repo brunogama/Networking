@@ -368,7 +368,8 @@ extension ResponseChain where T == HTTPResponse {
   /// - Parameter transformer: The transformer to use for decoding
   /// - Returns: A new ResponseChain with the decoded value
   /// - Throws: HTTPError if decoding fails
-  public func decode<U>(_ transformer: some ResponseTransformer<Data, U>) throws -> ResponseChain<U> {
+  public func decode<U>(_ transformer: some ResponseTransformer<Data, U>) throws -> ResponseChain<U>
+  {
     guard let body = response.body else {
       throw HTTPError(
         category: .decoding("Response body is empty"),
@@ -428,7 +429,8 @@ extension ResponseChain {
   /// - Parameter transformer: The transformer to use
   /// - Returns: A new ResponseChain with the transformed value
   /// - Throws: HTTPError if transformation fails
-  public func transform<U>(_ transformer: some ResponseTransformer<T, U>) throws -> ResponseChain<U> {
+  public func transform<U>(_ transformer: some ResponseTransformer<T, U>) throws -> ResponseChain<U>
+  {
     let transformedValue = try transformer.transform(value)
     return ResponseChain<U>(response: response, value: transformedValue)
   }

@@ -2,7 +2,8 @@ import Foundation
 import OSLog
 
 /// Middleware that logs HTTP requests and responses using OSLog.
-public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, HTTPErrorMiddleware {
+public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, HTTPErrorMiddleware
+{
   // MARK: - Configuration
 
   public struct Configuration: Sendable {
@@ -61,7 +62,8 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
 
     if configuration.logBody,
       let body = request.body,
-      let bodyString = String(data: body, encoding: .utf8) {
+      let bodyString = String(data: body, encoding: .utf8)
+    {
       let truncatedBody = String(bodyString.prefix(configuration.maxBodyLength))
       logger.log(
         level: configuration.logLevel,
@@ -92,7 +94,8 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
 
     if configuration.logBody,
       let body = response.body,
-      let bodyString = String(data: body, encoding: .utf8) {
+      let bodyString = String(data: body, encoding: .utf8)
+    {
       let truncatedBody = String(bodyString.prefix(configuration.maxBodyLength))
       logger.log(
         level: configuration.logLevel,

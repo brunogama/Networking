@@ -122,8 +122,8 @@ struct ObservabilityTests {
   func testPerformanceMetricsCalculation() async throws {
     let collector = SimpleMetricsCollector()
     let configuration = NetworkObservabilityMiddleware.Configuration(
-      enableRealTimeMetrics: true,
-      metricsReportingInterval: 0.1  // Report very frequently for testing
+      metricsReportingInterval: 0.1,  // Report very frequently for testing
+      enableRealTimeMetrics: true
     )
     let middleware = NetworkObservabilityMiddleware(
       configuration: configuration,
@@ -583,9 +583,14 @@ struct ObservabilityTests {
     )
 
     // Create a mock network client that uses our observability middleware
+    guard let baseURL = URL(string: "https://api.example.com") else {
+      Issue.record("Invalid base URL")
+      return
+    }
+
     let client = NetworkClient {
-      BaseURL("https://api.example.com")
-      AddMiddleware(observabilityMiddleware)
+      ClientBaseURL(baseURL)
+      Middleware(observabilityMiddleware)
     }
 
     // We can't actually make network calls in tests, but we can test

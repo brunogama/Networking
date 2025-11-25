@@ -5,7 +5,8 @@ import OSLog
 /// for HTTP requests. This middleware extends beyond basic timing to provide deep insights into
 /// network behavior, performance patterns, and operational metrics.
 public actor NetworkObservabilityMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware,
-  HTTPErrorMiddleware {
+  HTTPErrorMiddleware
+{
   // MARK: - Observability Event Types
 
   /// Represents different types of observability events that can be recorded
@@ -79,7 +80,8 @@ public actor NetworkObservabilityMiddleware: HTTPRequestMiddleware, HTTPResponse
     public let wasCached: Bool
     public let compressionRatio: Double?
 
-    init(from response: HTTPResponse, startTime: Date, retryCount: Int = 0, wasCached: Bool = false) {
+    init(from response: HTTPResponse, startTime: Date, retryCount: Int = 0, wasCached: Bool = false)
+    {
       self.statusCode = response.status.rawValue
       self.statusCategory = Self.categorizeStatus(response.status.rawValue)
       self.responseSize = response.body?.count ?? 0
@@ -102,7 +104,8 @@ public actor NetworkObservabilityMiddleware: HTTPRequestMiddleware, HTTPResponse
 
       // Calculate compression ratio if both original and compressed sizes are available
       if let originalSize = response.headers["X-Original-Size"].flatMap(Int.init),
-        originalSize > 0 && responseSize > 0 {
+        originalSize > 0 && responseSize > 0
+      {
         self.compressionRatio = Double(responseSize) / Double(originalSize)
       } else {
         self.compressionRatio = nil
@@ -452,7 +455,8 @@ public actor NetworkObservabilityMiddleware: HTTPRequestMiddleware, HTTPResponse
 
     // Check if we should report metrics
     if configuration.enableRealTimeMetrics
-      && Date().timeIntervalSince(lastMetricsReport) >= configuration.metricsReportingInterval {
+      && Date().timeIntervalSince(lastMetricsReport) >= configuration.metricsReportingInterval
+    {
       await reportPerformanceMetrics()
       lastMetricsReport = Date()
     }

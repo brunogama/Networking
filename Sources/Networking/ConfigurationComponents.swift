@@ -75,7 +75,8 @@ public struct EnableRetry: ConfigurationComponent {
 public struct EnableLogging: ConfigurationComponent {
   private let configuration: LoggingMiddleware.Configuration
 
-  public init(_ configuration: LoggingMiddleware.Configuration = LoggingMiddleware.Configuration()) {
+  public init(_ configuration: LoggingMiddleware.Configuration = LoggingMiddleware.Configuration())
+  {
     self.configuration = configuration
   }
 
@@ -941,6 +942,59 @@ public struct RequestCachePolicy: SessionComponent {
       requestCachePolicy: policy,
       protocolClasses: configuration.protocolClasses
     )
+  }
+}
+
+// MARK: - Middleware Configuration Component
+
+/// Generic middleware configuration component for adding custom middlewares.
+public struct Middleware: ConfigurationComponent {
+  private let requestMiddleware: (any HTTPRequestMiddleware)?
+  private let responseMiddleware: (any HTTPResponseMiddleware)?
+  private let errorMiddleware: (any HTTPErrorMiddleware)?
+
+  /// Creates a middleware component from any middleware conforming to one or more middleware protocols.
+  /// - Parameter middleware: The middleware to add. Can conform to HTTPRequestMiddleware,
+  ///   HTTPResponseMiddleware, and/or HTTPErrorMiddleware.
+  public init(
+    _ middleware: some HTTPRequestMiddleware & HTTPResponseMiddleware & HTTPErrorMiddleware
+  ) {
+    self.requestMiddleware = middleware
+    self.responseMiddleware = middleware
+    self.errorMiddleware = middleware
+  }
+
+  /// Creates a middleware component from a request middleware.
+  public init(request middleware: some HTTPRequestMiddleware) {
+    self.requestMiddleware = middleware
+    self.responseMiddleware = nil
+    self.errorMiddleware = nil
+  }
+
+  /// Creates a middleware component from a response middleware.
+  public init(response middleware: some HTTPResponseMiddleware) {
+    self.requestMiddleware = nil
+    self.responseMiddleware = middleware
+    self.errorMiddleware = nil
+  }
+
+  /// Creates a middleware component from an error middleware.
+  public init(error middleware: some HTTPErrorMiddleware) {
+    self.requestMiddleware = nil
+    self.responseMiddleware = nil
+    self.errorMiddleware = middleware
+  }
+
+  public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
+    if let requestMiddleware = requestMiddleware {
+      configuration.requestMiddlewares.append(requestMiddleware)
+    }
+    if let responseMiddleware = responseMiddleware {
+      configuration.responseMiddlewares.append(responseMiddleware)
+    }
+    if let errorMiddleware = errorMiddleware {
+      configuration.errorMiddlewares.append(errorMiddleware)
+    }
   }
 }
 

@@ -158,13 +158,22 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
     }
 
     // Create a new refresh task
-    let task = Task<String, any Error> {
+    let task = Task<String, any Error> { [weak self] in
       defer {
         // Clean up the task reference when done
-        Task { await self.clearRefreshTask() }
+        Task { [weak self] in
+          await self?.clearRefreshTaskAsync()
+        }
       }
 
-      return try await tokenProvider.refreshToken()
+      guard let self = self else {
+        throw HTTPError(
+          category: .configuration("Token provider no longer available"),
+          request: nil,
+          underlyingError: nil
+        )
+      }
+      return try await self.tokenProvider.refreshToken()
     }
 
     refreshTask = task
@@ -173,6 +182,10 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
 
   private func clearRefreshTask() {
     refreshTask = nil
+  }
+
+  private func clearRefreshTaskAsync() async {
+    clearRefreshTask()
   }
 }
 

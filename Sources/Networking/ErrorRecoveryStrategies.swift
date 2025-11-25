@@ -163,7 +163,7 @@ public struct ErrorRecoveryStrategies: Sendable {
     private let failureThreshold: Int
     private let recoveryTimeout: TimeInterval
 
-    public nonisolated let maxRecoveryAttempts: Int = 1
+    nonisolated public let maxRecoveryAttempts: Int = 1
 
     public init(
       failureThreshold: Int = 5,
@@ -173,7 +173,7 @@ public struct ErrorRecoveryStrategies: Sendable {
       self.recoveryTimeout = recoveryTimeout
     }
 
-    public nonisolated func canRecover(from error: HTTPError) -> Bool {
+    nonisolated public func canRecover(from error: HTTPError) -> Bool {
       error.isServerError
     }
 
@@ -182,7 +182,7 @@ public struct ErrorRecoveryStrategies: Sendable {
       request: HTTPRequest,
       using client: any HTTPClient
     ) async throws -> HTTPResponse {
-      let currentState = await getCurrentState()
+      let currentState = getCurrentState()
 
       switch currentState {
       case .open:
@@ -197,13 +197,13 @@ public struct ErrorRecoveryStrategies: Sendable {
         // Try the request
         do {
           let response = try await client.execute(request)
-          await recordSuccess()
+          recordSuccess()
           return response
         } catch let recoveryError as HTTPError {
-          await recordFailure()
+          recordFailure()
           throw recoveryError
         } catch {
-          await recordFailure()
+          recordFailure()
           throw HTTPError(
             category: .network(.serverUnreachable),
             request: request,
@@ -223,7 +223,8 @@ public struct ErrorRecoveryStrategies: Sendable {
       case .open:
         // Check if we should transition to half-open
         if let lastFailure = lastFailureTime,
-          now.timeIntervalSince(lastFailure) >= recoveryTimeout {
+          now.timeIntervalSince(lastFailure) >= recoveryTimeout
+        {
           state = .halfOpen
           return .halfOpen
         } else {
@@ -313,7 +314,8 @@ public struct ErrorRecoveryStrategies: Sendable {
     public init(
       maxRecoveryAttempts: Int = 1,
       canRecover: @escaping @Sendable (HTTPError) -> Bool,
-      recovery: @escaping @Sendable (HTTPError, HTTPRequest, any HTTPClient) async throws ->
+      recovery:
+        @escaping @Sendable (HTTPError, HTTPRequest, any HTTPClient) async throws ->
         HTTPResponse
     ) {
       self.maxRecoveryAttempts = maxRecoveryAttempts

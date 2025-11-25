@@ -254,7 +254,7 @@ public actor FileTransferOperations {
   private let configuration: FileTransferConfiguration
   private let progressMiddleware: ProgressTrackingMiddleware
   private var activeTransfers: [UUID: ActiveTransfer] = [:]
-  private nonisolated(unsafe) var backgroundSession: URLSession?
+  nonisolated(unsafe) private var backgroundSession: URLSession?
 
   // MARK: - Internal State
 
@@ -560,7 +560,8 @@ public actor FileTransferOperations {
     // Check MIME type
     if let supportedTypes = configuration.supportedMimeTypes,
       let mimeType = metadata.mimeType,
-      !supportedTypes.contains(mimeType) {
+      !supportedTypes.contains(mimeType)
+    {
       throw FileTransferError.unsupportedFileType(mimeType: mimeType)
     }
 
@@ -655,7 +656,8 @@ public actor FileTransferOperations {
       // Verify checksum if applicable
       if configuration.enableIntegrityCheck,
         let data = response.body ?? request.body,
-        let expectedChecksum = metadata?.checksum {
+        let expectedChecksum = metadata?.checksum
+      {
         let actualChecksum = calculateChecksum(for: data)
         if actualChecksum != expectedChecksum {
           throw FileTransferError.checksumMismatch(
@@ -713,7 +715,7 @@ public actor FileTransferOperations {
     )
   }
 
-  private nonisolated func createBackgroundSession(
+  nonisolated private func createBackgroundSession(
     with config: BackgroundTransferConfiguration? = nil
   ) -> URLSession {
     let configuration = config ?? self.configuration.backgroundTransferConfiguration
@@ -766,8 +768,10 @@ public actor FileTransferOperations {
 // MARK: - Background Transfer Delegate
 
 /// Delegate for handling background transfer events.
-private final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDelegate, @unchecked
-  Sendable {
+private final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDelegate,
+  @unchecked
+  Sendable
+{
   func urlSession(
     _ session: URLSession,
     downloadTask: URLSessionDownloadTask,

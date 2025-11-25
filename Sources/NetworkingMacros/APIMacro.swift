@@ -30,7 +30,7 @@ public struct APIMacro: ExtensionMacro {
       try generateMethodImplementation(for: method, baseURL: baseURL)
     }
 
-    let extensionDecl = try ExtensionDeclSyntax(
+    let extensionDecl = ExtensionDeclSyntax(
       extendedType: IdentifierTypeSyntax(name: .identifier(protocolName))
     ) {
       // Generate the implementation struct
@@ -39,11 +39,11 @@ public struct APIMacro: ExtensionMacro {
         public struct \(raw: implName): \(raw: protocolName) {
             private let client: HTTPClient
             private let baseURL: String = "\(raw: baseURL)"
-            
+
             public init(client: HTTPClient = NetworkClient()) {
                 self.client = client
             }
-            
+
             \(raw: methodImplementations.joined(separator: "\n\n"))
         }
         """
@@ -93,7 +93,7 @@ public struct APIMacro: ExtensionMacro {
     return """
       \(signature) {
           \(requestBuilding)
-          
+
           let response = try await client.execute(request)
           \(returnTypeHandling)
       }
@@ -144,14 +144,14 @@ public struct APIMacro: ExtensionMacro {
     try parameters.map { param in
       let name = param.firstName.text
       let type = param.type.description
-      let paramType = try extractParameterType(from: param)
-      return ParameterInfo(name: name, type: type, parameterType: paramType)
+      let (paramType, customName) = try extractParameterTypeAndCustomName(from: param)
+      return ParameterInfo(name: name, type: type, parameterType: paramType, customName: customName)
     }
   }
 
-  private static func extractParameterType(
+  private static func extractParameterTypeAndCustomName(
     from parameter: FunctionParameterSyntax
-  ) throws -> ParameterType {
+  ) throws -> (ParameterType, String?) {
     for attribute in parameter.attributes {
       guard let attributeType = attribute.as(AttributeSyntax.self),
         let identifierType = attributeType.attributeName.as(IdentifierTypeSyntax.self)
@@ -163,16 +163,19 @@ public struct APIMacro: ExtensionMacro {
 
       switch attributeName {
       case "Path":
-        return .path
+        let customName = extractCustomName(from: attributeType)
+        return (.path, customName)
 
       case "Body":
-        return .body
+        return (.body, nil)
 
       case "Query":
-        return .query
+        let customName = extractCustomName(from: attributeType)
+        return (.query, customName)
 
       case "Header":
-        return .header
+        let customName = try extractRequiredCustomName(from: attributeType, macroName: "Header")
+        return (.header, customName)
 
       default:
         continue
@@ -180,7 +183,33 @@ public struct APIMacro: ExtensionMacro {
     }
 
     // Default to query parameter if no annotation is found
-    return .query
+    return (.query, nil)
+  }
+
+  /// Extracts an optional custom name from a parameter macro attribute.
+  /// Handles both `@Path("custom_name")` and `@Path` (no arguments).
+  private static func extractCustomName(from attribute: AttributeSyntax) -> String? {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
+      let firstArg = arguments.first,
+      let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
+      let customName = stringLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text,
+      !customName.isEmpty
+    else {
+      return nil
+    }
+    return customName
+  }
+
+  /// Extracts a required custom name from a parameter macro attribute.
+  /// Throws if the name is missing or empty.
+  private static func extractRequiredCustomName(
+    from attribute: AttributeSyntax,
+    macroName: String
+  ) throws -> String {
+    guard let customName = extractCustomName(from: attribute) else {
+      throw MacroError.missingAnnotation("@\(macroName) requires a non-empty string argument")
+    }
+    return customName
   }
 
   private static func generateMethodSignature(from method: FunctionDeclSyntax) throws -> String {
@@ -211,23 +240,26 @@ public struct APIMacro: ExtensionMacro {
     requestComponents.append("\(httpMethod)(\"\(path)\")")
 
     // Add path parameter substitutions
+    // Uses effectiveName for the URL placeholder key, but param.name for the Swift variable
     let pathParams = parameters.filter { $0.parameterType == .path }
     if !pathParams.isEmpty {
       let substitutions = pathParams.map { param in
-        ".replacingOccurrences(of: \"{\(param.name)}\", with: String(\(param.name)))"
+        ".replacingOccurrences(of: \"{\(param.effectiveName)}\", with: String(\(param.name)))"
       }
       let lastComponent = requestComponents.removeLast()
       requestComponents.append("\(lastComponent)\(substitutions.joined())")
     }
 
     // Add query parameters
+    // Uses effectiveName for the query key, but param.name for the Swift variable
     for param in parameters.filter({ $0.parameterType == .query }) {
-      requestComponents.append("QueryParam(\"\(param.name)\", \(param.name))")
+      requestComponents.append("QueryParam(\"\(param.effectiveName)\", \(param.name))")
     }
 
     // Add headers
+    // Uses effectiveName for the header key, but param.name for the Swift variable
     for param in parameters.filter({ $0.parameterType == .header }) {
-      requestComponents.append("Header(\"\(param.name)\", \(param.name))")
+      requestComponents.append("Header(\"\(param.effectiveName)\", \(param.name))")
     }
 
     // Add body
@@ -265,6 +297,12 @@ private struct ParameterInfo {
   let name: String
   let type: String
   let parameterType: ParameterType
+  let customName: String?
+
+  /// Returns the effective name to use in generated code (custom name if provided, otherwise parameter name)
+  var effectiveName: String {
+    customName ?? name
+  }
 }
 
 private enum ParameterType {

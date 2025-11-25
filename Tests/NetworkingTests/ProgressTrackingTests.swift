@@ -152,8 +152,9 @@ struct ProgressTrackingTests {
   func testProgressMiddlewareInitialization() async throws {
     let middleware = ProgressTrackingMiddleware()
 
-    // Test that middleware is properly initialized
-    #expect(middleware != nil)
+    // Test that middleware is properly initialized - verify it can process a request
+    let request = HTTPRequest(method: .get, url: testURL)
+    _ = try await middleware.modifyRequest(request)
   }
 
   @Test("Progress middleware can be initialized with custom configuration")
@@ -164,26 +165,27 @@ struct ProgressTrackingTests {
     )
     let middleware = ProgressTrackingMiddleware(configuration: config)
 
-    #expect(middleware != nil)
+    // Verify middleware works with custom config
+    let request = HTTPRequest(method: .get, url: testURL)
+    _ = try await middleware.modifyRequest(request)
   }
 
   @Test("Progress middleware can be created with callback")
   func testProgressMiddlewareWithCallback() async throws {
-    let expectation = AsyncExpectation("Progress callback called")
-    var receivedProgress: TransferProgress?
+    let progressBox = ProgressBox()
 
     let middleware = ProgressTrackingMiddleware.withCallback(
       for: UUID(),
       callback: { progress in
-        receivedProgress = progress
-        expectation.fulfill()
+        Task {
+          await progressBox.setProgress(progress)
+        }
       }
     )
 
-    #expect(middleware != nil)
-
-    // In a real test, we would trigger progress updates
-    // For now, just verify the middleware was created successfully
+    // Verify middleware works
+    let request = HTTPRequest(method: .get, url: testURL)
+    _ = try await middleware.modifyRequest(request)
   }
 
   @Test("Progress middleware modifies request correctly for upload tracking")
@@ -234,7 +236,8 @@ struct ProgressTrackingTests {
   func testDefaultResumableTransfer() async throws {
     let transfer = DefaultResumableTransfer()
 
-    #expect(transfer.transferId != nil)
+    // transferId is a UUID (non-optional), verify it's a valid UUID
+    _ = transfer.transferId  // This line ensures the property is accessed
     #expect(transfer.totalBytes == nil)
     #expect(transfer.resumeOffset == 0)
     #expect(transfer.canResume == true)
@@ -299,12 +302,12 @@ struct ProgressTrackingTests {
 
   @Test("Progress aggregator calculates aggregate progress correctly")
   func testProgressAggregator() async throws {
-    let expectation = AsyncExpectation("Aggregate progress callback called")
-    let receivedProgress = OSAllocatedUnfairLock<TransferProgress?>(initialState: nil)
+    let progressBox = ProgressBox()
 
     let aggregator = ProgressAggregator { progress in
-      receivedProgress.withLock { $0 = progress }
-      expectation.fulfill()
+      Task {
+        await progressBox.setProgress(progress)
+      }
     }
 
     // Add progress for multiple transfers
@@ -324,8 +327,7 @@ struct ProgressTrackingTests {
 
     // Verify aggregate calculation would be correct
     // Total: 3000 bytes, Transferred: 1500 bytes = 50% progress
-
-    #expect(aggregator != nil)
+    // Just verify we can update progress without errors
   }
 
   @Test("Progress aggregator handles completed transfers correctly")
@@ -341,8 +343,7 @@ struct ProgressTrackingTests {
 
     await aggregator.updateProgress(for: transferId, progress: progress)
 
-    // Completed transfers should be cleaned up automatically
-    #expect(aggregator != nil)
+    // Completed transfers should be cleaned up automatically - just verify no errors
   }
 
   // MARK: - File Transfer Tests
@@ -477,7 +478,8 @@ struct ProgressTrackingTests {
       configuration: .default
     )
 
-    #expect(fileTransfer != nil)
+    // Verify file transfer was created - it should exist at this point
+    // Simply verifying the initializer ran without errors is sufficient
   }
 
   @Test("File transfer operations can upload data")
@@ -501,7 +503,7 @@ struct ProgressTrackingTests {
       configuration: .default
     )
 
-    let progressUpdates = OSAllocatedUnfairLock<[TransferProgress]>(initialState: [])
+    let progressBox = ProgressListBox()
 
     let result = try await fileTransfer.uploadData(
       testData,
@@ -509,12 +511,15 @@ struct ProgressTrackingTests {
       to: testURL,
       mimeType: "text/plain"
     ) { progress in
-      progressUpdates.withLock { $0.append(progress) }
+      Task {
+        await progressBox.append(progress)
+      }
     }
 
     #expect(result.isSuccessful == true)
     #expect(result.bytesTransferred >= 0)
-    #expect(result.transferId != nil)
+    // transferId is non-optional, just verify it's accessible
+    _ = result.transferId
   }
 
   @Test("File transfer operations handle download data")
@@ -678,5 +683,31 @@ struct ProgressTrackingTests {
 
     #expect(metadata.name == longName)
     #expect(metadata.fileExtension == "txt")
+  }
+}
+
+// MARK: - Thread-Safe Helpers for Testing
+
+private actor ProgressBox {
+  private var progress: TransferProgress?
+
+  func setProgress(_ progress: TransferProgress) {
+    self.progress = progress
+  }
+
+  func getProgress() -> TransferProgress? {
+    progress
+  }
+}
+
+private actor ProgressListBox {
+  private var progressList: [TransferProgress] = []
+
+  func append(_ progress: TransferProgress) {
+    progressList.append(progress)
+  }
+
+  func getProgressList() -> [TransferProgress] {
+    progressList
   }
 }

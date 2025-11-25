@@ -6,7 +6,8 @@ import Foundation
 struct CachingTests {
   // MARK: - Test Data Setup
 
-  private func createTestRequest(url: String = "https://api.example.com/test") throws -> HTTPRequest {
+  private func createTestRequest(url: String = "https://api.example.com/test") throws -> HTTPRequest
+  {
     try HTTPRequest {
       GET(url)
       Header("Authorization", "Bearer test-token")

@@ -165,7 +165,8 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
 
     // Perform certificate pinning validation if configured
     if let certPinningConfig = securityConfiguration.certificatePinning,
-      certPinningConfig.domains.contains(host) {
+      certPinningConfig.domains.contains(host)
+    {
       if validateCertificatePinning(serverTrust: serverTrust, configuration: certPinningConfig) {
         completionHandler(.useCredential, URLCredential(trust: serverTrust))
         return
@@ -180,7 +181,8 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
 
     // Perform public key pinning validation if configured
     if let pkPinningConfig = securityConfiguration.publicKeyPinning,
-      pkPinningConfig.domains.contains(host) {
+      pkPinningConfig.domains.contains(host)
+    {
       if validatePublicKeyPinning(serverTrust: serverTrust, configuration: pkPinningConfig) {
         completionHandler(.useCredential, URLCredential(trust: serverTrust))
         return
@@ -325,7 +327,8 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
       for i in 0..<count {
         let certificate = CFArrayGetValueAtIndex(certificateChain, i)
         if let cert = Unmanaged<SecCertificate>.fromOpaque(certificate!).takeUnretainedValue()
-          as SecCertificate? {
+          as SecCertificate?
+        {
           certificates.append(cert)
         }
       }

@@ -51,17 +51,17 @@ final class MacroExpansionTests: XCTestCase {
           public struct UserAPIImplementation: UserAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func getUser(id: String) async throws -> User {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
                       GET("/users/{id}").replacingOccurrences(of: "{id}", with: String(id))
                   }
-                  
+
                   let response = try await client.execute(request)
                   return try response.decode(User.self)
               }
@@ -91,18 +91,18 @@ final class MacroExpansionTests: XCTestCase {
           public struct UserAPIImplementation: UserAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func createUser(user: User) async throws -> User {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
                       POST("/users")
                       JSONBody(user)
                   }
-                  
+
                   let response = try await client.execute(request)
                   return try response.decode(User.self)
               }
@@ -118,34 +118,34 @@ final class MacroExpansionTests: XCTestCase {
       @API(baseURL: "https://api.example.com")
       protocol ProductAPI {
           @PUT("/products/{id}")
-          func updateProduct(@Path id: String, @Body product: Product, @Query force: Bool, @Header authorization: String) async throws -> Product
+          func updateProduct(@Path id: String, @Body product: Product, @Query force: Bool, @Header("Authorization") authorization: String) async throws -> Product
       }
       """
     } expansion: {
       """
       protocol ProductAPI {
           @PUT("/products/{id}")
-          func updateProduct(@Path id: String, @Body product: Product, @Query force: Bool, @Header authorization: String) async throws -> Product
+          func updateProduct(@Path id: String, @Body product: Product, @Query force: Bool, @Header("Authorization") authorization: String) async throws -> Product
       }
 
       extension ProductAPI {
           public struct ProductAPIImplementation: ProductAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func updateProduct(id: String, product: Product, force: Bool, authorization: String) async throws -> Product {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
                       PUT("/products/{id}").replacingOccurrences(of: "{id}", with: String(id))
                       QueryParam("force", force)
-                      Header("authorization", authorization)
+                      Header("Authorization", authorization)
                       JSONBody(product)
                   }
-                  
+
                   let response = try await client.execute(request)
                   return try response.decode(Product.self)
               }
@@ -175,17 +175,17 @@ final class MacroExpansionTests: XCTestCase {
           public struct UserAPIImplementation: UserAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func deleteUser(id: String) async throws {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
                       DELETE("/users/{id}").replacingOccurrences(of: "{id}", with: String(id))
                   }
-                  
+
                   let response = try await client.execute(request)
                   return
               }
@@ -215,18 +215,18 @@ final class MacroExpansionTests: XCTestCase {
           public struct UserAPIImplementation: UserAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func updateUserPartial(id: String, updates: UserUpdates) async throws -> User {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
                       PATCH("/users/{id}").replacingOccurrences(of: "{id}", with: String(id))
                       JSONBody(updates)
                   }
-                  
+
                   let response = try await client.execute(request)
                   return try response.decode(User.self)
               }
@@ -256,17 +256,17 @@ final class MacroExpansionTests: XCTestCase {
           public struct OrderAPIImplementation: OrderAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func getUserOrder(userId: String, orderId: String) async throws -> Order {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
                       GET("/users/{userId}/orders/{orderId}").replacingOccurrences(of: "{userId}", with: String(userId)).replacingOccurrences(of: "{orderId}", with: String(orderId))
                   }
-                  
+
                   let response = try await client.execute(request)
                   return try response.decode(Order.self)
               }
@@ -376,11 +376,200 @@ final class MacroExpansionTests: XCTestCase {
 
     assertMacro {
       """
-      func testMethod(@Header auth: String) {}
+      func testMethod(@Header("X-Auth") auth: String) {}
       """
     } expansion: {
       """
-      func testMethod(@Header auth: String) {}
+      func testMethod(@Header("X-Auth") auth: String) {}
+      """
+    }
+  }
+
+  // MARK: - Custom Name Parameter Tests
+
+  func testPathWithCustomName() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol UserAPI {
+          @GET("/users/{user_id}")
+          func getUser(@Path("user_id") userId: String) async throws -> User
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+          @GET("/users/{user_id}")
+          func getUser(@Path("user_id") userId: String) async throws -> User
+      }
+
+      extension UserAPI {
+          public struct UserAPIImplementation: UserAPI {
+              private let client: HTTPClient
+              private let baseURL: String = "https://api.example.com"
+
+              public init(client: HTTPClient = NetworkClient()) {
+                  self.client = client
+              }
+
+              public func getUser(userId: String) async throws -> User {
+                  let request = try HTTPRequest {
+                      BaseURL(baseURL)
+                      GET("/users/{user_id}").replacingOccurrences(of: "{user_id}", with: String(userId))
+                  }
+
+                  let response = try await client.execute(request)
+                  return try response.decode(User.self)
+              }
+          }
+      }
+      """
+    }
+  }
+
+  func testQueryWithCustomName() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol SearchAPI {
+          @GET("/search")
+          func search(@Query("page_size") pageSize: Int) async throws -> SearchResults
+      }
+      """
+    } expansion: {
+      """
+      protocol SearchAPI {
+          @GET("/search")
+          func search(@Query("page_size") pageSize: Int) async throws -> SearchResults
+      }
+
+      extension SearchAPI {
+          public struct SearchAPIImplementation: SearchAPI {
+              private let client: HTTPClient
+              private let baseURL: String = "https://api.example.com"
+
+              public init(client: HTTPClient = NetworkClient()) {
+                  self.client = client
+              }
+
+              public func search(pageSize: Int) async throws -> SearchResults {
+                  let request = try HTTPRequest {
+                      BaseURL(baseURL)
+                      GET("/search")
+                      QueryParam("page_size", pageSize)
+                  }
+
+                  let response = try await client.execute(request)
+                  return try response.decode(SearchResults.self)
+              }
+          }
+      }
+      """
+    }
+  }
+
+  func testHeaderWithCustomName() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol UserAPI {
+          @GET("/users")
+          func getUsers(@Header("X-Request-ID") requestId: String) async throws -> [User]
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+          @GET("/users")
+          func getUsers(@Header("X-Request-ID") requestId: String) async throws -> [User]
+      }
+
+      extension UserAPI {
+          public struct UserAPIImplementation: UserAPI {
+              private let client: HTTPClient
+              private let baseURL: String = "https://api.example.com"
+
+              public init(client: HTTPClient = NetworkClient()) {
+                  self.client = client
+              }
+
+              public func getUsers(requestId: String) async throws -> [User] {
+                  let request = try HTTPRequest {
+                      BaseURL(baseURL)
+                      GET("/users")
+                      Header("X-Request-ID", requestId)
+                  }
+
+                  let response = try await client.execute(request)
+                  return try response.decode([User].self)
+              }
+          }
+      }
+      """
+    }
+  }
+
+  func testMixedCustomAndDefaultNames() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol OrderAPI {
+          @GET("/users/{user_id}/orders")
+          func getUserOrders(@Path("user_id") userId: String, @Query status: String, @Query("page_size") pageSize: Int, @Header("Authorization") auth: String) async throws -> [Order]
+      }
+      """
+    } expansion: {
+      """
+      protocol OrderAPI {
+          @GET("/users/{user_id}/orders")
+          func getUserOrders(@Path("user_id") userId: String, @Query status: String, @Query("page_size") pageSize: Int, @Header("Authorization") auth: String) async throws -> [Order]
+      }
+
+      extension OrderAPI {
+          public struct OrderAPIImplementation: OrderAPI {
+              private let client: HTTPClient
+              private let baseURL: String = "https://api.example.com"
+
+              public init(client: HTTPClient = NetworkClient()) {
+                  self.client = client
+              }
+
+              public func getUserOrders(userId: String, status: String, pageSize: Int, auth: String) async throws -> [Order] {
+                  let request = try HTTPRequest {
+                      BaseURL(baseURL)
+                      GET("/users/{user_id}/orders").replacingOccurrences(of: "{user_id}", with: String(userId))
+                      QueryParam("status", status)
+                      QueryParam("page_size", pageSize)
+                      Header("Authorization", auth)
+                  }
+
+                  let response = try await client.execute(request)
+                  return try response.decode([Order].self)
+              }
+          }
+      }
+      """
+    }
+  }
+
+  func testHeaderMissingRequiredName() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol UserAPI {
+          @GET("/users")
+          func getUsers(@Header auth: String) async throws -> [User]
+      }
+      """
+    } diagnostics: {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol UserAPI {
+          @GET("/users")
+          func getUsers(@Header auth: String) async throws -> [User]
+          ┬─────────────────────────────────────────────────────────────
+          ╰─ 🛑 Missing required annotation: @Header requires a non-empty string argument
+      }
       """
     }
   }
@@ -468,12 +657,12 @@ final class MacroExpansionTests: XCTestCase {
           public struct EmptyAPIImplementation: EmptyAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
-              
+
+
           }
       }
       """
@@ -500,17 +689,17 @@ final class MacroExpansionTests: XCTestCase {
           public struct DataAPIImplementation: DataAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func getData() async throws -> [String: [UserData]] {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
                       GET("/data")
                   }
-                  
+
                   let response = try await client.execute(request)
                   return try response.decode([String: [UserData]].self)
               }
@@ -540,11 +729,11 @@ final class MacroExpansionTests: XCTestCase {
           public struct SearchAPIImplementation: SearchAPI {
               private let client: HTTPClient
               private let baseURL: String = "https://api.example.com"
-              
+
               public init(client: HTTPClient = NetworkClient()) {
                   self.client = client
               }
-              
+
               public func search(query: String, limit: Int) async throws -> SearchResults {
                   let request = try HTTPRequest {
                       BaseURL(baseURL)
@@ -552,7 +741,7 @@ final class MacroExpansionTests: XCTestCase {
                       QueryParam("query", query)
                       QueryParam("limit", limit)
                   }
-                  
+
                   let response = try await client.execute(request)
                   return try response.decode(SearchResults.self)
               }

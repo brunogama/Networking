@@ -329,9 +329,9 @@ public struct TransferControls: Sendable {
       try await transitionToState(transferId: transferId, newState: .resuming)
 
       // Automatically transition to active after a brief delay
-      Task {
+      Task { [weak self] in
         try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 second
-        try? await transitionToState(transferId: transferId, newState: .active)
+        _ = try? await self?.transitionToState(transferId: transferId, newState: .active)
       }
     }
 
@@ -622,7 +622,8 @@ public struct TransferControls: Sendable {
     ) -> (allowed: Bool, suggestedDelay: TimeInterval) {
       // Check transfer-specific limit
       if let limit = transferLimits[transferId],
-        let usage = transferUsage[transferId] {
+        let usage = transferUsage[transferId]
+      {
         // Skip if direction doesn't match
         if limit.direction != .both && limit.direction != direction {
           return (true, 0)
