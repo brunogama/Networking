@@ -272,10 +272,10 @@ final class ErrorHandlingTests: XCTestCase {
       .failure(transientError),
       .success(
         HTTPResponse(
-          status: HTTPStatus(rawValue: 200)!,
+          request: testRequest,
+          status: HTTPStatus(rawValue: 200),
           headers: [:],
-          body: Data(),
-          request: testRequest
+          body: Data()
         )
       ),
     ]
@@ -293,7 +293,7 @@ final class ErrorHandlingTests: XCTestCase {
   }
 
   func testAuthenticationRefreshStrategy() async {
-    var refreshCalled = false
+    nonisolated(unsafe) var refreshCalled = false
     let strategy = ErrorRecoveryStrategies.AuthenticationRefreshStrategy(
       tokenRefreshHandler: {
         refreshCalled = true
@@ -311,10 +311,10 @@ final class ErrorHandlingTests: XCTestCase {
     mockClient.responses = [
       .success(
         HTTPResponse(
-          status: HTTPStatus(rawValue: 200)!,
+          request: testRequest,
+          status: HTTPStatus(rawValue: 200),
           headers: [:],
-          body: Data(),
-          request: testRequest
+          body: Data()
         )
       )
     ]
@@ -372,6 +372,8 @@ final class ErrorHandlingTests: XCTestCase {
       } else {
         XCTFail("Expected circuit breaker error")
       }
+    } catch {
+      XCTFail("Unexpected error type: \(error)")
     }
   }
 
@@ -393,7 +395,7 @@ final class ErrorHandlingTests: XCTestCase {
   }
 
   func testCustomRecoveryStrategy() async {
-    var customRecoveryCalled = false
+    nonisolated(unsafe) var customRecoveryCalled = false
     let customStrategy = ErrorRecoveryStrategies.CustomRecoveryStrategy(
       maxRecoveryAttempts: 1,
       canRecover: { error in
@@ -414,10 +416,10 @@ final class ErrorHandlingTests: XCTestCase {
     mockClient.responses = [
       .success(
         HTTPResponse(
-          status: HTTPStatus(rawValue: 200)!,
+          request: testRequest,
+          status: HTTPStatus(rawValue: 200),
           headers: [:],
-          body: Data(),
-          request: testRequest
+          body: Data()
         )
       )
     ]
@@ -642,10 +644,10 @@ final class ErrorHandlingTests: XCTestCase {
       mockClient.responses = [
         .success(
           HTTPResponse(
-            status: HTTPStatus(rawValue: 200)!,
+            request: testRequest,
+            status: HTTPStatus(rawValue: 200),
             headers: [:],
-            body: Data(),
-            request: testRequest
+            body: Data()
           )
         )
       ]

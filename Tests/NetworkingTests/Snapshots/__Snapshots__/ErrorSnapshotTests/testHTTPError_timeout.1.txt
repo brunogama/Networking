@@ -1,0 +1,22 @@
+=== HTTPError ===
+Category: timeout
+Severity: medium
+Recovery Category: retryableWithDelay
+
+Error Description:
+Request timed out
+
+User Friendly Description:
+Request timed out. The request took too long to complete. Please try again.
+
+Recovery Suggestions:
+  1. The request took too long to complete. Please try again.
+  2. Check your connection speed.
+  3. Try again with a shorter request or better connection.
+
+Debug Description:
+HTTPError:, Category: timeout, Severity: medium, Recovery: retryableWithDelay
+
+Is Client Error: false
+Is Server Error: false
+Is Transient Error: true

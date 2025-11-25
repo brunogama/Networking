@@ -1,0 +1,21 @@
+=== HTTPError ===
+Category: http(Networking.HTTPStatus(rawValue: 404))
+Severity: medium
+Recovery Category: nonRecoverable
+
+Error Description:
+HTTP error: 404
+
+User Friendly Description:
+HTTP error: 404. The requested resource could not be found.
+
+Recovery Suggestions:
+  1. The requested resource could not be found.
+  2. Check the URL and try again.
+
+Debug Description:
+HTTPError:, Category: http(Networking.HTTPStatus(rawValue: 404)), Severity: medium, Recovery: nonRecoverable
+
+Is Client Error: true
+Is Server Error: false
+Is Transient Error: false

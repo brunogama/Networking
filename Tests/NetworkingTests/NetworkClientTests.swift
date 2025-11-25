@@ -6,7 +6,7 @@ struct NetworkClientTests {
   @Test("NetworkClient can be created with default configuration")
   func testDefaultClient() async throws {
     let client = NetworkClient()
-    #expect(client != nil)
+    _ = client  // Verifies creation succeeds
   }
 
   @Test("NetworkClient can be created with builder pattern")
@@ -16,7 +16,7 @@ struct NetworkClientTests {
       DefaultTimeout(15.0)
       DefaultHeader("User-Agent", "TestApp/1.0")
     }
-    #expect(client != nil)
+    _ = client  // Verifies creation succeeds
   }
 
   @Test("HTTP request can be built with DSL")
