@@ -183,4 +183,49 @@ public struct InterceptorChain: Sendable {
   public var isEmpty: Bool {
     requestInterceptors.isEmpty && responseInterceptors.isEmpty
   }
+
+  // MARK: - Monoid Operations
+
+  /// Empty interceptor chain (identity element for monoid).
+  ///
+  /// The empty chain is the identity element for `appending(_:)`:
+  /// - `empty.appending(a)` is equivalent to `a`
+  /// - `a.appending(empty)` is equivalent to `a`
+  public static var empty: Self {
+    Self(requestInterceptors: [], responseInterceptors: [])
+  }
+
+  /// Combines this chain with another chain.
+  ///
+  /// Creates a new chain that executes the interceptors from both chains in sequence.
+  /// Request interceptors from `self` execute before those from `other`.
+  /// Response interceptors from `self` execute before those from `other`.
+  ///
+  /// - Parameter other: The chain to append to this chain
+  /// - Returns: A new chain containing all interceptors from both chains
+  ///
+  /// ## Monoid Laws
+  ///
+  /// This operation satisfies the monoid laws:
+  /// - **Left Identity**: `empty.appending(a)` is equivalent to `a`
+  /// - **Right Identity**: `a.appending(empty)` is equivalent to `a`
+  /// - **Associativity**: `(a.appending(b)).appending(c)` is equivalent to `a.appending(b.appending(c))`
+  public func appending(_ other: Self) -> Self {
+    Self(
+      requestInterceptors: requestInterceptors + other.requestInterceptors,
+      responseInterceptors: responseInterceptors + other.responseInterceptors
+    )
+  }
+
+  // MARK: - Accessors for Testing
+
+  /// Returns the count of request interceptors for testing purposes.
+  public var requestInterceptorCount: Int {
+    requestInterceptors.count
+  }
+
+  /// Returns the count of response interceptors for testing purposes.
+  public var responseInterceptorCount: Int {
+    responseInterceptors.count
+  }
 }
