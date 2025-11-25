@@ -3,15 +3,19 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-/// Macro for generating API client implementations from protocol definitions
-public struct APIMacro: ExtensionMacro {
+/// Macro for generating API client implementations from protocol definitions.
+///
+/// Reads HTTP method attributes (@GET, @POST, etc.) with their parameters:
+/// - path: URL path with {placeholder} for path parameters
+/// - body: Parameter name to use as JSON body
+/// - query: Dictionary mapping param names to query string keys
+/// - headers: Dictionary mapping param names to header names
+public struct APIMacro: PeerMacro {
   public static func expansion(
     of node: AttributeSyntax,
-    attachedTo declaration: some DeclGroupSyntax,
-    providingExtensionsOf type: some TypeSyntaxProtocol,
-    conformingTo protocols: [TypeSyntax],
+    providingPeersOf declaration: some DeclSyntaxProtocol,
     in context: some MacroExpansionContext
-  ) throws -> [ExtensionDeclSyntax] {
+  ) throws -> [DeclSyntax] {
     guard let protocolDecl = declaration.as(ProtocolDeclSyntax.self) else {
       throw MacroError.invalidUsage("@API can only be applied to protocols")
     }
@@ -30,28 +34,33 @@ public struct APIMacro: ExtensionMacro {
       try generateMethodImplementation(for: method, baseURL: baseURL)
     }
 
-    let extensionDecl = ExtensionDeclSyntax(
-      extendedType: IdentifierTypeSyntax(name: .identifier(protocolName))
-    ) {
-      // Generate the implementation struct
-      DeclSyntax(
-        """
-        public struct \(raw: implName): \(raw: protocolName) {
-            private let client: HTTPClient
-            private let baseURL: String = "\(raw: baseURL)"
-
-            public init(client: HTTPClient = NetworkClient()) {
-                self.client = client
-            }
-
-            \(raw: methodImplementations.joined(separator: "\n\n"))
-        }
-        """
-      )
+    // Generate the implementation struct as a peer declaration
+    // Match the visibility of the protocol
+    let visibility = protocolDecl.modifiers.first { modifier in
+      modifier.name.tokenKind == .keyword(.public) || modifier.name.tokenKind == .keyword(.internal)
     }
+    let visibilityPrefix = visibility.map { "\($0.name.text) " } ?? ""
 
-    return [extensionDecl]
+    let structDecl: DeclSyntax =
+      """
+      \(raw: visibilityPrefix)struct \(raw: implName): \(raw: protocolName) {
+          private let client: HTTPClient
+          private let baseURL: URL
+
+          \(raw: visibilityPrefix)init(client: HTTPClient = NetworkClient()) {
+              self.client = client
+              // swiftlint:disable:next force_unwrapping
+              self.baseURL = URL(string: "\(raw: baseURL)")!
+          }
+
+          \(raw: methodImplementations.joined(separator: "\n\n"))
+      }
+      """
+
+    return [structDecl]
   }
+
+  // MARK: - Base URL Extraction
 
   private static func extractBaseURL(from attribute: AttributeSyntax) throws -> String {
     guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
@@ -64,58 +73,73 @@ public struct APIMacro: ExtensionMacro {
     return baseURL
   }
 
+  // MARK: - Method Implementation Generation
+
   private static func generateMethodImplementation(
     for method: FunctionDeclSyntax,
     baseURL: String
   ) throws -> String {
-    _ = method.name.text
-
-    // Extract HTTP method and path from attributes
+    // Extract HTTP info from the method attribute
     let httpInfo = try extractHTTPInfo(from: method)
 
-    // Extract parameter information
-    let parameters = method.signature.parameterClause.parameters
-    let parameterInfo = try extractParameterInfo(from: parameters)
+    // Get function parameters
+    let functionParams = method.signature.parameterClause.parameters.map { param in
+      FunctionParameter(
+        name: param.firstName.text,
+        localName: param.secondName?.text ?? param.firstName.text,
+        type: param.type.description.trimmingCharacters(in: .whitespaces)
+      )
+    }
 
-    // Generate the method signature
-    let signature = try generateMethodSignature(from: method)
+    // Classify parameters based on HTTP attribute metadata
+    let classifiedParams = classifyParameters(
+      functionParams: functionParams,
+      path: httpInfo.path,
+      bodyParam: httpInfo.body,
+      queryMapping: httpInfo.query,
+      headerMapping: httpInfo.headers
+    )
 
-    // Generate the request building logic
+    // Generate method signature
+    let signature = generateMethodSignature(from: method)
+
+    // Generate request building
     let requestBuilding = generateRequestBuilding(
       httpMethod: httpInfo.method,
       path: httpInfo.path,
-      parameters: parameterInfo
+      params: classifiedParams
     )
 
-    // Generate return type handling
-    let returnTypeHandling = try generateReturnTypeHandling(from: method.signature.returnClause)
+    // Generate return handling
+    let returnHandling = generateReturnTypeHandling(from: method.signature.returnClause)
 
     return """
       \(signature) {
           \(requestBuilding)
 
           let response = try await client.execute(request)
-          \(returnTypeHandling)
+          \(returnHandling)
       }
       """
   }
 
+  // MARK: - HTTP Attribute Parsing
+
   private static func extractHTTPInfo(
     from method: FunctionDeclSyntax
-  ) throws -> (method: String, path: String) {
+  ) throws -> HTTPMethodInfo {
     for attribute in method.attributes {
-      guard let attributeType = attribute.as(AttributeSyntax.self),
-        let identifierType = attributeType.attributeName.as(IdentifierTypeSyntax.self)
+      guard let attr = attribute.as(AttributeSyntax.self),
+        let identifierType = attr.attributeName.as(IdentifierTypeSyntax.self)
       else {
         continue
       }
 
-      let attributeName = identifierType.name.text
+      let attrName = identifierType.name.text
 
-      switch attributeName {
+      switch attrName {
       case "GET", "POST", "PUT", "DELETE", "PATCH":
-        let path = try extractPathFromAttribute(attributeType)
-        return (method: attributeName, path: path)
+        return try parseHTTPMethodAttribute(attr, method: attrName)
 
       default:
         continue
@@ -127,187 +151,285 @@ public struct APIMacro: ExtensionMacro {
     )
   }
 
-  private static func extractPathFromAttribute(_ attribute: AttributeSyntax) throws -> String {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
-      let firstArg = arguments.first,
-      let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
-      let path = stringLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text
-    else {
+  private static func parseHTTPMethodAttribute(
+    _ attribute: AttributeSyntax,
+    method: String
+  ) throws -> HTTPMethodInfo {
+    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
       throw MacroError.missingAnnotation("HTTP method annotation requires a path parameter")
     }
-    return path
-  }
 
-  private static func extractParameterInfo(
-    from parameters: FunctionParameterListSyntax
-  ) throws -> [ParameterInfo] {
-    try parameters.map { param in
-      let name = param.firstName.text
-      let type = param.type.description
-      let (paramType, customName) = try extractParameterTypeAndCustomName(from: param)
-      return ParameterInfo(name: name, type: type, parameterType: paramType, customName: customName)
+    var path: String?
+    var body: String?
+    var query: [String: String] = [:]
+    var headers: [String: String] = [:]
+
+    for arg in arguments {
+      let label = arg.label?.text
+
+      if label == nil {
+        // Unlabeled argument is the path
+        if let stringLiteral = arg.expression.as(StringLiteralExprSyntax.self),
+          let pathValue = stringLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text
+        {
+          path = pathValue
+        }
+      } else if label == "body" {
+        // body: "paramName"
+        if let stringLiteral = arg.expression.as(StringLiteralExprSyntax.self),
+          let bodyValue = stringLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text
+        {
+          body = bodyValue
+        }
+      } else if label == "query" {
+        // query: ["paramName": "queryKey"]
+        query = extractDictionaryLiteral(from: arg.expression)
+      } else if label == "headers" {
+        // headers: ["paramName": "Header-Name"]
+        headers = extractDictionaryLiteral(from: arg.expression)
+      }
     }
+
+    guard let pathValue = path else {
+      throw MacroError.missingAnnotation("HTTP method annotation requires a path parameter")
+    }
+
+    return HTTPMethodInfo(
+      method: method,
+      path: pathValue,
+      body: body,
+      query: query,
+      headers: headers
+    )
   }
 
-  private static func extractParameterTypeAndCustomName(
-    from parameter: FunctionParameterSyntax
-  ) throws -> (ParameterType, String?) {
-    for attribute in parameter.attributes {
-      guard let attributeType = attribute.as(AttributeSyntax.self),
-        let identifierType = attributeType.attributeName.as(IdentifierTypeSyntax.self)
+  private static func extractDictionaryLiteral(from expr: ExprSyntax) -> [String: String] {
+    guard let dictExpr = expr.as(DictionaryExprSyntax.self) else {
+      return [:]
+    }
+
+    var result: [String: String] = [:]
+
+    if case .elements(let elements) = dictExpr.content {
+      for element in elements {
+        if let keyLiteral = element.key.as(StringLiteralExprSyntax.self),
+          let key = keyLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text,
+          let valueLiteral = element.value.as(StringLiteralExprSyntax.self),
+          let value = valueLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text
+        {
+          result[key] = value
+        }
+      }
+    }
+
+    return result
+  }
+
+  // MARK: - Parameter Classification
+
+  private static func classifyParameters(
+    functionParams: [FunctionParameter],
+    path: String,
+    bodyParam: String?,
+    queryMapping: [String: String],
+    headerMapping: [String: String]
+  ) -> ClassifiedParameters {
+    // Extract path placeholders from the path string
+    let pathPlaceholders = extractPathPlaceholders(from: path)
+
+    var pathParams: [ClassifiedParam] = []
+    var queryParams: [ClassifiedParam] = []
+    var headerParams: [ClassifiedParam] = []
+    var bodyParamResult: ClassifiedParam?
+
+    for param in functionParams {
+      // Check if it's a path parameter (matches a placeholder)
+      if pathPlaceholders.contains(param.name) {
+        pathParams.append(
+          ClassifiedParam(
+            name: param.name,
+            localName: param.localName,
+            type: param.type,
+            mappedName: param.name  // Path params use their name as the placeholder key
+          )
+        )
+      }
+      // Check if it's the body parameter
+      else if param.name == bodyParam {
+        bodyParamResult = ClassifiedParam(
+          name: param.name,
+          localName: param.localName,
+          type: param.type,
+          mappedName: nil
+        )
+      }
+      // Check if it's a header parameter
+      else if let headerName = headerMapping[param.name] {
+        headerParams.append(
+          ClassifiedParam(
+            name: param.name,
+            localName: param.localName,
+            type: param.type,
+            mappedName: headerName
+          )
+        )
+      }
+      // Otherwise it's a query parameter
       else {
-        continue
-      }
-
-      let attributeName = identifierType.name.text
-
-      switch attributeName {
-      case "Path":
-        let customName = extractCustomName(from: attributeType)
-        return (.path, customName)
-
-      case "Body":
-        return (.body, nil)
-
-      case "Query":
-        let customName = extractCustomName(from: attributeType)
-        return (.query, customName)
-
-      case "Header":
-        let customName = try extractRequiredCustomName(from: attributeType, macroName: "Header")
-        return (.header, customName)
-
-      default:
-        continue
+        let queryKey = queryMapping[param.name] ?? param.name
+        queryParams.append(
+          ClassifiedParam(
+            name: param.name,
+            localName: param.localName,
+            type: param.type,
+            mappedName: queryKey
+          )
+        )
       }
     }
 
-    // Default to query parameter if no annotation is found
-    return (.query, nil)
+    return ClassifiedParameters(
+      path: pathParams,
+      query: queryParams,
+      headers: headerParams,
+      body: bodyParamResult
+    )
   }
 
-  /// Extracts an optional custom name from a parameter macro attribute.
-  /// Handles both `@Path("custom_name")` and `@Path` (no arguments).
-  private static func extractCustomName(from attribute: AttributeSyntax) -> String? {
-    guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
-      let firstArg = arguments.first,
-      let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
-      let customName = stringLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text,
-      !customName.isEmpty
-    else {
-      return nil
+  private static func extractPathPlaceholders(from path: String) -> Set<String> {
+    var placeholders: Set<String> = []
+    var currentPlaceholder = ""
+    var inPlaceholder = false
+
+    for char in path {
+      if char == "{" {
+        inPlaceholder = true
+        currentPlaceholder = ""
+      } else if char == "}" {
+        if inPlaceholder && !currentPlaceholder.isEmpty {
+          placeholders.insert(currentPlaceholder)
+        }
+        inPlaceholder = false
+      } else if inPlaceholder {
+        currentPlaceholder.append(char)
+      }
     }
-    return customName
+
+    return placeholders
   }
 
-  /// Extracts a required custom name from a parameter macro attribute.
-  /// Throws if the name is missing or empty.
-  private static func extractRequiredCustomName(
-    from attribute: AttributeSyntax,
-    macroName: String
-  ) throws -> String {
-    guard let customName = extractCustomName(from: attribute) else {
-      throw MacroError.missingAnnotation("@\(macroName) requires a non-empty string argument")
-    }
-    return customName
-  }
+  // MARK: - Code Generation
 
-  private static func generateMethodSignature(from method: FunctionDeclSyntax) throws -> String {
+  private static func generateMethodSignature(from method: FunctionDeclSyntax) -> String {
     let name = method.name.text
     let parameters = method.signature.parameterClause.parameters
 
     let paramStrings = parameters.map { param in
       let firstName = param.firstName.text
-      let secondName = param.secondName?.text ?? firstName
-      let type = param.type.description
+      let secondName = param.secondName?.text ?? param.firstName.text
+      let type = param.type.description.trimmingCharacters(in: .whitespaces)
+      if firstName == secondName {
+        return "\(firstName): \(type)"
+      }
       return "\(firstName) \(secondName): \(type)"
     }
 
-    let returnClause = method.signature.returnClause?.type.description ?? "Void"
-    let effectSpecifiers = method.signature.effectSpecifiers?.description ?? ""
+    let returnClause =
+      method.signature.returnClause?.type.description
+      .trimmingCharacters(in: .whitespaces) ?? "Void"
+    let effectSpecifiers =
+      method.signature.effectSpecifiers?.description
+      .trimmingCharacters(in: .whitespaces) ?? ""
 
     return
-      "public func \(name)(\(paramStrings.joined(separator: ", "))) \(effectSpecifiers) -> \(returnClause)"
+      "func \(name)(\(paramStrings.joined(separator: ", "))) \(effectSpecifiers) -> \(returnClause)"
   }
 
   private static func generateRequestBuilding(
     httpMethod: String,
     path: String,
-    parameters: [ParameterInfo]
+    params: ClassifiedParameters
   ) -> String {
-    var requestComponents: [String] = []
-    requestComponents.append("BaseURL(baseURL)")
-    requestComponents.append("\(httpMethod)(\"\(path)\")")
+    var components: [String] = []
 
-    // Add path parameter substitutions
-    // Uses effectiveName for the URL placeholder key, but param.name for the Swift variable
-    let pathParams = parameters.filter { $0.parameterType == .path }
-    if !pathParams.isEmpty {
-      let substitutions = pathParams.map { param in
-        ".replacingOccurrences(of: \"{\(param.effectiveName)}\", with: String(\(param.name)))"
+    // Base URL
+    components.append("RequestBaseURL(baseURL)")
+
+    // Build path with substitutions
+    var pathExpr = "\"\(path)\""
+    for param in params.path {
+      pathExpr +=
+        ".replacingOccurrences(of: \"{\(param.mappedName ?? param.name)}\", with: String(\(param.localName)))"
+    }
+    components.append("\(httpMethod)(\(pathExpr))")
+
+    // Query parameters
+    for param in params.query {
+      components.append("QueryParam(\"\(param.mappedName ?? param.name)\", \(param.localName))")
+    }
+
+    // Headers
+    for param in params.headers {
+      if let headerName = param.mappedName {
+        components.append("Header(\"\(headerName)\", \(param.localName))")
       }
-      let lastComponent = requestComponents.removeLast()
-      requestComponents.append("\(lastComponent)\(substitutions.joined())")
     }
 
-    // Add query parameters
-    // Uses effectiveName for the query key, but param.name for the Swift variable
-    for param in parameters.filter({ $0.parameterType == .query }) {
-      requestComponents.append("QueryParam(\"\(param.effectiveName)\", \(param.name))")
-    }
-
-    // Add headers
-    // Uses effectiveName for the header key, but param.name for the Swift variable
-    for param in parameters.filter({ $0.parameterType == .header }) {
-      requestComponents.append("Header(\"\(param.effectiveName)\", \(param.name))")
-    }
-
-    // Add body
-    if let bodyParam = parameters.first(where: { $0.parameterType == .body }) {
-      requestComponents.append("JSONBody(\(bodyParam.name))")
+    // Body
+    if let body = params.body {
+      components.append("JSONBody(\(body.localName))")
     }
 
     return """
       let request = try HTTPRequest {
-          \(requestComponents.joined(separator: "\n            "))
-      }
+              \(components.joined(separator: "\n            "))
+          }
       """
   }
 
   private static func generateReturnTypeHandling(
     from returnClause: ReturnClauseSyntax?
-  ) throws -> String {
+  ) -> String {
     guard let returnClause = returnClause else {
       return "return"
     }
 
-    let returnType = returnClause.type.description
+    let returnType = returnClause.type.description.trimmingCharacters(in: .whitespaces)
 
     if returnType == "Void" || returnType.isEmpty {
       return "return"
     } else {
-      return "return try response.decode(\(returnType).self)"
+      return "return try response.chain().decode(\(returnType).self).value"
     }
   }
 }
 
 // MARK: - Supporting Types
 
-private struct ParameterInfo {
-  let name: String
-  let type: String
-  let parameterType: ParameterType
-  let customName: String?
-
-  /// Returns the effective name to use in generated code (custom name if provided, otherwise parameter name)
-  var effectiveName: String {
-    customName ?? name
-  }
+private struct HTTPMethodInfo {
+  let method: String
+  let path: String
+  let body: String?
+  let query: [String: String]
+  let headers: [String: String]
 }
 
-private enum ParameterType {
-  case path
-  case body
-  case query
-  case header
+private struct FunctionParameter {
+  let name: String
+  let localName: String
+  let type: String
+}
+
+private struct ClassifiedParam {
+  let name: String
+  let localName: String
+  let type: String
+  let mappedName: String?
+}
+
+private struct ClassifiedParameters {
+  let path: [ClassifiedParam]
+  let query: [ClassifiedParam]
+  let headers: [ClassifiedParam]
+  let body: ClassifiedParam?
 }

@@ -174,13 +174,10 @@ public struct GET: RequestComponent {
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .get
-    if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
-    } else {
-      request.url = URL(string: path)
-    }
+    request.url = combinePath(path, with: request.url)
   }
 }
+
 public struct POST: RequestComponent {
   private let path: String
 
@@ -190,11 +187,7 @@ public struct POST: RequestComponent {
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .post
-    if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
-    } else {
-      request.url = URL(string: path)
-    }
+    request.url = combinePath(path, with: request.url)
   }
 }
 
@@ -207,11 +200,7 @@ public struct PUT: RequestComponent {
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .put
-    if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
-    } else {
-      request.url = URL(string: path)
-    }
+    request.url = combinePath(path, with: request.url)
   }
 }
 
@@ -224,11 +213,7 @@ public struct DELETE: RequestComponent {
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .delete
-    if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
-    } else {
-      request.url = URL(string: path)
-    }
+    request.url = combinePath(path, with: request.url)
   }
 }
 
@@ -241,10 +226,33 @@ public struct PATCH: RequestComponent {
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .patch
-    if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
-    } else {
-      request.url = URL(string: path)
-    }
+    request.url = combinePath(path, with: request.url)
   }
+}
+
+// MARK: - Path Combination Helper
+
+/// Combines a path with an optional base URL.
+///
+/// Handles paths that start with `/` correctly by treating them as absolute paths
+/// relative to the base URL's host.
+private func combinePath(_ path: String, with baseURL: URL?) -> URL? {
+  guard let baseURL = baseURL else {
+    return URL(string: path)
+  }
+
+  // If path is empty, return base URL
+  guard !path.isEmpty else {
+    return baseURL
+  }
+
+  // If path starts with /, treat it as absolute path from host
+  if path.hasPrefix("/") {
+    var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true)
+    components?.path = path
+    return components?.url
+  }
+
+  // Otherwise, append as path component
+  return baseURL.appendingPathComponent(path)
 }

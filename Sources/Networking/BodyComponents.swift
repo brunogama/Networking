@@ -91,6 +91,19 @@ public struct QueryParam: RequestComponent {
     self.value = value
   }
 
+  /// Creates a query parameter from any type that conforms to LosslessStringConvertible.
+  /// This includes Int, Double, Bool, and other primitive types.
+  public init<T: LosslessStringConvertible>(_ name: String, _ value: T) {
+    self.name = name
+    self.value = String(value)
+  }
+
+  /// Creates a query parameter from any type that conforms to CustomStringConvertible.
+  public init<T: CustomStringConvertible>(_ name: String, describing value: T) {
+    self.name = name
+    self.value = String(describing: value)
+  }
+
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     guard let url = request.url else {
       throw HTTPError(category: .configuration("URL must be set before adding query parameters"))

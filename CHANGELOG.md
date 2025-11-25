@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **BREAKING CHANGE**: Redesigned `@API` macro with declarative parameter annotations
+  - Changed from `ExtensionMacro` to `PeerMacro` for cleaner peer struct generation
+  - Path parameters are now auto-detected from `{placeholder}` syntax in URL paths
+  - Replaced `@Path`, `@Query`, `@Body`, `@Header` parameter macros with method-level annotations
+  - HTTP method macros (`@GET`, `@POST`, etc.) now accept `query:`, `body:`, and `headers:` parameters
+  - Example: `@GET("/search", query: ["searchQuery": "q"])` maps `searchQuery` param to `q` query key
 - **BREAKING CHANGE**: Renamed package from `ModernNetworking` to `Networking`
   - Updated import statements from `import ModernNetworking` to `import Networking`
   - Updated Package.swift name from "ModernNetworking" to "Networking"
@@ -15,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated all documentation and examples
 
 ### Added
+- `HTTPieMiddleware` for request/response logging in HTTPie command format
+- `MacroSampleApp` example demonstrating macro-generated API clients
+- Generic `QueryParam` initializers for `LosslessStringConvertible` and `CustomStringConvertible` types
+- `combinePath` helper for consistent URL path handling with base URLs
 
 #### Core Framework
 - =� Complete Swift 6 networking framework with async/await URLSession integration
