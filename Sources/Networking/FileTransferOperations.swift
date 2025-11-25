@@ -254,7 +254,7 @@ public actor FileTransferOperations {
   private let configuration: FileTransferConfiguration
   private let progressMiddleware: ProgressTrackingMiddleware
   private var activeTransfers: [UUID: ActiveTransfer] = [:]
-  private nonisolated(unsafe) var backgroundSession: URLSession?
+  nonisolated(unsafe) private var backgroundSession: URLSession?
 
   // MARK: - Internal State
 
@@ -715,7 +715,7 @@ public actor FileTransferOperations {
     )
   }
 
-  private nonisolated func createBackgroundSession(
+  nonisolated private func createBackgroundSession(
     with config: BackgroundTransferConfiguration? = nil
   ) -> URLSession {
     let configuration = config ?? self.configuration.backgroundTransferConfiguration
