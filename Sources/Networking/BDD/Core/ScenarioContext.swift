@@ -135,9 +135,9 @@ public final class ScenarioContext: @unchecked Sendable {
   ///
   /// - Parameter key: The context key
   public func remove<T>(_ key: ContextKey<T>) {
-    lock.withLock {
-      storage.removeValue(forKey: ObjectIdentifier(key))
-    }
+    lock.lock()
+    defer { lock.unlock() }
+    storage.removeValue(forKey: ObjectIdentifier(key))
   }
 
   /// Checks if a value exists for a key.
@@ -147,6 +147,34 @@ public final class ScenarioContext: @unchecked Sendable {
   public func contains<T>(_ key: ContextKey<T>) -> Bool {
     lock.withLock {
       storage[ObjectIdentifier(key)] != nil
+    }
+  }
+
+  // MARK: - Subscript Access
+
+  /// Subscript access for context values.
+  ///
+  /// - Parameter key: The context key
+  public subscript<T: Sendable>(key: ContextKey<T>) -> T? {
+    get { get(key) }
+    set {
+      if let newValue = newValue {
+        set(newValue, for: key)
+      } else {
+        remove(key)
+      }
+    }
+  }
+
+  /// Dynamic subscript access for string keys.
+  ///
+  /// - Parameter key: String key name
+  public subscript<T: Sendable>(dynamicKey key: String) -> T? {
+    get { getValue(forKey: key, as: T.self) }
+    set {
+      if let newValue = newValue {
+        setValue(newValue, forKey: key)
+      }
     }
   }
 

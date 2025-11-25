@@ -70,25 +70,25 @@ public enum BDDError: Error, LocalizedError, Sendable {
   // MARK: - Parser Errors
 
   /// Unexpected token during parsing.
-  case unexpectedToken(expected: String, found: String, location: SourceLocation)
+  case unexpectedToken(expected: String, found: String, location: GherkinSourceLocation)
 
   /// Unterminated doc string.
-  case unterminatedDocString(location: SourceLocation)
+  case unterminatedDocString(location: GherkinSourceLocation)
 
   /// Invalid table row.
-  case invalidTableRow(location: SourceLocation)
+  case invalidTableRow(location: GherkinSourceLocation)
 
   /// Missing feature declaration.
   case missingFeature
 
   /// Duplicate background declaration.
-  case duplicateBackground(location: SourceLocation)
+  case duplicateBackground(location: GherkinSourceLocation)
 
   /// Invalid examples section.
-  case invalidExamples(reason: String, location: SourceLocation)
+  case invalidExamples(reason: String, location: GherkinSourceLocation)
 
   /// General syntax error.
-  case syntaxError(message: String, location: SourceLocation)
+  case syntaxError(message: String, location: GherkinSourceLocation)
 
   /// File not found.
   case fileNotFound(path: String)
@@ -124,6 +124,11 @@ public enum BDDError: Error, LocalizedError, Sendable {
 
   /// Expected a doc string but none was provided.
   case missingDocString
+
+  // MARK: - Reporting Errors
+
+  /// Report generation failed.
+  case reportGenerationFailed(reason: String)
 
   // MARK: - LocalizedError
 
@@ -233,6 +238,9 @@ public enum BDDError: Error, LocalizedError, Sendable {
 
     case .missingDocString:
       return "Expected a doc string but none was provided."
+
+    case .reportGenerationFailed(let reason):
+      return "Report generation failed: \(reason)."
     }
   }
 
