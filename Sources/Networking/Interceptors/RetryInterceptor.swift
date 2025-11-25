@@ -116,10 +116,10 @@ public struct RetryInterceptor: ResponseInterceptor, Sendable {
 
   /// Calculates exponential backoff delay with jitter.
   ///
-  /// Formula: baseDelay * (2 ^ attemptCount) + randomJitter
+  /// Formula: min(baseDelay * (2 ^ attemptCount) + randomJitter, maxDelay)
   ///
   /// Jitter is random value between 0 and 0.1 * calculated delay to prevent
-  /// synchronized retries (thundering herd).
+  /// synchronized retries (thundering herd). Final result is capped at maxDelay.
   private func calculateDelay(attemptCount: Int) -> TimeInterval {
     // Exponential backoff: baseDelay * (2 ^ attemptCount)
     let exponentialDelay = baseDelay * pow(2.0, Double(attemptCount))
@@ -130,7 +130,8 @@ public struct RetryInterceptor: ResponseInterceptor, Sendable {
     // Add jitter (0-10% of delay) to prevent thundering herd
     let jitter = Double.random(in: 0...(cappedDelay * 0.1))
 
-    return cappedDelay + jitter
+    // Ensure final delay never exceeds maxDelay (jitter could push it over)
+    return min(cappedDelay + jitter, maxDelay)
   }
 }
 
