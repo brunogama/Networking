@@ -1,3 +1,4 @@
+#if canImport(Security)
 import Foundation
 import Security
 import CommonCrypto
@@ -419,3 +420,4 @@ extension SecurityConfiguration {
     return SecurityConfiguration(tlsConfiguration: tlsConfig)
   }
 }
+#endif

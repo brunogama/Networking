@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Configuration builder for NetworkClient using result builders.
 @resultBuilder
@@ -18,7 +21,9 @@ public struct NetworkClientBuilder {
     public var retryConfiguration: RetryConfiguration?
     public var cachingConfiguration: CachingConfiguration?
     public var sessionConfiguration: SessionConfiguration?
+    #if canImport(Security)
     public var securityConfiguration: SecurityConfiguration?
+    #endif
 
     public init() {}
   }
@@ -273,9 +278,11 @@ public struct SessionConfiguration: Sendable {
     let config = URLSessionConfiguration.default
     config.timeoutIntervalForRequest = timeout
     config.allowsCellularAccess = allowsCellularAccess
+    #if canImport(Security)
     config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
     config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
     config.waitsForConnectivity = waitsForConnectivity
+    #endif
     config.httpMaximumConnectionsPerHost = httpMaximumConnectionsPerHost
     config.requestCachePolicy = requestCachePolicy
 
@@ -286,6 +293,7 @@ public struct SessionConfiguration: Sendable {
     return URLSession(configuration: config)
   }
 
+  #if canImport(Security)
   /// Creates a URLSession with security configuration and delegate
   public func createURLSession(
     securityConfiguration: SecurityConfiguration? = nil
@@ -315,4 +323,5 @@ public struct SessionConfiguration: Sendable {
       return URLSession(configuration: config)
     }
   }
+  #endif
 }

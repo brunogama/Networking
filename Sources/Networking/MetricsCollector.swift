@@ -1,3 +1,4 @@
+#if canImport(OSLog)
 import Foundation
 import OSLog
 
@@ -908,3 +909,4 @@ extension ComprehensiveMetricsCollector {
     return ComprehensiveMetricsCollector(configuration: config)
   }
 }
+#endif

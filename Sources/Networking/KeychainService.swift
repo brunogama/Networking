@@ -1,3 +1,4 @@
+#if canImport(Security)
 import Foundation
 import Security
 
@@ -490,3 +491,4 @@ extension KeychainTokenProvider {
     )
   }
 }
+#endif

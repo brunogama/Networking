@@ -1,5 +1,8 @@
 import XCTest
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import Networking
 
 /// Comprehensive tests for error handling system including recovery strategies and middleware

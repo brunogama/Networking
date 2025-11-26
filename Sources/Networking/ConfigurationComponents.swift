@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Base protocol for network client configuration components.
 public protocol ConfigurationComponent: Sendable {
@@ -72,6 +75,7 @@ public struct EnableRetry: ConfigurationComponent {
   }
 }
 
+#if canImport(OSLog)
 public struct EnableLogging: ConfigurationComponent {
   private let configuration: LoggingMiddleware.Configuration
 
@@ -86,6 +90,7 @@ public struct EnableLogging: ConfigurationComponent {
     configuration.errorMiddlewares.append(loggingMiddleware)
   }
 }
+#endif
 
 public struct CustomSession: ConfigurationComponent {
   private let session: URLSession
@@ -99,6 +104,7 @@ public struct CustomSession: ConfigurationComponent {
   }
 }
 
+#if canImport(Security)
 public struct EnableSecurity: ConfigurationComponent {
   private let securityConfiguration: SecurityConfiguration
 
@@ -110,6 +116,7 @@ public struct EnableSecurity: ConfigurationComponent {
     configuration.securityConfiguration = securityConfiguration
   }
 }
+#endif
 
 // MARK: - Fluent Configuration DSL Components
 

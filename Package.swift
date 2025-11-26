@@ -21,12 +21,16 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     .package(url: "https://github.com/pointfreeco/swift-macro-testing.git", from: "0.5.2"),
+    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
   ],
   targets: [
     // Main library target
     .target(
       name: "Networking",
-      dependencies: ["NetworkingMacros"],
+      dependencies: [
+        "NetworkingMacros",
+        .product(name: "Crypto", package: "swift-crypto"),
+      ],
       swiftSettings: [
         .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
       ]

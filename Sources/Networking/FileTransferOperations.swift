@@ -1,4 +1,8 @@
+import Crypto
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Represents the result of a file transfer operation.
 public struct FileTransferResult: Sendable {
@@ -144,19 +148,13 @@ public enum ChecksumAlgorithm: String, Sendable, CaseIterable {
     switch self {
     case .sha256:
       return { data in
-        var digest = [UInt8](repeating: 0, count: Int(sha256DigestLength))
-        data.withUnsafeBytes {
-          _ = CC_SHA256($0.baseAddress, CC_LONG(data.count), &digest)
-        }
+        let digest = SHA256.hash(data: data)
         return Data(digest)
       }
 
     case .sha512:
       return { data in
-        var digest = [UInt8](repeating: 0, count: Int(sha512DigestLength))
-        data.withUnsafeBytes {
-          _ = CC_SHA512($0.baseAddress, CC_LONG(data.count), &digest)
-        }
+        let digest = SHA512.hash(data: data)
         return Data(digest)
       }
     }
@@ -713,6 +711,7 @@ public actor FileTransferOperations {
     )
   }
 
+  #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
   private nonisolated func createBackgroundSession(
     with config: BackgroundTransferConfiguration? = nil
   ) -> URLSession {
@@ -733,6 +732,25 @@ public actor FileTransferOperations {
       delegateQueue: nil
     )
   }
+  #else
+  private nonisolated func createBackgroundSession(
+    with config: BackgroundTransferConfiguration? = nil
+  ) -> URLSession {
+    let configuration = config ?? self.configuration.backgroundTransferConfiguration
+
+    let sessionConfig = URLSessionConfiguration.default
+
+    sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess
+    sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest
+    sessionConfig.timeoutIntervalForResource = configuration.timeoutIntervalForResource
+
+    return URLSession(
+      configuration: sessionConfig,
+      delegate: BackgroundTransferDelegate(),
+      delegateQueue: nil
+    )
+  }
+  #endif
 
   private func getMimeType(for fileURL: URL) -> String? {
     let fileExtension = fileURL.pathExtension.lowercased()
@@ -806,35 +824,6 @@ private final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDele
     // Handle task completion or error
     // In a real implementation, this would notify the FileTransferOperations actor
   }
-}
-
-// MARK: - CommonCrypto Integration
-
-// Import CommonCrypto for checksum calculation
-import CommonCrypto
-
-// Helper constants for CommonCrypto (secure algorithms only)
-private let sha256DigestLength = Int(32)
-private let sha512DigestLength = Int(64)
-
-// CommonCrypto functions (secure algorithms only)
-
-private func CC_SHA256(
-  _ data: UnsafeRawPointer!,
-  _ len: CC_LONG,
-  _ md: UnsafeMutablePointer<UInt8>!
-) -> UnsafeMutablePointer<UInt8>! {
-  // Placeholder - real implementation would call CommonCrypto
-  md
-}
-
-private func CC_SHA512(
-  _ data: UnsafeRawPointer!,
-  _ len: CC_LONG,
-  _ md: UnsafeMutablePointer<UInt8>!
-) -> UnsafeMutablePointer<UInt8>! {
-  // Placeholder - real implementation would call CommonCrypto
-  md
 }
 
 // MARK: - Convenience Extensions

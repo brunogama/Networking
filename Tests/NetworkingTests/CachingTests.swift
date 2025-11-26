@@ -1,5 +1,8 @@
 import Testing
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import Networking
 
 @Suite("Caching System Tests")

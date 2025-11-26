@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Modern HTTP client implementation using URLSession and structured concurrency.
 ///
@@ -289,6 +292,7 @@ extension NetworkClient {
 
   /// Validates and applies security configuration to session
   private static func validateConfiguration(_ config: inout NetworkClientBuilder.Configuration) {
+    #if canImport(Security)
     // Apply security configuration to session if configured
     if let securityConfig = config.securityConfiguration {
       // Create a secure URLSession with the security configuration
@@ -300,6 +304,7 @@ extension NetworkClient {
         config.session = sessionConfig.createURLSession(securityConfiguration: securityConfig)
       }
     }
+    #endif
   }
 
   /// Configures the complete middleware chain from configuration

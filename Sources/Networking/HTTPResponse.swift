@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// A structure representing an HTTP response with Swift 6 concurrency compliance.
 public struct HTTPResponse: Sendable {

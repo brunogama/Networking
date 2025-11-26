@@ -1,3 +1,4 @@
+#if canImport(OSLog)
 import Foundation
 import OSLog
 
@@ -124,3 +125,4 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
     throw error
   }
 }
+#endif

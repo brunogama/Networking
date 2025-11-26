@@ -1,6 +1,9 @@
 import XCTest
 @testable import Networking
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 final class ResponseProcessingTests: XCTestCase {
   struct TestUser: Codable, Sendable, Equatable {

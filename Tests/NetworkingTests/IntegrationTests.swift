@@ -1,5 +1,8 @@
 import Testing
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import Networking
 
 /// End-to-end functionality tests validating complete request/response cycles

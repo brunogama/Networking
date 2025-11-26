@@ -1,3 +1,4 @@
+#if canImport(OSLog)
 import Foundation
 import OSLog
 
@@ -806,3 +807,4 @@ extension NetworkObservabilityMiddleware {
     )
   }
 }
+#endif
