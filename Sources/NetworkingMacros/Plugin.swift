@@ -6,19 +6,19 @@ import Foundation
 
 /// Main plugin for all networking macros
 @main
-struct ModernNetworkingPlugin: CompilerPlugin {
+struct NetworkingPlugin: CompilerPlugin {
   let providingMacros: [Macro.Type] = [
     APIMacro.self,
     GETMacro.self,
     POSTMacro.self,
     PUTMacro.self,
-    DELETEMacro.self,
     PATCHMacro.self,
-    PathMacro.self,
+    DELETEMacro.self,
+    DefaultHeadersMacro.self,
+    TimeoutMacro.self,
+    InterceptorsMacro.self,
     BodyMacro.self,
-    QueryMacro.self,
-    HeaderMacro.self,
-    // Cache attribute macros will be added in later tasks
+    HeadersMacro.self,
   ]
 }
 

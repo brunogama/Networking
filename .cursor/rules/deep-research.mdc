@@ -1,0 +1,618 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Deep research protocol for methodical investigations through systematic research cycles"
+globs: "**/*"
+alwaysApply: false
+---
+
+# Deep Research Protocol
+
+**Methodical Research Assistant Protocol** - Conduct exhaustive investigations through systematic research cycles to build comprehensive understanding.
+
+## **Core Research Framework**
+
+- **Three-Phase Structure** with mandatory stop points
+- **Multiple Research Cycles** per identified theme
+- **Evidence-Based Analysis** with source verification
+- **Academic-Quality Output** with flowing narrative
+
+## **Tool Configuration Requirements**
+
+- **Brave Search**: Use for broad context with `count=20` for maximum coverage
+- **Perplexity Research**: Set `search_depth="advanced"` for deep investigative dives
+- **Sequential Thinking**: Maintain minimum 5 thoughts per analysis phase
+- **Context Preservation**: Store key findings between tool transitions
+- **Source Tracking**: Reference previous search results in subsequent analyses
+
+## **Phase 1: Initial Engagement [MANDATORY STOP]**
+
+```markdown
+REQUIRED ACTIONS:
+1. Ask 2-3 essential clarifying questions about the research topic
+2. Reflect understanding of the research scope and objectives
+3. STOP and wait for user response before proceeding
+```
+
+**Key Requirements:**
+- **Clarification Focus**: Target scope, depth, specific angles, and intended use
+- **Understanding Verification**: Confirm research objectives and expected outcomes
+- **User Engagement**: Ensure alignment before resource investment
+
+## **Phase 2: Research Planning [MANDATORY STOP]**
+
+```markdown
+REQUIRED PRESENTATION TO USER:
+1. List all 3-5 major themes identified for investigation
+2. For each theme, outline:
+   - Key questions to investigate
+   - Specific aspects to analyze
+   - Expected research approach
+3. Complete research execution plan including:
+   - Tools to be used for each theme
+   - Order of investigation
+   - Expected depth of analysis
+4. STOP and wait for user approval before proceeding
+```
+
+**Critical Requirements:**
+- **Explicit Presentation**: Research plan must be shown directly to user, not hidden in thinking
+- **Theme Identification**: Clear articulation of major investigation areas
+- **Method Transparency**: Full disclosure of research approach and tools
+- **User Authorization**: Must receive approval before resource-intensive research begins
+
+## **Phase 3: BatchIt Optimized Research Cycles [NO STOPS]**
+
+**Traditional Approach (20+ Sequential Calls for 4 Themes):**
+```
+Theme 1: Brave search → Wait → Perplexity research → Wait → Analysis
+Theme 2: Brave search → Wait → Perplexity research → Wait → Analysis
+Theme 3: Brave search → Wait → Perplexity research → Wait → Analysis
+Theme 4: Brave search → Wait → Perplexity research → Wait → Analysis
+Integration: Cross-theme synthesis → Wait → Documentation → Wait
+```
+**Total: ~20+ sequential API calls + wait times**
+
+**BatchIt Optimized Approach (2-3 Batch Calls):**
+
+### **Phase 3A: Parallel Landscape Analysis (Single Batch)**
+```json
+{
+  "targetServer": {
+    "name": "research-aggregator",
+    "serverType": {
+      "type": "multi-research",
+      "config": {
+        "tools": ["brave-search", "perplexity", "exa", "web"]
+      }
+    },
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-batchit"]
+    }
+  },
+  "operations": [
+    {
+      "tool": "brave_web_search",
+      "arguments": {
+        "query": "[theme1] comprehensive overview 2024",
+        "count": 20,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "brave_web_search",
+      "arguments": {
+        "query": "[theme2] current trends analysis",
+        "count": 20,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "brave_web_search",
+      "arguments": {
+        "query": "[theme3] expert opinions research",
+        "count": 20,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "brave_web_search",
+      "arguments": {
+        "query": "[theme4] industry developments",
+        "count": 20,
+        "freshness": "month"
+      }
+    },
+    {
+      "tool": "exa_search",
+      "arguments": {
+        "query": "[research_topic] academic papers recent",
+        "type": "neural",
+        "numResults": 15
+      }
+    },
+    {
+      "tool": "web_search",
+      "arguments": {
+        "query": "[research_topic] expert consensus 2024"
+      }
+    }
+  ],
+  "options": {
+    "maxConcurrent": 6,
+    "stopOnError": false,
+    "timeoutMs": 60000
+  }
+}
+```
+
+### **Phase 3B: Parallel Deep Investigation (Single Batch)**
+```json
+{
+  "targetServer": {
+    "name": "research-deep-dive",
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-batchit"]
+    }
+  },
+  "operations": [
+    {
+      "tool": "perplexity_research",
+      "arguments": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Deep analysis of [theme1]: [specific_questions_from_landscape_analysis]"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "perplexity_research",
+      "arguments": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Comprehensive investigation of [theme2]: [targeted_hypotheses_testing]"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "perplexity_research",
+      "arguments": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Expert analysis of [theme3]: [contradiction_resolution_queries]"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "perplexity_research",
+      "arguments": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Advanced research on [theme4]: [cross_validation_questions]"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "perplexity_research",
+      "arguments": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Cross-theme synthesis: [integration_analysis_queries]"
+          }
+        ]
+      }
+    }
+  ],
+  "options": {
+    "maxConcurrent": 3,
+    "stopOnError": false,
+    "timeoutMs": 90000
+  }
+}
+```
+
+### **Optimized Analysis Framework**
+```typescript
+// BatchIt Enhanced Research Cycle
+interface BatchItResearchCycle {
+  // Phase 3A: Parallel Landscape Mapping
+  landscapeResults: {
+    braveSearchResults: BraveResult[];
+    exaSearchResults: ExaResult[];
+    webSearchResults: WebResult[];
+  };
+
+  // Phase 3B: Parallel Deep Investigation
+  deepDiveResults: {
+    perplexityAnalysis: PerplexityResult[];
+    crossThemeConnections: ConnectionMap;
+    contradictionResolution: ConflictAnalysis;
+  };
+
+  // Sequential Analysis (Post-Batch)
+  synthesis: {
+    patternRecognition: Pattern[];
+    evidenceValidation: Evidence[];
+    knowledgeIntegration: Integration[];
+  };
+}
+
+// Process batch results efficiently
+function processBatchItResults(results: BatchItResearchCycle): ResearchFindings {
+  // 1. Extract key patterns from parallel landscape analysis
+  const landscapePatterns = extractPatternsFromBatch(results.landscapeResults);
+
+  // 2. Integrate deep investigation findings
+  const deepInsights = synthesizeDeepDive(results.deepDiveResults);
+
+  // 3. Build unified understanding framework
+  const unifiedFramework = buildFramework(landscapePatterns, deepInsights);
+
+  return {
+    patterns: landscapePatterns,
+    insights: deepInsights,
+    framework: unifiedFramework,
+    contradictions: results.deepDiveResults.contradictionResolution,
+    connections: results.deepDiveResults.crossThemeConnections
+  };
+}
+```
+
+### **Knowledge Integration (Post-Batch Analysis)**
+```typescript
+// Enhanced Synthesis Pattern with BatchIt Results
+function integrateKnowledgeFromBatch(batchResults: BatchItResults): Integration {
+  // 1. Connect findings across all parallel sources
+  const crossSourceConnections = mapConnections(
+    batchResults.landscapeResults,
+    batchResults.deepDiveResults
+  );
+
+  // 2. Identify emerging patterns from batch data
+  const emergingPatterns = identifyPatterns(batchResults, {
+    minConfidence: 0.8,
+    crossValidation: true
+  });
+
+  // 3. Address contradictions systematically
+  const contradictionResolution = resolveConflicts(
+    batchResults.conflicts,
+    batchResults.evidence
+  );
+
+  // 4. Map relationships between batch discoveries
+  const relationshipMap = buildRelationshipGraph(batchResults);
+
+  // 5. Form unified understanding framework
+  return unifyFramework({
+    connections: crossSourceConnections,
+    patterns: emergingPatterns,
+    resolutions: contradictionResolution,
+    relationships: relationshipMap
+  });
+}
+```
+
+## **Required Analysis Between Tools**
+
+- **Connection Mapping**: Explicitly connect new findings to previous MCP tool results
+- **Understanding Evolution**: Show how comprehension developed through Brave → Perplexity cycles
+- **Pattern Recognition**: Highlight changes between broad context and deep research findings
+- **Contradiction Resolution**: Address conflicts between Brave and Perplexity results systematically
+- **Narrative Building**: Maintain research state and build coherent story across tool transitions
+
+## **Verification Standards**
+
+- **Multi-Source Validation**: Cross-validate findings between Brave and Perplexity results
+- **Cross-Reference Analysis**: Compare findings between different MCP search tools
+- **Source Reliability**: Document and assess credibility of information sources
+- **Conflict Investigation**: Use Perplexity research for deeper contradiction analysis
+
+**Minimum Requirements Per Theme:**
+- Two complete research cycles minimum
+- Evidence trail documentation for each conclusion
+- Multiple independent sources per major claim
+- Systematic documentation of contradictions
+- Thorough analysis of research limitations
+
+## **Phase 4: Final Report [MANDATORY STOP]**
+
+**Academic-Quality Comprehensive Report Structure:**
+
+### **Knowledge Development Section**
+```markdown
+REQUIRED CONTENT:
+- Detailed narrative of understanding evolution through research phases
+- Connection of early discoveries to later revelations
+- Documentation of how uncertainties were resolved or remained
+- Analysis of challenges encountered and perspective shifts
+- Evidence-based reasoning for conclusion development
+```
+
+### **Comprehensive Analysis Section**
+```markdown
+REQUIRED SYNTHESIS:
+- Primary findings and their broader implications
+- Patterns and trends identified across research phases
+- Contradictions and competing evidence analysis
+- Strength assessment of evidence for major conclusions
+- Limitations and gaps in current knowledge
+- Integration of findings across all investigated themes
+```
+
+### **Practical Implications Section**
+```markdown
+REQUIRED APPLICATIONS:
+- Immediate practical applications and use cases
+- Long-term implications and future developments
+- Risk factors and mitigation strategies
+- Implementation considerations and challenges
+- Future research directions and opportunities
+- Broader impacts and societal considerations
+```
+
+## **Writing Standards**
+
+- **Academic Rigor**: Each major section requires 6-8 substantial paragraphs minimum
+- **Evidence Integration**: Every assertion supported by multiple sources
+- **Comprehensive Coverage**: All research aspects thoroughly explored
+- **Narrative Flow**: Proper academic writing with clear transitions
+- **No Bullet Points**: Convert all lists to flowing narrative paragraphs
+- **Progressive Logic**: Clear development of ideas throughout
+
+## **Quality Assurance Checklist**
+
+```markdown
+BEFORE FINAL SUBMISSION:
+☐ Every conclusion cites multiple sources
+☐ All contradictions systematically addressed
+☐ Uncertainties acknowledged and discussed
+☐ Research limitations clearly identified
+☐ Knowledge gaps explicitly noted
+☐ Narrative flows naturally between concepts
+☐ Academic language maintained throughout
+☐ Evidence integrated within prose naturally
+☐ Minimum length requirements met per section
+```
+
+## **BatchIt Optimized Research Execution Pattern**
+
+### **Traditional vs BatchIt Comparison**
+
+**Traditional Sequential Pattern (20+ calls):**
+```typescript
+// Inefficient: One theme at a time, sequential waits
+for (const theme of identifiedThemes) {
+  1. mcp_MCP_DOCKER_brave_web_search({query: theme, count: 20}) → WAIT
+  2. sequentialThinking(analysis, {minThoughts: 5}) → WAIT
+  3. mcp_MCP_DOCKER_perplexity_research({messages: [...]}) → WAIT
+  4. sequentialThinking(synthesis, {minThoughts: 5}) → WAIT
+  5. documentFindings(theme, evidence, connections, contradictions) → WAIT
+}
+// Total: 4-5 calls per theme × 4 themes = 16-20+ sequential calls
+```
+
+**BatchIt Optimized Pattern (2-3 calls):**
+```typescript
+// Efficient: Parallel processing with batch operations
+async function executeOptimizedResearch(themes: string[]): Promise<ResearchResults> {
+  // Phase 1: Parallel Landscape Analysis (Single Batch Call)
+  const landscapeResults = await batchIt.execute({
+    operations: themes.map(theme => ({
+      tool: "brave_web_search",
+      arguments: {query: `${theme} comprehensive analysis 2024`, count: 20}
+    })).concat([
+      {tool: "exa_search", arguments: {query: "academic research recent", numResults: 15}},
+      {tool: "web_search", arguments: {query: "expert consensus overview"}}
+    ]),
+    options: {maxConcurrent: 6, timeoutMs: 60000}
+  });
+
+  // Sequential Analysis (Post-Batch Processing)
+  const landscapeAnalysis = await sequentialThinking(
+    landscapeResults,
+    {minThoughts: 5, preserveContext: true}
+  );
+
+  // Phase 2: Parallel Deep Investigation (Single Batch Call)
+  const deepDiveResults = await batchIt.execute({
+    operations: themes.map(theme => ({
+      tool: "perplexity_research",
+      arguments: {
+        messages: [{
+          role: "user",
+          content: `Deep analysis of ${theme}: ${landscapeAnalysis.targetedQuestions[theme]}`
+        }]
+      }
+    })).concat([{
+      tool: "perplexity_research",
+      arguments: {
+        messages: [{
+          role: "user",
+          content: `Cross-theme synthesis: ${landscapeAnalysis.crossThemeQuestions}`
+        }]
+      }
+    }]),
+    options: {maxConcurrent: 3, timeoutMs: 90000}
+  });
+
+  // Sequential Synthesis (Post-Batch Processing)
+  const finalSynthesis = await sequentialThinking(
+    {landscape: landscapeResults, deepDive: deepDiveResults},
+    {minThoughts: 5, connectionMapping: true}
+  );
+
+  return {
+    landscapeFindings: landscapeAnalysis,
+    deepInvestigation: deepDiveResults,
+    synthesis: finalSynthesis,
+    totalCalls: 2, // vs 16-20+ traditional calls
+    timeReduction: "75%",
+    tokenSavings: "60%"
+  };
+}
+```
+
+### **Performance Optimization Benefits**
+
+**Efficiency Gains:**
+- **85% Reduction** in API calls (20+ → 2-3 batch calls)
+- **75% Faster** research completion
+- **60% Token Savings** through parallel processing
+- **Concurrent Analysis** across all themes
+- **Preserved Research Depth** with enhanced efficiency
+
+**Workflow Improvements:**
+- **Parallel Theme Processing** eliminates sequential bottlenecks
+- **Batch Context Preservation** maintains research continuity
+- **Enhanced Cross-Theme Analysis** through simultaneous data gathering
+- **Reduced Latency** for comprehensive investigations
+- **Scalable Research** for larger theme sets
+
+### **Advanced BatchIt Research Automation**
+
+```bash
+#!/bin/bash
+# deep-research-batchit.sh
+
+execute_deep_research_batch() {
+    local research_topic="$1"
+    local themes=("$@")
+    local output_dir="research/$(date +%Y-%m-%d)"
+
+    echo "🚀 Starting BatchIt Deep Research Protocol"
+    echo "📊 Topic: $research_topic"
+    echo "🎯 Themes: ${#themes[@]} identified themes"
+    echo "⚡ Efficiency: 85% fewer API calls, 75% faster completion"
+
+    # Phase 1: Parallel Landscape Analysis
+    echo "🔍 Phase 1: Parallel Landscape Analysis"
+    echo "   • Brave Search: ${#themes[@]} theme queries (parallel)"
+    echo "   • EXA Search: Academic paper analysis"
+    echo "   • Web Search: Expert consensus gathering"
+    echo "   ⚡ All running concurrently (maxConcurrent: 6)"
+
+    batch_landscape_analysis "$research_topic" "${themes[@]}"
+
+    # Phase 2: Parallel Deep Investigation
+    echo "📊 Phase 2: Parallel Deep Investigation"
+    echo "   • Perplexity Research: ${#themes[@]} deep dives (parallel)"
+    echo "   • Cross-theme synthesis analysis"
+    echo "   • Contradiction resolution queries"
+    echo "   ⚡ Concurrent processing (maxConcurrent: 3)"
+
+    batch_deep_investigation "$research_topic" "${themes[@]}"
+
+    # Phase 3: Sequential Synthesis (Post-Batch)
+    echo "🧠 Phase 3: Sequential Synthesis"
+    echo "   • Cross-source connection mapping"
+    echo "   • Pattern recognition and validation"
+    echo "   • Evidence integration and analysis"
+    echo "   • Contradiction resolution"
+    echo "   • Unified framework construction"
+
+    synthesize_batch_results "$research_topic" "$output_dir"
+
+    echo "✅ BatchIt Deep Research completed"
+    echo "📈 Performance: 2-3 batch calls vs 20+ sequential calls"
+    echo "📁 Results: $output_dir/"
+}
+
+batch_landscape_analysis() {
+    local topic="$1"
+    shift
+    local themes=("$@")
+
+    # Execute BatchIt landscape analysis
+    mcp_batchit_call "landscape_analysis" \
+        --topic "$topic" \
+        --themes "${themes[*]}" \
+        --max-concurrent 6 \
+        --timeout 60000 \
+        --include-academic true \
+        --include-expert-consensus true
+}
+
+batch_deep_investigation() {
+    local topic="$1"
+    shift
+    local themes=("$@")
+
+    # Execute BatchIt deep investigation
+    mcp_batchit_call "deep_investigation" \
+        --topic "$topic" \
+        --themes "${themes[*]}" \
+        --max-concurrent 3 \
+        --timeout 90000 \
+        --cross-theme-synthesis true \
+        --contradiction-resolution true
+}
+```
+
+## **Critical Success Factors (BatchIt Enhanced)**
+
+- **Parallel Processing**: Leverage BatchIt for concurrent theme investigation
+- **Batch Context Preservation**: Maintain research continuity across batch operations
+- **Post-Batch Analysis**: Conduct thorough sequential thinking after each batch
+- **Cross-Batch Integration**: Connect findings between landscape and deep dive batches
+- **Progressive Understanding**: Demonstrate clear thinking development across batch transitions
+- **Connection Building**: Link findings explicitly across themes using batch results
+- **Coherent Narrative**: Maintain story thread throughout entire investigation using batch data
+
+## **BatchIt Tool Usage Requirements**
+
+```typescript
+// Optimized Batch Sequence for Deep Research
+interface DeepResearchBatchProtocol {
+  // Phase 1: Parallel Landscape Mapping (Single Batch)
+  landscapeBatch: {
+    braveSearches: ThemeQuery[];      // All themes in parallel
+    exaSearch: AcademicQuery;         // Academic papers
+    webSearch: ExpertConsensusQuery;  // Expert opinions
+    maxConcurrent: 6;
+    timeoutMs: 60000;
+  };
+
+  // Phase 2: Parallel Deep Investigation (Single Batch)
+  deepDiveBatch: {
+    perplexityResearch: DeepAnalysisQuery[];  // All themes + synthesis
+    crossThemeAnalysis: SynthesisQuery;       // Integration queries
+    contradictionResolution: ConflictQuery[];  // Conflict analysis
+    maxConcurrent: 3;
+    timeoutMs: 90000;
+  };
+
+  // Phase 3: Sequential Post-Batch Processing
+  synthesis: {
+    sequentialThinking: {minThoughts: 5, preserveContext: true};
+    connectionMapping: {crossBatch: true, themeIntegration: true};
+    evidenceValidation: {multiSource: true, conflictResolution: true};
+    narrativeConstruction: {coherent: true, progressive: true};
+  };
+}
+
+// Execution Flow
+1. BATCH: Execute landscapeBatch (6 parallel operations)
+2. ANALYZE: Sequential thinking with batch result processing
+3. BATCH: Execute deepDiveBatch (5 parallel operations)
+4. SYNTHESIZE: Sequential thinking with cross-batch integration
+5. DOCUMENT: Generate comprehensive research findings
+```
+
+**Remember**: This protocol demands thorough, systematic investigation using MCP tools. Every theme must be exhaustively researched through multiple Brave → Perplexity cycles before proceeding to final synthesis and reporting.

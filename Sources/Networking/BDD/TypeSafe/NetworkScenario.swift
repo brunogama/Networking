@@ -1,0 +1,395 @@
+import Foundation
+
+// MARK: - Network Scenario
+
+/// A type-safe BDD scenario builder for network testing.
+///
+/// `NetworkScenario` uses phantom types to enforce the correct
+/// Given-When-Then ordering at compile time. You cannot call `.when()`
+/// before `.given()`, or `.then()` before `.when()`.
+///
+/// ## Usage
+///
+/// ```swift
+/// let scenario = NetworkScenario("User authentication")
+///   .given {
+///     MockResponse(path: "/login", status: 200)
+///   }
+///   .when {
+///     POST("/login", body: credentials)
+///   }
+///   .then {
+///     StatusIs(.ok)
+///     BodyContains("token")
+///   }
+///
+/// try await scenario.run(with: context)
+/// ```
+///
+/// ## Phase Transitions
+///
+/// - `Initial` -> `GivenDefined` via `.given()`
+/// - `GivenDefined` -> `WhenDefined` via `.when()`
+/// - `WhenDefined` -> `Complete` via `.then()`
+///
+/// Only `Complete` scenarios can be executed with `.run()`.
+public struct NetworkScenario<Phase: ScenarioPhaseProtocol>: Sendable {
+  /// The scenario name.
+  public let name: String
+
+  /// Optional description.
+  public let description: String?
+
+  /// Tags for filtering.
+  public let tags: [Tag]
+
+  /// Given steps (preconditions).
+  let givenSteps: [any GivenStep]
+
+  /// When steps (actions).
+  let whenSteps: [any WhenStep]
+
+  /// Then steps (assertions).
+  let thenSteps: [any ThenStep]
+
+  /// Creates a new scenario in the initial phase.
+  ///
+  /// - Parameters:
+  ///   - name: Scenario name
+  ///   - description: Optional description
+  ///   - tags: Tags for filtering
+  init(
+    name: String,
+    description: String? = nil,
+    tags: [Tag] = [],
+    givenSteps: [any GivenStep] = [],
+    whenSteps: [any WhenStep] = [],
+    thenSteps: [any ThenStep] = []
+  ) {
+    self.name = name
+    self.description = description
+    self.tags = tags
+    self.givenSteps = givenSteps
+    self.whenSteps = whenSteps
+    self.thenSteps = thenSteps
+  }
+}
+
+// MARK: - Initial Phase
+
+extension NetworkScenario where Phase == ScenarioPhase.Initial {
+  /// Creates a new scenario.
+  ///
+  /// - Parameters:
+  ///   - name: Scenario name
+  ///   - description: Optional description
+  ///   - tags: Tags for filtering
+  public init(
+    _ name: String,
+    description: String? = nil,
+    tags: [Tag] = []
+  ) {
+    self.name = name
+    self.description = description
+    self.tags = tags
+    self.givenSteps = []
+    self.whenSteps = []
+    self.thenSteps = []
+  }
+
+  /// Defines the Given steps (preconditions).
+  ///
+  /// - Parameter builder: A builder that produces Given steps
+  /// - Returns: Scenario in GivenDefined phase
+  public func given(
+    @GivenStepBuilder builder: () -> [any GivenStep]
+  ) -> NetworkScenario<ScenarioPhase.GivenDefined> {
+    NetworkScenario<ScenarioPhase.GivenDefined>(
+      name: name,
+      description: description,
+      tags: tags,
+      givenSteps: builder(),
+      whenSteps: [],
+      thenSteps: []
+    )
+  }
+
+  /// Defines a single Given step.
+  ///
+  /// - Parameter step: The Given step
+  /// - Returns: Scenario in GivenDefined phase
+  public func given<S: GivenStep>(
+    _ step: S
+  ) -> NetworkScenario<ScenarioPhase.GivenDefined> {
+    NetworkScenario<ScenarioPhase.GivenDefined>(
+      name: name,
+      description: description,
+      tags: tags,
+      givenSteps: [step],
+      whenSteps: [],
+      thenSteps: []
+    )
+  }
+}
+
+// MARK: - GivenDefined Phase
+
+extension NetworkScenario where Phase == ScenarioPhase.GivenDefined {
+  /// Defines the When steps (actions).
+  ///
+  /// - Parameter builder: A builder that produces When steps
+  /// - Returns: Scenario in WhenDefined phase
+  public func when(
+    @WhenStepBuilder builder: () -> [any WhenStep]
+  ) -> NetworkScenario<ScenarioPhase.WhenDefined> {
+    NetworkScenario<ScenarioPhase.WhenDefined>(
+      name: name,
+      description: description,
+      tags: tags,
+      givenSteps: givenSteps,
+      whenSteps: builder(),
+      thenSteps: []
+    )
+  }
+
+  /// Defines a single When step.
+  ///
+  /// - Parameter step: The When step
+  /// - Returns: Scenario in WhenDefined phase
+  public func when<S: WhenStep>(
+    _ step: S
+  ) -> NetworkScenario<ScenarioPhase.WhenDefined> {
+    NetworkScenario<ScenarioPhase.WhenDefined>(
+      name: name,
+      description: description,
+      tags: tags,
+      givenSteps: givenSteps,
+      whenSteps: [step],
+      thenSteps: []
+    )
+  }
+}
+
+// MARK: - WhenDefined Phase
+
+extension NetworkScenario where Phase == ScenarioPhase.WhenDefined {
+  /// Defines the Then steps (assertions).
+  ///
+  /// - Parameter builder: A builder that produces Then steps
+  /// - Returns: Scenario in Complete phase
+  public func then(
+    @ThenStepBuilder builder: () -> [any ThenStep]
+  ) -> NetworkScenario<ScenarioPhase.Complete> {
+    NetworkScenario<ScenarioPhase.Complete>(
+      name: name,
+      description: description,
+      tags: tags,
+      givenSteps: givenSteps,
+      whenSteps: whenSteps,
+      thenSteps: builder()
+    )
+  }
+
+  /// Defines a single Then step.
+  ///
+  /// - Parameter step: The Then step
+  /// - Returns: Scenario in Complete phase
+  public func then<S: ThenStep>(
+    _ step: S
+  ) -> NetworkScenario<ScenarioPhase.Complete> {
+    NetworkScenario<ScenarioPhase.Complete>(
+      name: name,
+      description: description,
+      tags: tags,
+      givenSteps: givenSteps,
+      whenSteps: whenSteps,
+      thenSteps: [step]
+    )
+  }
+}
+
+// MARK: - Complete Phase
+
+extension NetworkScenario where Phase == ScenarioPhase.Complete {
+  /// Runs the scenario with the given context.
+  ///
+  /// Executes all steps in order: Given -> When -> Then.
+  /// If any step fails, execution stops and the error is thrown.
+  ///
+  /// - Parameter context: The scenario context
+  /// - Throws: Errors from step execution
+  /// - Returns: The scenario result
+  @discardableResult
+  public func run(with context: ScenarioContext) async throws -> ScenarioResult {
+    let startTime = Date()
+    var stepResults: [StepResultEntry] = []
+
+    // Execute Given steps
+    for step in givenSteps {
+      let stepStart = Date()
+      do {
+        try await step.execute(context: context)
+        let duration = Date().timeIntervalSince(stepStart)
+        let gherkinStep = GherkinStep(
+          keyword: .given,
+          text: (step as? DescribableStep)?.stepDescription ?? "Given step"
+        )
+        stepResults.append(StepResultEntry(
+          step: gherkinStep,
+          result: .passed(duration: duration)
+        ))
+      } catch {
+        let duration = Date().timeIntervalSince(stepStart)
+        let gherkinStep = GherkinStep(
+          keyword: .given,
+          text: (step as? DescribableStep)?.stepDescription ?? "Given step"
+        )
+        stepResults.append(StepResultEntry(
+          step: gherkinStep,
+          result: .failed(error: error, duration: duration)
+        ))
+        throw error
+      }
+    }
+
+    // Execute When steps
+    for step in whenSteps {
+      let stepStart = Date()
+      do {
+        try await step.execute(context: context)
+        let duration = Date().timeIntervalSince(stepStart)
+        let gherkinStep = GherkinStep(
+          keyword: .when,
+          text: (step as? DescribableStep)?.stepDescription ?? "When step"
+        )
+        stepResults.append(StepResultEntry(
+          step: gherkinStep,
+          result: .passed(duration: duration)
+        ))
+      } catch {
+        let duration = Date().timeIntervalSince(stepStart)
+        let gherkinStep = GherkinStep(
+          keyword: .when,
+          text: (step as? DescribableStep)?.stepDescription ?? "When step"
+        )
+        stepResults.append(StepResultEntry(
+          step: gherkinStep,
+          result: .failed(error: error, duration: duration)
+        ))
+        // Record error in context but don't rethrow - let Then steps verify it
+        context.lastError = error
+      }
+    }
+
+    // Execute Then steps
+    for step in thenSteps {
+      let stepStart = Date()
+      do {
+        try await step.execute(context: context)
+        let duration = Date().timeIntervalSince(stepStart)
+        let gherkinStep = GherkinStep(
+          keyword: .then,
+          text: (step as? DescribableStep)?.stepDescription ?? "Then step"
+        )
+        stepResults.append(StepResultEntry(
+          step: gherkinStep,
+          result: .passed(duration: duration)
+        ))
+      } catch {
+        let duration = Date().timeIntervalSince(stepStart)
+        let gherkinStep = GherkinStep(
+          keyword: .then,
+          text: (step as? DescribableStep)?.stepDescription ?? "Then step"
+        )
+        stepResults.append(StepResultEntry(
+          step: gherkinStep,
+          result: .failed(error: error, duration: duration)
+        ))
+        throw error
+      }
+    }
+
+    let totalDuration = Date().timeIntervalSince(startTime)
+
+    let scenarioDef = ScenarioDefinition(
+      name: name,
+      description: description,
+      tags: tags
+    )
+
+    return ScenarioResult(
+      scenario: .scenario(scenarioDef),
+      stepResults: stepResults,
+      duration: totalDuration
+    )
+  }
+}
+
+// MARK: - Convenience Functions
+
+/// Creates a new scenario in the initial phase.
+///
+/// - Parameters:
+///   - name: Scenario name
+///   - description: Optional description
+///   - tags: Tags for filtering
+/// - Returns: A new scenario ready for step definition
+public func scenario(
+  _ name: String,
+  description: String? = nil,
+  tags: [Tag] = []
+) -> NetworkScenario<ScenarioPhase.Initial> {
+  NetworkScenario(name, description: description, tags: tags)
+}
+
+/// Creates a new scenario with tags.
+///
+/// - Parameters:
+///   - name: Scenario name
+///   - tags: Tags for filtering
+/// - Returns: A new scenario ready for step definition
+public func scenario(
+  _ name: String,
+  tags: Tag...
+) -> NetworkScenario<ScenarioPhase.Initial> {
+  NetworkScenario(name, tags: Array(tags))
+}
+
+// MARK: - Scenario Collection
+
+/// A collection of scenarios for batch execution.
+public struct ScenarioCollection: Sendable {
+  /// The scenarios in this collection.
+  public let scenarios: [NetworkScenario<ScenarioPhase.Complete>]
+
+  /// Collection name.
+  public let name: String
+
+  /// Creates a new scenario collection.
+  public init(name: String, scenarios: [NetworkScenario<ScenarioPhase.Complete>]) {
+    self.name = name
+    self.scenarios = scenarios
+  }
+
+  /// Runs all scenarios with the given context factory.
+  ///
+  /// - Parameter contextFactory: Factory to create context for each scenario
+  /// - Returns: Results for all scenarios
+  public func runAll(
+    contextFactory: @Sendable () -> ScenarioContext
+  ) async -> [Result<ScenarioResult, Error>] {
+    var results: [Result<ScenarioResult, Error>] = []
+
+    for scenario in scenarios {
+      let context = contextFactory()
+      do {
+        let result = try await scenario.run(with: context)
+        results.append(.success(result))
+      } catch {
+        results.append(.failure(error))
+      }
+    }
+
+    return results
+  }
+}

@@ -1,0 +1,432 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Development workflow standards including git workflow, commit conventions, code review, and testing"
+globs: "**/*"
+alwaysApply: true
+---
+
+# Development Workflow Standards
+
+## Git Workflow
+
+### Branch Strategy
+- **main**: Production-ready code (protected)
+- **develop**: Integration branch for features
+- **feature/**: Feature development branches
+- **hotfix/**: Critical bug fixes
+- **release/**: Release preparation branches
+
+### Branch Naming Convention
+```
+feature/strategy-search-optimization
+hotfix/memory-leak-fix
+release/v1.2.0
+```
+
+### Commit Message Standards
+
+#### Conventional Commits Format
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+#### Types
+- **feat**: New feature
+- **fix**: Bug fix
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, etc.)
+- **refactor**: Code refactoring
+- **test**: Adding or updating tests
+- **chore**: Maintenance tasks
+
+#### Examples
+```
+feat(search): add fuzzy search capability for strategies
+
+Implement Whoosh-based fuzzy search with relevance scoring
+to improve strategy discovery for debugging scenarios.
+
+Closes #123
+```
+
+```
+fix(repository): handle git authentication timeout
+
+Add retry logic and proper error handling for git operations
+when authentication tokens expire or network issues occur.
+
+Fixes #456
+```
+
+### Pre-commit Hooks
+
+#### Required Checks
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.10
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+```
+
+## Code Review Process
+
+### Pull Request Requirements
+
+#### Checklist
+- [ ] **Tests**: Unit tests added/updated with 90%+ coverage
+- [ ] **Documentation**: Code documented with docstrings
+- [ ] **Type Hints**: Full type annotations present
+- [ ] **Linting**: All linting checks pass
+- [ ] **Performance**: No performance regressions
+- [ ] **Security**: No security vulnerabilities introduced
+
+#### PR Template
+```markdown
+## Description
+Brief description of changes and motivation.
+
+## Type of Change
+- [ ] Bug fix (non-breaking change)
+- [ ] New feature (non-breaking change)
+- [ ] Breaking change (fix or feature causing existing functionality to change)
+- [ ] Documentation update
+
+## Testing
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+
+## Strategy Coverage
+- [ ] New strategies added to repository
+- [ ] Strategy metadata updated
+- [ ] Search index updated
+
+## Checklist
+- [ ] Code follows project style guidelines
+- [ ] Self-review completed
+- [ ] Code commented, particularly complex areas
+- [ ] Documentation updated
+- [ ] No new warnings introduced
+```
+
+### Review Guidelines
+
+#### For Authors
+1. **Self-review**: Review your own PR before requesting review
+2. **Small PRs**: Keep changes focused and small (<500 lines)
+3. **Clear descriptions**: Explain what, why, and how
+4. **Test coverage**: Ensure adequate test coverage
+5. **Documentation**: Update relevant documentation
+
+#### For Reviewers
+1. **Timely reviews**: Review within 24 hours
+2. **Constructive feedback**: Focus on code quality and maintainability
+3. **Security focus**: Look for potential security issues
+4. **Performance considerations**: Consider performance implications
+5. **Test quality**: Verify test coverage and quality
+
+## Testing Workflow
+
+### Test Categories
+
+#### Unit Tests
+```python
+# tests/unit/test_strategy_repository.py
+import pytest
+from unittest.mock import AsyncMock
+
+class TestStrategyRepository:
+    """Unit tests for strategy repository."""
+
+    @pytest.mark.asyncio
+    async def test_get_strategy_success(self):
+        """Test successful strategy retrieval."""
+        # Test implementation
+        pass
+```
+
+#### Integration Tests
+```python
+# tests/integration/test_mcp_tools.py
+import pytest
+from swift_debugging_mcp_server.main import create_app
+
+class TestMCPIntegration:
+    """Integration tests for MCP tools."""
+
+    @pytest.mark.asyncio
+    async def test_get_strategy_tool_integration(self):
+        """Test complete get_strategy tool flow."""
+        # Test implementation
+        pass
+```
+
+#### End-to-End Tests
+```python
+# tests/e2e/test_full_workflow.py
+import pytest
+from httpx import AsyncClient
+
+class TestE2EWorkflow:
+    """End-to-end workflow tests."""
+
+    @pytest.mark.asyncio
+    async def test_complete_strategy_workflow(self):
+        """Test complete strategy retrieval workflow."""
+        # Test implementation
+        pass
+```
+
+### Test Execution
+
+#### Local Development
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=swift_debugging_mcp_server --cov-report=html
+
+# Run specific test category
+pytest tests/unit/
+pytest tests/integration/
+pytest tests/e2e/
+
+# Run with markers
+pytest -m "not slow"
+pytest -m "unit"
+```
+
+#### CI/CD Pipeline
+```yaml
+# .github/workflows/ci.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11, 3.12]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: |
+          pytest --cov=swift_debugging_mcp_server --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+```
+
+## Release Workflow
+
+### Version Management
+
+#### Semantic Versioning
+- **MAJOR**: Breaking changes
+- **MINOR**: New features (backward compatible)
+- **PATCH**: Bug fixes (backward compatible)
+
+#### Version Bumping
+```bash
+# Update version in pyproject.toml
+# Create release branch
+git checkout -b release/v1.2.0
+
+# Update CHANGELOG.md
+# Commit version changes
+git commit -m "chore: bump version to 1.2.0"
+
+# Create pull request to main
+# After merge, create tag
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+### Release Process
+
+#### Automated Release
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: Build package
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+```
+
+## Development Environment
+
+### Local Setup
+
+#### Prerequisites
+```bash
+# Python 3.10+
+python --version
+
+# Git
+git --version
+
+# Optional: pyenv for Python version management
+pyenv install 3.10.12
+pyenv local 3.10.12
+```
+
+#### Environment Setup
+```bash
+# Clone repository
+git clone https://github.com/swift-debugging/mcp-server.git
+cd mcp-server
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate  # Windows
+
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run initial tests
+pytest
+```
+
+### Development Commands
+
+#### Common Tasks
+```bash
+# Format code
+black .
+isort .
+
+# Lint code
+flake8
+mypy .
+
+# Run tests
+pytest
+pytest --cov=swift_debugging_mcp_server
+
+# Start development server
+swift-debugging-mcp-server serve --config config.yaml
+
+# Generate configuration
+swift-debugging-mcp-server generate-config --output config.yaml
+```
+
+### Environment Variables
+
+#### Development
+```bash
+# .env.development
+STRATEGIES_REPOSITORY=https://github.com/swift-debugging/strategies.git
+STRATEGIES_BRANCH=develop
+MCP_LOG_LEVEL=DEBUG
+MCP_TRANSPORT=stdio
+```
+
+#### Testing
+```bash
+# .env.testing
+STRATEGIES_REPOSITORY=tests/fixtures/test-strategies
+MCP_LOG_LEVEL=WARNING
+MCP_TRANSPORT=stdio
+```
+
+## Quality Standards
+
+### Code Quality Metrics
+
+#### Coverage Requirements
+- **Unit Tests**: 95%+ coverage
+- **Integration Tests**: 85%+ coverage
+- **Overall**: 90%+ coverage
+
+#### Performance Standards
+- **Strategy Retrieval**: <100ms response time
+- **Search Operations**: <50ms response time
+- **Memory Usage**: <100MB base footprint
+- **Startup Time**: <2 seconds
+
+#### Documentation Standards
+- **Docstrings**: All public functions and classes
+- **Type Hints**: Complete type annotations
+- **README**: Up-to-date installation and usage
+- **API Documentation**: Generated from docstrings
+
+This workflow ensures consistent, high-quality development practices across the Swift Debugging Framework MCP Server project.

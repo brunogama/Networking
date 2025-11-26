@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 /// Configuration builder for NetworkClient using result builders.
 @resultBuilder
 public struct NetworkClientBuilder {
@@ -27,6 +31,12 @@ public struct NetworkClientBuilder {
     _ components: any ConfigurationComponent...
   ) -> [any ConfigurationComponent] {
     components
+  }
+
+  public static func buildExpression(
+    _ expression: any ConfigurationComponent
+  ) -> any ConfigurationComponent {
+    expression
   }
 
   public static func buildOptional(
@@ -273,9 +283,11 @@ public struct SessionConfiguration: Sendable {
     let config = URLSessionConfiguration.default
     config.timeoutIntervalForRequest = timeout
     config.allowsCellularAccess = allowsCellularAccess
-    config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
-    config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
-    config.waitsForConnectivity = waitsForConnectivity
+    #if !os(Linux)
+      config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
+      config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
+      config.waitsForConnectivity = waitsForConnectivity
+    #endif
     config.httpMaximumConnectionsPerHost = httpMaximumConnectionsPerHost
     config.requestCachePolicy = requestCachePolicy
 
@@ -293,9 +305,11 @@ public struct SessionConfiguration: Sendable {
     let config = URLSessionConfiguration.default
     config.timeoutIntervalForRequest = timeout
     config.allowsCellularAccess = allowsCellularAccess
-    config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
-    config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
-    config.waitsForConnectivity = waitsForConnectivity
+    #if !os(Linux)
+      config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
+      config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
+      config.waitsForConnectivity = waitsForConnectivity
+    #endif
     config.httpMaximumConnectionsPerHost = httpMaximumConnectionsPerHost
     config.requestCachePolicy = requestCachePolicy
 
@@ -303,16 +317,18 @@ public struct SessionConfiguration: Sendable {
       config.protocolClasses = protocolClasses
     }
 
-    // Create session with security delegate if security configuration is provided
-    if let securityConfig = securityConfiguration {
-      let sslValidator = SSLPinningValidator(securityConfiguration: securityConfig)
-      return URLSession(
-        configuration: config,
-        delegate: sslValidator,
-        delegateQueue: nil
-      )
-    } else {
-      return URLSession(configuration: config)
-    }
+    #if canImport(Security)
+      // Create session with security delegate if security configuration is provided
+      if let securityConfig = securityConfiguration {
+        let sslValidator = SSLPinningValidator(securityConfiguration: securityConfig)
+        return URLSession(
+          configuration: config,
+          delegate: sslValidator,
+          delegateQueue: nil
+        )
+      }
+    #endif
+
+    return URLSession(configuration: config)
   }
 }

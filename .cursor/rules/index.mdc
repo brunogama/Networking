@@ -1,0 +1,54 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Project-specific rules index - automation and development workflow rules"
+globs:
+alwaysApply: false
+---
+
+# Project Rules Index
+
+This document describes which project-specific rules should be added to the context memory or not
+
+**Important**: relative paths are from project root path.
+
+```yml
+always:
+    - # Only subdirectory index.mdc files (if any exist)
+```
+
+**Schema:**
+
+```yml
+always:
+    - # Subdirectory indexes only - no individual .mdc files
+```
+
+```yml
+lazily_loaded:
+    - .cursor/rules/steipe__-_agent-rules/project-rules/update-docs.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/modern-swift.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/pr-review.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/safari-automation.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/screenshot-automation.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/five.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/implement-task.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/mcp-inspector-debugging.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/mermaid.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/create-docs.mdc
+    # Meta-rule moved to root index meta_rules_lazily_loaded section:
+    # - cursor-rules-meta-guide.mdc (rule creation guidelines)
+    - .cursor/rules/steipe__-_agent-rules/project-rules/create-command.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/context-prime.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/continuous-improvement.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/clean.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/code-analysis.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/commit-fast.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/add-to-changelog.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/analyze-issue.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/bug-fix.mdc
+    - .cursor/rules/steipe__-_agent-rules/project-rules/check.mdc
+    - # Project-specific automation and development workflow rules loaded on demand

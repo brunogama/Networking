@@ -619,6 +619,20 @@ extension ActionableErrorInfo {
       )
     }
 
+    // Add contact support for repeated failures
+    if context.attemptNumber > 3 {
+      actions.append(
+        RecoveryAction(
+          title: "Contact Technical Support",
+          description:
+            "Multiple attempts have failed. Technical support can help diagnose the issue.",
+          type: .contactSupport,
+          estimatedDuration: 1800,
+          canAutoExecute: false
+        )
+      )
+    }
+
     if context.networkCondition == .poor {
       actions.append(
         RecoveryAction(
@@ -755,14 +769,14 @@ extension ActionableErrorInfo {
     for error: HTTPError,
     context: ErrorContext
   ) -> ConfidenceLevel {
-    // Higher confidence for transient errors
-    if error.isTransientError {
-      return .high
-    }
-
-    // Lower confidence for repeated failures
+    // Lower confidence for repeated failures takes precedence
     if context.attemptNumber > 3 {
       return .low
+    }
+
+    // Higher confidence for transient errors (if not repeated)
+    if error.isTransientError {
+      return .high
     }
 
     // Medium confidence for well-understood error types

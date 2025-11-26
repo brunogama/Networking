@@ -1,0 +1,327 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Context storage workflow for capturing and managing conversation context, rule states, and workflow progress"
+globs: "**/*"
+alwaysApply: false
+---
+
+# Context Storage Workflow Rule
+
+Rule for capturing, storing, and managing current conversation context, rule states, and workflow progress within the established meta_rules.mdc framework.
+
+<rule>
+name: context_storage_workflow
+filters:
+  - type: command
+    pattern: "Context"
+  - type: command
+    pattern: "Store"
+  - type: command
+    pattern: "Save"
+  - type: event
+    pattern: "context_capture"
+  - type: event
+    pattern: "workflow_checkpoint"
+
+actions:
+  # Context Storage Commands
+  - type: react
+    conditions:
+      - pattern: "Context.store|Store.context|Save.context"
+    action: |
+      # Store current context following meta_rules.mdc patterns
+
+      I'll capture and store the current context using the established rule framework:
+
+      ## 📋 **Context Storage Workflow**
+
+      ### **Phase 1: Base-Context Integration**
+      ```swift
+      baseContextCapture
+        |> extractTechStackContext    // From base-context/tech-spec.mdc (always loaded)
+        |> captureCommonPatterns      // From base-context/common-patterns.mdc (always loaded)
+        |> documentWorkflowState      // From base-context/workflow.mdc (always loaded)
+        |> preserveEnvironmentState   // From base-context/environment.mdc (always loaded)
+      ```
+
+      ### **Phase 2: Active Rule Context**
+      ```swift
+      activeRuleContext
+        >>= identifyLoadedRules       // Currently active lazily_loaded rules
+        >>= captureRuleStates         // Rule execution states and outputs
+        >>= documentRuleChains        // Operator chains and compositions
+        >>= preserveRuleResults       // Results and intermediate values
+      ```
+
+      ### **Phase 3: Command Routing Context**
+      ```swift
+      commandContext
+        >>= captureMCPServerState     // MCP server health and routing status
+        >>= documentSSHBypassState    // SSH localhost bypass configuration
+        >>= preserveCommandHistory    // Recent command executions and safety classifications
+        >>= storePermissionDecisions  // User permission choices and audit trail
+      ```
+
+      ### **Phase 4: Conversation Context**
+      ```swift
+      conversationContext
+        |> extractCurrentTopics       // Active discussion topics and domains
+        |> captureUserIntent          // User goals and objectives
+        |> documentProgressState      // Task completion and next steps
+        |> preserveDecisionHistory    // Key decisions and rationale
+      ```
+
+      **Storage Location:** `.cursor/context/context_snapshot_[timestamp].md`
+      **Integration:** Follows meta_rules.mdc hierarchy and respects rule loading phases
+
+  - type: react
+    conditions:
+      - pattern: "Context.restore|Restore.context|Load.context"
+    action: |
+      # Restore previously stored context
+
+      I'll restore context from stored snapshots following the meta_rules.mdc framework:
+
+      ## 🔄 **Context Restoration Workflow**
+
+      ### **Phase 1: Validate Storage Integrity**
+      ```swift
+      contextValidation
+        >>= checkStorageLocation      // Verify .cursor/context/ directory
+        >>= validateSnapshotFormat    // Ensure proper snapshot structure
+        >>= verifyRuleCompatibility   // Check rule version compatibility
+        >>= confirmBaseContextMatch   // Validate base-context alignment
+      ```
+
+      ### **Phase 2: Restore Base-Context State**
+      ```swift
+      baseContextRestore
+        |> restoreTechStackState      // Align with current tech-spec.mdc
+        |> reapplyCommonPatterns      // Restore pattern applications
+        |> resumeWorkflowState        // Continue workflow from checkpoint
+        |> reconfigureEnvironment     // Restore environment settings
+      ```
+
+      ### **Phase 3: Reload Rule Context**
+      ```swift
+      ruleContextRestore
+        >>= reloadPreviousRules       // Restore lazily_loaded rules
+        >>= restoreRuleChains         // Rebuild operator compositions
+        >>= resumeRuleExecution       // Continue from last execution point
+        >>= validateRuleStates        // Ensure consistency
+      ```
+
+      ### **Phase 4: Resume Command Context**
+      ```swift
+      commandContextRestore
+        >>= reconnectMCPServer        // Re-establish MCP server connection
+        >>= validateSSHBypass         // Verify SSH localhost bypass
+        >>= restoreCommandHistory     // Reload command execution context
+        >>= reapplyPermissions        // Restore permission settings
+      ```
+
+      **Available Snapshots:** Lists all available context snapshots with timestamps
+      **Restoration Status:** Reports successful restoration or conflicts requiring resolution
+
+  - type: react
+    conditions:
+      - pattern: "Context.list|List.context|Show.context"
+    action: |
+      # List available context snapshots
+
+      I'll show all available context snapshots with metadata:
+
+      ## 📂 **Available Context Snapshots**
+
+      ### **Snapshot Inventory**
+      ```swift
+      snapshotDiscovery
+        |> scanContextDirectory       // Check .cursor/context/ for snapshots
+        |> extractSnapshotMetadata    // Parse timestamp and description
+        |> analyzeSnapshotSize        // Calculate storage usage
+        |> validateSnapshotIntegrity  // Check for corruption
+      ```
+
+      ### **Snapshot Details**
+      For each snapshot, display:
+      - **Timestamp:** When context was captured
+      - **Description:** Brief summary of captured state
+      - **Rule Count:** Number of active rules at capture time
+      - **Base-Context State:** Base-context rule versions
+      - **Command Context:** MCP server and routing state
+      - **Size:** Storage footprint
+      - **Integrity:** Validation status
+
+      **Navigation:** Use `Context.restore:[timestamp]` to restore specific snapshot
+
+  - type: react
+    conditions:
+      - pattern: "Context.diff:(.*)"
+    action: |
+      # Compare current context with stored snapshot
+
+      I'll compare the current context state with the specified snapshot:
+
+      ## 🔍 **Context Comparison Analysis**
+
+      ### **Base-Context Differences**
+      ```swift
+      baseContextDiff
+        |> compareTechStackChanges    // tech-spec.mdc differences
+        |> comparePatternEvolution    // common-patterns.mdc changes
+        |> compareWorkflowUpdates     // workflow.mdc modifications
+        |> compareEnvironmentChanges  // environment.mdc updates
+      ```
+
+      ### **Rule Loading Differences**
+      ```swift
+      ruleLoadingDiff
+        >>= compareActiveRules        // Currently loaded vs snapshot
+        >>= compareRuleVersions       // Rule content changes
+        >>= compareRuleChains         // Operator composition changes
+        >>= compareRuleResults        // Output differences
+      ```
+
+      ### **Command Context Differences**
+      ```swift
+      commandContextDiff
+        >>= compareMCPServerState     // Server configuration changes
+        >>= compareSSHBypassConfig    // Bypass configuration changes
+        >>= compareCommandHistory     // Command execution differences
+        >>= comparePermissionChanges  // Permission setting updates
+      ```
+
+      **Diff Report:** Detailed comparison saved to `.cursor/context/context_diff_[timestamp].md`
+
+  - type: react
+    conditions:
+      - pattern: "Context.checkpoint|Checkpoint.create"
+    action: |
+      # Create automatic checkpoint during workflow execution
+
+      I'll create an automatic checkpoint following meta_rules.mdc patterns:
+
+      ## ⚡ **Automatic Checkpoint Creation**
+
+      ### **Checkpoint Triggers**
+      ```swift
+      checkpointTriggers
+        |> detectSignificantProgress  // Major workflow milestones
+        |> identifyRuleStateChanges   // Important rule loading/unloading
+        |> monitorCommandExecution    // Critical command completions
+        |> trackUserDecisions         // Important user choices
+      ```
+
+      ### **Lightweight Checkpoint Process**
+      ```swift
+      lightweightCheckpoint
+        >>= captureEssentialState     // Minimal context capture
+        >>= preserveRuleChains        // Current operator compositions
+        >>= storeDecisionPoints       // Key decision history
+        >>= maintainContinuity        // Workflow continuation data
+      ```
+
+      **Checkpoint Naming:** `checkpoint_[workflow_phase]_[timestamp].md`
+      **Auto-Cleanup:** Maintains last 10 checkpoints, archives older ones
+
+  - type: react
+    conditions:
+      - pattern: "Context.clean|Clean.context"
+    action: |
+      # Clean up old context snapshots and optimize storage
+
+      I'll clean up context storage following retention policies:
+
+      ## 🧹 **Context Storage Cleanup**
+
+      ### **Cleanup Strategy**
+      ```swift
+      contextCleanup
+        |> identifyOldSnapshots       // Snapshots older than retention period
+        |> preserveImportantMilestones // Keep significant checkpoints
+        |> archiveHistoricalContext   // Move old context to archive
+        |> optimizeStorageFootprint   // Compress and deduplicate
+      ```
+
+      ### **Retention Policy**
+      - **Recent:** Keep all snapshots from last 7 days
+      - **Weekly:** Keep one snapshot per week for last month
+      - **Monthly:** Keep one snapshot per month for last year
+      - **Milestones:** Preserve manually marked important snapshots
+
+      **Cleanup Report:** Summary of cleaned files and storage recovered
+
+  - type: react
+    event: "workflow_checkpoint"
+    action: |
+      # Automatically capture context at workflow checkpoints
+
+      When significant workflow events occur, I'll automatically create context snapshots:
+
+      ### **Automatic Context Capture Events**
+      - Major rule loading/unloading cycles
+      - Completion of significant operator chains
+      - Important user decisions or confirmations
+      - MCP server state changes
+      - Base-context rule updates
+      - Critical command executions
+
+      **Background Process:** Context capture runs without interrupting workflow
+      **User Notification:** Brief notification of context capture completion
+
+  - type: suggest
+    message: |
+      ### Context Storage Workflow System
+
+      I can capture, store, and restore your current context within the meta_rules.mdc framework:
+
+      **Context Storage Commands:**
+      - `Context.store` - Capture current complete context state
+      - `Context.restore:[timestamp]` - Restore previously stored context
+      - `Context.list` - Show all available context snapshots
+      - `Context.diff:[timestamp]` - Compare current with stored context
+      - `Context.checkpoint` - Create automatic workflow checkpoint
+      - `Context.clean` - Clean up old snapshots and optimize storage
+
+      **Automatic Features:**
+      - Automatic checkpoints at workflow milestones
+      - Integration with base-context always-loaded rules
+      - MCP server and command routing state preservation
+      - Rule loading state and operator chain capture
+      - Conversation context and decision history
+
+      **Framework Integration:**
+      - Respects meta_rules.mdc hierarchy and loading phases
+      - Works with base-context scaffolding requirements
+      - Integrates with command routing and MCP server system
+      - Follows established rule loading and lazy loading patterns
+
+      All context storage follows the established rule framework and maintains
+      compatibility with the meta_rules.mdc governance system.
+
+examples:
+  - input: |
+      Context.store
+    output: "Context snapshot created: .cursor/context/context_snapshot_20250105_143022.md"
+
+  - input: |
+      Context.restore:20250105_143022
+    output: "Context restored from snapshot, reloading 8 rules and MCP server state"
+
+  - input: |
+      Context.diff:20250105_143022
+    output: "Context comparison complete: 3 rule changes, 1 base-context update detected"
+
+metadata:
+  priority: high
+  version: 1.0
+  integration:
+    - meta_rule.mdc
+    - command-rules.mdc
+    - base-context rules
+    - MCP server system
+</rule>

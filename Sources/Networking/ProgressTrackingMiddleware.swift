@@ -306,7 +306,8 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
       let currentChunkSize = min(chunkSize, remainingBytes)
 
       // Simulate processing delay
-      try? await Task.sleep(nanoseconds: UInt64(currentChunkSize * 100))  // Adjust for realistic timing
+      // Adjust for realistic timing
+      try? await Task.sleep(nanoseconds: UInt64(currentChunkSize * 100))
 
       bytesProcessed += currentChunkSize
       transferState.speedCalculator.addMeasurement(bytes: bytesProcessed)

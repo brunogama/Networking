@@ -1,0 +1,757 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Enforce clean code, architecture standards, and Object Calisthenics: max 3 indents, no else, wrap primitives, first-class collections, one dot per line, no abbreviations, small entities, max 2 instance variables"
+globs: "**/*.swift,**/*.ts,**/*.js,**/*.py,**/*.go,**/*.rs"
+alwaysApply: true
+---
+
+# Clean Code, Architecture Standards & Object Calisthenics
+
+**🎯 CRITICAL REQUIREMENT: ALL CODE MUST FOLLOW STRICT CLEAN CODE PRINCIPLES & OBJECT CALISTHENICS**
+
+This rule enforces rigorous clean code, clean architecture standards, and Object Calisthenics principles with specific constraints on function complexity, parameter counts, defensive programming patterns, and object-oriented design.
+
+## **FUNCTION STRUCTURE CONSTRAINTS**
+
+### **Maximum 3 Levels of Indentation**
+- **Rule**: Functions must never exceed 3 levels of indentation
+- **Rationale**: Keeps functions simple and readable
+- **Enforcement**: Extract nested logic into separate functions
+
+```python
+# ✅ GOOD: Max 3 indents
+def process_user(user: User) -> Result[ProcessedUser, ProcessingError]:
+    if not user.is_valid:
+        return Result.failure(ProcessingError.INVALID_USER)
+    if not user.has_permissions:
+        return Result.failure(ProcessingError.INSUFFICIENT_PERMISSIONS)
+
+    if user.needs_processing:
+        processed = transform_user(user)
+        return Result.success(processed)
+
+    return Result.success(ProcessedUser.from_user(user))
+
+# ❌ BAD: More than 3 indents
+def process_user_bad(user: User) -> Result[ProcessedUser, ProcessingError]:
+    if user.is_valid:
+        if user.has_permissions:
+            if user.needs_processing:
+                if user.has_special_case:
+                    # 4 levels - TOO DEEP!
+                    return Result.success(process_special_case(user))
+    return Result.failure(ProcessingError.PROCESSING_FAILED)
+```
+
+### **Maximum 3 Parameters**
+- **Rule**: Functions must accept no more than 3 parameters
+- **Rationale**: Reduces cognitive load and coupling
+- **Solution**: Use parameter objects or dependency injection
+
+```python
+# ✅ GOOD: 3 parameters max
+def create_user(name: str, email: str, role: UserRole) -> User:
+    if not name:
+        return User.invalid()
+    if not is_valid_email(email):
+        return User.invalid()
+
+    return User(name=name, email=email, role=role)
+
+# ✅ GOOD: Parameter object for complex cases
+def create_user_advanced(config: UserCreationConfig) -> Result[User, CreationError]:
+    if not config.is_valid:
+        return Result.failure(CreationError.INVALID_CONFIG)
+
+    return Result.success(User.from_config(config))
+
+# ❌ BAD: Too many parameters
+def create_user_bad(name: str, email: str, role: UserRole,
+                   department: str, manager: str, start_date: datetime) -> User:
+    # Too many parameters!
+    pass
+```
+
+### **Single Purpose Functions**
+- **Rule**: Each function must have exactly one responsibility
+- **Rationale**: Follows Single Responsibility Principle
+- **Test**: Function name should clearly describe its single purpose
+
+```swift
+// ✅ GOOD: Single purpose functions
+func validateUser(_ user: User) -> ValidationResult {
+    guard !user.name.isEmpty else { return .invalid(.emptyName) }
+    guard user.email.isValidEmail else { return .invalid(.invalidEmail) }
+
+    return .valid
+}
+
+func transformUser(_ user: User) -> ProcessedUser {
+    return ProcessedUser(
+        id: user.id,
+        normalizedName: user.name.normalized,
+        verifiedEmail: user.email.lowercased()
+    )
+}
+
+func saveUser(_ user: ProcessedUser) -> Result<Void, SaveError> {
+    guard userRepository.canSave(user) else { return .failure(.cannotSave) }
+
+    return userRepository.save(user)
+}
+
+// ❌ BAD: Multiple responsibilities
+func validateTransformAndSaveUser(_ user: User) -> Result<Void, ProcessingError> {
+    // Doing validation, transformation, AND saving - too much!
+}
+```
+
+---
+
+## **DEFENSIVE CODING PATTERNS**
+
+### **Early Returns for Failures**
+- **Rule**: Check for failure conditions first and return early
+- **Rationale**: Reduces nesting and makes success path clear
+- **Pattern**: Guard statements and early error returns
+
+```swift
+// ✅ GOOD: Early returns for failures
+func processPayment(_ payment: Payment) -> Result<Receipt, PaymentError> {
+    guard payment.amount > 0 else { return .failure(.invalidAmount) }
+    guard payment.isValid else { return .failure(.invalidPayment) }
+    guard paymentService.isAvailable else { return .failure(.serviceUnavailable) }
+
+    let processedPayment = paymentService.process(payment)
+    let receipt = Receipt(from: processedPayment)
+
+    return .success(receipt)
+}
+
+// ❌ BAD: Nested conditions
+func processPaymentBad(_ payment: Payment) -> Result<Receipt, PaymentError> {
+    if payment.amount > 0 {
+        if payment.isValid {
+            if paymentService.isAvailable {
+                let processedPayment = paymentService.process(payment)
+                let receipt = Receipt(from: processedPayment)
+                return .success(receipt)
+            } else {
+                return .failure(.serviceUnavailable)
+            }
+        } else {
+            return .failure(.invalidPayment)
+        }
+    } else {
+        return .failure(.invalidAmount)
+    }
+}
+```
+
+### **Success at the End**
+- **Rule**: Success cases should be the last return in the function
+- **Rationale**: Clear separation between error handling and success logic
+- **Pattern**: All guards/validations first, then success logic
+
+```swift
+// ✅ GOOD: Success at the end
+func authenticateUser(email: String, password: String) -> Result<AuthToken, AuthError> {
+    guard !email.isEmpty else { return .failure(.emptyEmail) }
+    guard !password.isEmpty else { return .failure(.emptyPassword) }
+    guard email.isValidEmail else { return .failure(.invalidEmail) }
+    guard password.meetsRequirements else { return .failure(.weakPassword) }
+
+    let user = userRepository.find(by: email)
+    guard let user = user else { return .failure(.userNotFound) }
+    guard user.verifyPassword(password) else { return .failure(.invalidCredentials) }
+    guard user.isActive else { return .failure(.accountDisabled) }
+
+    let token = tokenService.generate(for: user)
+    return .success(token)
+}
+```
+
+---
+
+## **KISS PRINCIPLE ENFORCEMENT**
+
+### **Keep It Simple, Stupid**
+- **Rule**: Choose the simplest solution that works
+- **Avoid**: Over-engineering, premature optimization, complex abstractions
+- **Prefer**: Direct, readable, maintainable code
+
+```swift
+// ✅ GOOD: Simple and direct
+func calculateTotal(_ items: [Item]) -> Decimal {
+    guard !items.isEmpty else { return 0 }
+
+    return items.reduce(0) { total, item in
+        total + item.price
+    }
+}
+
+// ❌ BAD: Over-engineered
+class TotalCalculationStrategy {
+    func calculate<T: Collection>(_ items: T) -> Decimal
+    where T.Element: PriceProvider {
+        // Unnecessary complexity for simple sum
+    }
+}
+```
+
+---
+
+## **OBJECT CALISTHENICS PRINCIPLES**
+
+### **2. Don't Use the ELSE Keyword**
+- **Rule**: Avoid else statements entirely
+- **Rationale**: Reduces cyclomatic complexity and improves readability
+- **Implementation**: Use early returns, guard clauses, or polymorphism
+
+```swift
+// ✅ GOOD: No else statements
+func processOrder(_ order: Order) -> Result<ProcessedOrder, OrderError> {
+    guard order.isValid else { return .failure(.invalidOrder) }
+    guard order.hasItems else { return .failure(.emptyOrder) }
+    guard order.customer.isActive else { return .failure(.inactiveCustomer) }
+
+    let processedOrder = transformOrder(order)
+    return .success(processedOrder)
+}
+
+func getDiscountType(for customer: Customer) -> DiscountType {
+    guard customer.isPremium else { return .standard }
+    guard customer.yearsActive >= 5 else { return .premium }
+
+    return .platinum
+}
+
+// ❌ BAD: Using else statements
+func processOrderBad(_ order: Order) -> Result<ProcessedOrder, OrderError> {
+    if order.isValid {
+        if order.hasItems {
+            let processedOrder = transformOrder(order)
+            return .success(processedOrder)
+        } else {
+            return .failure(.emptyOrder)
+        }
+    } else {
+        return .failure(.invalidOrder)
+    }
+}
+```
+
+### **3. Wrap All Primitives and Strings**
+- **Rule**: No naked primitives - wrap them in value objects
+- **Rationale**: Adds type safety, domain meaning, and prevents primitive obsession
+- **Implementation**: Create value types for domain concepts
+
+```swift
+// ✅ GOOD: Wrapped primitives
+struct UserId {
+    let value: String
+
+    init?(_ value: String) {
+        guard !value.isEmpty else { return nil }
+        self.value = value
+    }
+}
+
+struct EmailAddress {
+    let value: String
+
+    init?(_ value: String) {
+        guard value.contains("@") && value.contains(".") else { return nil }
+        self.value = value
+    }
+}
+
+struct Money {
+    let amount: Decimal
+    let currency: Currency
+
+    init(amount: Decimal, currency: Currency = .usd) {
+        self.amount = amount
+        self.currency = currency
+    }
+}
+
+func createUser(id: UserId, email: EmailAddress, salary: Money) -> User {
+    return User(id: id, email: email, salary: salary)
+}
+
+// ❌ BAD: Naked primitives
+func createUserBad(id: String, email: String, salary: Double) -> User {
+    // No type safety, easy to mix up parameters
+    return User(id: id, email: email, salary: salary)
+}
+```
+
+### **4. First Class Collections**
+- **Rule**: Any class containing a collection should contain nothing else
+- **Rationale**: Promotes collection-specific behavior and encapsulation
+- **Implementation**: Wrap collections in dedicated classes
+
+```swift
+// ✅ GOOD: First class collections
+struct UserList {
+    private let users: [User]
+
+    init(_ users: [User]) {
+        self.users = users
+    }
+
+    func activeUsers() -> UserList {
+        let active = users.filter { $0.isActive }
+        return UserList(active)
+    }
+
+    func findBy(email: EmailAddress) -> User? {
+        return users.first { $0.email == email }
+    }
+
+    var count: Int { users.count }
+    var isEmpty: Bool { users.isEmpty }
+}
+
+struct OrderItems {
+    private let items: [OrderItem]
+
+    init(_ items: [OrderItem]) {
+        self.items = items
+    }
+
+    func totalPrice() -> Money {
+        let total = items.reduce(Decimal.zero) { $0 + $1.price.amount }
+        return Money(amount: total)
+    }
+
+    func itemsBy(category: Category) -> OrderItems {
+        let filtered = items.filter { $0.category == category }
+        return OrderItems(filtered)
+    }
+}
+
+// ❌ BAD: Mixed responsibilities
+class UserManager {
+    let users: [User]  // Collection mixed with other responsibilities
+    let database: Database
+    let logger: Logger
+
+    func addUser(_ user: User) { }
+    func removeUser(_ user: User) { }
+    func logActivity(_ activity: String) { }
+}
+```
+
+### **5. One Dot per Line**
+- **Rule**: Avoid method chaining - maximum one dot per line
+- **Rationale**: Promotes Law of Demeter and reduces coupling
+- **Implementation**: Use intermediate variables or Tell Don't Ask
+
+```swift
+// ✅ GOOD: One dot per line
+func processUserOrder(_ user: User) -> Result<Receipt, ProcessingError> {
+    let address = user.shippingAddress
+    let validator = address.validator
+    let validationResult = validator.validate()
+
+    guard validationResult.isValid else {
+        return .failure(.invalidAddress)
+    }
+
+    let order = user.currentOrder
+    let processor = OrderProcessor(address: address)
+    let receipt = processor.process(order)
+
+    return .success(receipt)
+}
+
+// ✅ GOOD: Tell Don't Ask approach
+func calculateShippingCost(for user: User) -> Money {
+    let shippingCalculator = ShippingCalculator()
+    return shippingCalculator.calculateFor(user: user)
+}
+
+// ❌ BAD: Method chaining
+func processUserOrderBad(_ user: User) -> Result<Receipt, ProcessingError> {
+    guard user.getAddress().getValidator().validate().isValid else {
+        return .failure(.invalidAddress)
+    }
+
+    let receipt = user.getCurrentOrder().getProcessor().process()
+    return .success(receipt)
+}
+```
+
+### **6. Don't Abbreviate**
+- **Rule**: Use full, descriptive names - no abbreviations
+- **Rationale**: Code should read like well-written prose
+- **Implementation**: Prefer clarity over brevity
+
+```swift
+// ✅ GOOD: Full descriptive names
+struct UserAuthenticationService {
+    func authenticateUser(credentials: UserCredentials) -> AuthenticationResult {
+        let validator = CredentialValidator()
+        let validationResult = validator.validate(credentials)
+
+        guard validationResult.isValid else {
+            return .failure(.invalidCredentials)
+        }
+
+        let tokenGenerator = AuthenticationTokenGenerator()
+        let authenticationToken = tokenGenerator.generate(for: credentials.userId)
+
+        return .success(authenticationToken)
+    }
+}
+
+struct DatabaseConnectionManager {
+    func establishConnection(to configuration: DatabaseConfiguration) -> DatabaseConnection {
+        // Clear, unambiguous names
+    }
+}
+
+// ❌ BAD: Abbreviations
+struct UsrAuthSvc {
+    func authUsr(creds: UsrCreds) -> AuthRes {
+        let validator = CredValidator()
+        let valRes = validator.val(creds)
+        // Unclear, abbreviated names
+    }
+}
+
+struct DbConnMgr {
+    func estConn(to cfg: DbCfg) -> DbConn {
+        // Cryptic abbreviations
+    }
+}
+```
+
+### **7. Keep All Entities Small**
+- **Rule**: Classes max 50 lines, methods max 5 lines, packages max 10 files
+- **Rationale**: Forces proper decomposition and single responsibility
+- **Implementation**: Extract when limits are exceeded
+
+```swift
+// ✅ GOOD: Small entities (under limits)
+struct User {  // ~15 lines
+    let id: UserId
+    let email: EmailAddress
+    let profile: UserProfile
+
+    func isActive() -> Bool {
+        return profile.status == .active
+    }
+}
+
+struct UserValidator {  // ~20 lines
+    func validate(_ user: User) -> ValidationResult {
+        guard isEmailValid(user.email) else { return .invalid(.email) }
+        guard isProfileComplete(user.profile) else { return .invalid(.profile) }
+        return .valid
+    }
+
+    private func isEmailValid(_ email: EmailAddress) -> Bool {
+        return email.value.contains("@")
+    }
+
+    private func isProfileComplete(_ profile: UserProfile) -> Bool {
+        return !profile.name.isEmpty
+    }
+}
+
+// ❌ BAD: Large entities (exceeding limits)
+struct UserManagerGod {  // 150+ lines - TOO BIG!
+    // Too many responsibilities, methods, and lines
+    func validateUser() { }
+    func saveUser() { }
+    func sendEmail() { }
+    func generateReport() { }
+    func processPayment() { }
+    // ... many more methods
+}
+```
+
+### **8. No Classes with More Than Two Instance Variables**
+- **Rule**: Classes should have at most 2 instance variables
+- **Rationale**: Promotes high cohesion and proper object composition
+- **Implementation**: Use composition and delegation
+
+```swift
+// ✅ GOOD: Maximum 2 instance variables
+struct UserService {
+    private let repository: UserRepositoryProtocol
+    private let validator: UserValidatorProtocol
+
+    func createUser(_ userData: UserData) -> Result<User, CreationError> {
+        let validationResult = validator.validate(userData)
+        guard validationResult.isValid else { return .failure(.validation) }
+
+        let user = User(from: userData)
+        return repository.save(user)
+    }
+}
+
+struct PaymentProcessor {
+    private let gateway: PaymentGateway
+    private let logger: PaymentLogger
+
+    func process(_ payment: Payment) -> Result<Receipt, PaymentError> {
+        logger.logAttempt(payment)
+        return gateway.process(payment)
+    }
+}
+
+// ✅ GOOD: Composition for complex objects
+struct OrderProcessor {
+    private let validator: OrderValidator
+    private let calculator: OrderCalculator
+
+    // Additional dependencies injected through methods or composed objects
+    func process(_ order: Order, using services: OrderServices) -> ProcessedOrder {
+        let validationResult = validator.validate(order)
+        let calculations = calculator.calculate(order)
+
+        return services.fulfillment.process(order, with: calculations)
+    }
+}
+
+// ❌ BAD: Too many instance variables
+struct OrderProcessorBad {
+    private let validator: OrderValidator      // 1
+    private let calculator: OrderCalculator    // 2
+    private let repository: OrderRepository    // 3 - TOO MANY!
+    private let emailService: EmailService     // 4
+    private let logger: Logger                 // 5
+    private let metrics: MetricsCollector      // 6
+
+    // Low cohesion, too many dependencies
+}
+```
+
+---
+
+## **SOLID PRINCIPLES ENFORCEMENT**
+
+### **Single Responsibility Principle (SRP)**
+- **Rule**: Each class/function has one reason to change
+- **Implementation**: One responsibility per unit of code
+
+```swift
+// ✅ GOOD: Single responsibility
+struct UserValidator {
+    func validate(_ user: User) -> ValidationResult {
+        // Only validates users
+    }
+}
+
+struct UserRepository {
+    func save(_ user: User) -> Result<Void, SaveError> {
+        // Only handles user persistence
+    }
+}
+
+struct UserNotifier {
+    func notifyCreated(_ user: User) -> Result<Void, NotificationError> {
+        // Only handles notifications
+    }
+}
+```
+
+### **Open/Closed Principle (OCP)**
+- **Rule**: Open for extension, closed for modification
+- **Implementation**: Use protocols and composition
+
+```swift
+// ✅ GOOD: Extensible without modification
+protocol PaymentProcessor {
+    func process(_ payment: Payment) -> Result<Receipt, PaymentError>
+}
+
+struct CreditCardProcessor: PaymentProcessor {
+    func process(_ payment: Payment) -> Result<Receipt, PaymentError> {
+        // Credit card specific logic
+    }
+}
+
+struct PayPalProcessor: PaymentProcessor {
+    func process(_ payment: Payment) -> Result<Receipt, PaymentError> {
+        // PayPal specific logic
+    }
+}
+```
+
+### **Liskov Substitution Principle (LSP)**
+- **Rule**: Derived classes must be substitutable for base classes
+- **Implementation**: Consistent contracts and behavior
+
+### **Interface Segregation Principle (ISP)**
+- **Rule**: Clients shouldn't depend on interfaces they don't use
+- **Implementation**: Small, focused protocols
+
+```swift
+// ✅ GOOD: Focused protocols
+protocol Readable {
+    func read() -> Data
+}
+
+protocol Writable {
+    func write(_ data: Data) -> Result<Void, WriteError>
+}
+
+// ❌ BAD: Fat interface
+protocol FileHandler {
+    func read() -> Data
+    func write(_ data: Data) -> Result<Void, WriteError>
+    func compress() -> Data
+    func encrypt() -> Data
+    func backup() -> Result<Void, BackupError>
+}
+```
+
+### **Dependency Inversion Principle (DIP)**
+- **Rule**: Depend on abstractions, not concretions
+- **Implementation**: Inject dependencies through protocols
+
+```swift
+// ✅ GOOD: Depends on abstraction
+struct UserService {
+    private let repository: UserRepositoryProtocol
+    private let validator: UserValidatorProtocol
+
+    init(repository: UserRepositoryProtocol, validator: UserValidatorProtocol) {
+        self.repository = repository
+        self.validator = validator
+    }
+}
+```
+
+---
+
+## **DRY PRINCIPLE ENFORCEMENT**
+
+### **Don't Repeat Yourself**
+- **Rule**: Every piece of knowledge has single representation
+- **Implementation**: Extract common logic, use composition
+
+```swift
+// ✅ GOOD: Extracted common validation
+struct ValidationHelper {
+    static func validateEmail(_ email: String) -> Bool {
+        return email.contains("@") && email.contains(".")
+    }
+
+    static func validateNonEmpty(_ value: String) -> Bool {
+        return !value.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+}
+
+// Usage in multiple places
+func validateUser(_ user: User) -> ValidationResult {
+    guard ValidationHelper.validateNonEmpty(user.name) else {
+        return .invalid(.emptyName)
+    }
+    guard ValidationHelper.validateEmail(user.email) else {
+        return .invalid(.invalidEmail)
+    }
+
+    return .valid
+}
+```
+
+---
+
+## **CLEAN ARCHITECTURE PATTERNS**
+
+### **Dependency Direction**
+- **Rule**: Dependencies point inward (toward business logic)
+- **Implementation**: Use dependency injection and protocols
+
+### **Layer Separation**
+- **Entities**: Core business objects
+- **Use Cases**: Application business rules
+- **Interface Adapters**: Controllers, presenters, gateways
+- **Frameworks**: External frameworks and tools
+
+```swift
+// ✅ GOOD: Clean architecture layers
+
+// Entities (innermost)
+struct User {
+    let id: UserID
+    let name: String
+    let email: String
+}
+
+// Use Cases
+protocol CreateUserUseCase {
+    func execute(_ request: CreateUserRequest) -> Result<User, CreateUserError>
+}
+
+// Interface Adapters
+protocol UserRepositoryProtocol {
+    func save(_ user: User) -> Result<Void, SaveError>
+}
+
+// Implementation (outermost)
+struct DatabaseUserRepository: UserRepositoryProtocol {
+    func save(_ user: User) -> Result<Void, SaveError> {
+        // Database specific implementation
+    }
+}
+```
+
+---
+
+## **ENFORCEMENT CHECKLIST**
+
+### **Function Quality Gates**
+- [ ] Maximum 3 levels of indentation
+- [ ] Maximum 3 parameters
+- [ ] Single, clear purpose
+- [ ] Early returns for failures
+- [ ] Success return at the end
+- [ ] No else statements used
+- [ ] All primitives wrapped in value objects
+- [ ] One dot per line (no method chaining)
+- [ ] No abbreviations in names
+- [ ] Methods under 5 lines
+- [ ] Follows SOLID principles
+- [ ] No code duplication (DRY)
+- [ ] Simple solution chosen (KISS)
+
+### **Architecture Quality Gates**
+- [ ] Clear layer separation
+- [ ] Dependencies point inward
+- [ ] Protocols used for abstraction
+- [ ] Single responsibility per class/struct
+- [ ] Maximum 2 instance variables per class
+- [ ] Collections wrapped in first-class collection classes
+- [ ] Classes under 50 lines
+- [ ] Packages under 10 files
+- [ ] Composition over inheritance
+- [ ] Testable design
+
+---
+
+## **VIOLATION CONSEQUENCES**
+
+### **Function Complexity Violations**
+- **>3 Indents**: Extract nested logic into separate functions
+- **>3 Parameters**: Create parameter objects or use dependency injection
+- **Multiple Purposes**: Split into single-purpose functions
+
+### **Architecture Violations**
+- **Dependency Direction**: Refactor to use dependency inversion
+- **Layer Mixing**: Separate concerns into appropriate layers
+- **Code Duplication**: Extract common logic into shared utilities
+
+---
+
+**THIS RULE ENSURES ALL CODE FOLLOWS STRICT CLEAN CODE AND CLEAN ARCHITECTURE PRINCIPLES**

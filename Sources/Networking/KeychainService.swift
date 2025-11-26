@@ -1,7 +1,14 @@
 import Foundation
-import Security
 
-/// Secure storage service using iOS/macOS Keychain for sensitive data like authentication tokens.
+#if canImport(Security)
+  import Security
+#endif
+
+// MARK: - Platform-specific Keychain Implementation
+
+#if canImport(Security)
+
+  /// Secure storage service using iOS/macOS Keychain for sensitive data like authentication tokens.
 public final class KeychainService: @unchecked Sendable {
   // MARK: - Configuration
 
@@ -435,9 +442,9 @@ public final class KeychainTokenProvider: BearerTokenProvider {
 // MARK: - Convenience Extensions
 
 extension KeychainService {
-  /// Default keychain service for the ModernNetworking framework
+  /// Default keychain service for the Networking framework
   public static let `default` = KeychainService(
-    configuration: Configuration(service: "ModernNetworking")
+    configuration: Configuration(service: "Networking")
   )
 
   /// Creates a keychain service for a specific app
@@ -490,3 +497,5 @@ extension KeychainTokenProvider {
     )
   }
 }
+
+#endif  // canImport(Security)

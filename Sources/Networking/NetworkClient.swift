@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 /// Modern HTTP client implementation using URLSession and structured concurrency.
 ///
 /// `NetworkClient` is the primary implementation of ``HTTPClient`` that provides a comprehensive
@@ -268,9 +272,38 @@ extension NetworkClient {
   ///
   /// - Note: This initializer validates the configuration and will create optimized
   ///   middleware chains based on the provided components.
-  public convenience init(@NetworkClientBuilder _ content: () -> [any ConfigurationComponent]) {
+  public convenience init(
+    @NetworkClientBuilder _ content: () throws -> [any ConfigurationComponent]
+  ) throws {
     var config = NetworkClientBuilder.Configuration()
-    let components = content()
+    let components = try content()
+
+    for component in components {
+      component.apply(to: &config)
+    }
+
+    Self.validateConfiguration(&config)
+    let middlewares = Self.configureMiddlewareChain(from: config)
+
+    self.init(
+      session: config.session,
+      requestMiddlewares: middlewares.request,
+      responseMiddlewares: middlewares.response,
+      errorMiddlewares: middlewares.error
+    )
+  }
+
+  /// Creates a NetworkClient from an array of configuration components.
+  ///
+  /// This convenience initializer allows you to configure a NetworkClient using an array of
+  /// configuration components. This is useful for conditional configuration where you need
+  /// to build the components array programmatically.
+  ///
+  /// - Parameter components: An array of configuration components
+  /// - Returns: A fully configured NetworkClient instance
+  /// - Throws: Configuration errors if the setup is invalid
+  public convenience init(components: [any ConfigurationComponent]) throws {
+    var config = NetworkClientBuilder.Configuration()
 
     for component in components {
       component.apply(to: &config)
@@ -679,13 +712,13 @@ private struct ConfigurableCachingMiddleware: HTTPRequestMiddleware, HTTPRespons
 
   // Create cache accessor to handle Sendable requirements
   private actor CacheActor {
-    private let cache = NSCache<NSString, CachedResponse>()
+    private let cache = NSCache<NSString, InternalCachedResponse>()
 
-    func object(forKey key: NSString) -> CachedResponse? {
+    func object(forKey key: NSString) -> InternalCachedResponse? {
       cache.object(forKey: key)
     }
 
-    func setObject(_ obj: CachedResponse, forKey key: NSString, cost: Int) {
+    func setObject(_ obj: InternalCachedResponse, forKey key: NSString, cost: Int) {
       cache.setObject(obj, forKey: key, cost: cost)
     }
 
@@ -753,7 +786,7 @@ private struct ConfigurableCachingMiddleware: HTTPRequestMiddleware, HTTPRespons
     }
   }
 
-  private func getCachedResponse(for request: HTTPRequest) async -> CachedResponse? {
+  private func getCachedResponse(for request: HTTPRequest) async -> InternalCachedResponse? {
     let key = cacheKey(for: request)
     return await cacheActor.object(forKey: NSString(string: key))
   }
@@ -761,7 +794,7 @@ private struct ConfigurableCachingMiddleware: HTTPRequestMiddleware, HTTPRespons
   private func cacheResponse(_ response: HTTPResponse, for request: HTTPRequest) {
     let key = cacheKey(for: request)
     Task {
-      let cachedResponse = CachedResponse(
+      let cachedResponse = InternalCachedResponse(
         response: response,
         cachedAt: Date(),
         etag: response.headers["ETag"],
@@ -778,8 +811,8 @@ private struct ConfigurableCachingMiddleware: HTTPRequestMiddleware, HTTPRespons
   }
 }
 
-/// Cached response wrapper
-private final class CachedResponse: @unchecked Sendable {
+/// Internal cached response wrapper for NetworkClient's caching middleware
+private final class InternalCachedResponse: @unchecked Sendable {
   let response: HTTPResponse
   let cachedAt: Date
   let etag: String?

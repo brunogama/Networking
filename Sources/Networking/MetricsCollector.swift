@@ -1,19 +1,21 @@
 import Foundation
-import OSLog
 
-/// Protocol for collecting and aggregating network metrics and observability events.
-/// This is the core interface for all metrics collection implementations.
-public protocol MetricsCollector: Sendable {
-  /// Records an observability event
-  /// - Parameter event: The event to record
-  func recordEvent(_ event: NetworkObservabilityMiddleware.ObservabilityEvent) async
+#if canImport(OSLog)
+  import OSLog
 
-  /// Records performance metrics snapshot
-  /// - Parameter metrics: The performance metrics to record
-  func recordPerformanceMetrics(_ metrics: NetworkObservabilityMiddleware.PerformanceMetrics) async
-}
+  /// Protocol for collecting and aggregating network metrics and observability events.
+  /// This is the core interface for all metrics collection implementations.
+  public protocol MetricsCollector: Sendable {
+    /// Records an observability event
+    /// - Parameter event: The event to record
+    func recordEvent(_ event: NetworkObservabilityMiddleware.ObservabilityEvent) async
 
-// MARK: - Advanced Metrics Storage and Analysis
+    /// Records performance metrics snapshot
+    /// - Parameter metrics: The performance metrics to record
+    func recordPerformanceMetrics(_ metrics: NetworkObservabilityMiddleware.PerformanceMetrics) async
+  }
+
+  // MARK: - Advanced Metrics Storage and Analysis
 
 /// Comprehensive metrics collector that provides advanced analytics, persistence, and real-time monitoring
 public actor ComprehensiveMetricsCollector: MetricsCollector {
@@ -240,7 +242,7 @@ public actor ComprehensiveMetricsCollector: MetricsCollector {
   public init(configuration: Configuration = Configuration()) {
     self.configuration = configuration
     self.logger = Logger(
-      subsystem: "ModernNetworking",
+      subsystem: "Networking",
       category: "MetricsCollector"
     )
 
@@ -696,7 +698,7 @@ public actor SimpleMetricsCollector: MetricsCollector {
   public init(maxEvents: Int = 1000) {
     self.maxEvents = maxEvents
     self.logger = Logger(
-      subsystem: "ModernNetworking",
+      subsystem: "Networking",
       category: "SimpleMetricsCollector"
     )
   }
@@ -761,7 +763,7 @@ public struct ConsoleMetricsCollector: MetricsCollector {
       Self.defaultFormatter
   ) {
     self.logger = Logger(
-      subsystem: "ModernNetworking",
+      subsystem: "Networking",
       category: "ConsoleMetricsCollector"
     )
     self.formatter = formatter
@@ -908,3 +910,5 @@ extension ComprehensiveMetricsCollector {
     return ComprehensiveMetricsCollector(configuration: config)
   }
 }
+
+#endif  // canImport(OSLog)

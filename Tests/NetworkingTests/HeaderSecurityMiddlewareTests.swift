@@ -59,6 +59,9 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
   // MARK: - Header Injection Detection Tests
 
   func testCRLFInjectionDetection() async throws {
+    // Use API config that doesn't sanitize, so it throws errors
+    let crlfMiddleware = HeaderSecurityMiddleware(configuration: .api)
+
     let maliciousHeaders = [
       "X-Test": "value\r\nX-Injected: malicious",
       "Authorization": "Bearer token\nLocation: http://evil.com",
@@ -71,7 +74,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
     )
 
     do {
-      _ = try await middleware.modifyRequest(request)
+      _ = try await crlfMiddleware.modifyRequest(request)
       XCTFail("Should have thrown security error for CRLF injection")
     } catch let error as HTTPError {
       switch error.category {
@@ -144,7 +147,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
       "Content-Type": "application/json",
       "Authorization": "Bearer token123",
       "X-Custom-Header": "value",
-      "User-Agent": "ModernNetworking/1.0",
+      "User-Agent": "Networking/1.0",
     ]
 
     let request = HTTPRequest(
@@ -225,7 +228,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
     } catch let error as HTTPError {
       switch error.category {
       case .custom("Security", let message):
-        XCTAssertTrue(message.contains("too long"))
+        XCTAssertTrue(message.contains("too long"), "Expected 'too long' in message: '\(message)'")
 
       default:
         XCTFail("Expected security error about length, got: \(error)")
@@ -353,7 +356,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
       "Authorization": "Bearer valid-token",
       "X-Custom": "safe-value",
       "x-forwarded-for": "192.168.1.1",  // Should be removed
-      "User-Agent": "ModernNetworking/1.0",
+      "User-Agent": "Networking/1.0",
     ]
 
     let request = HTTPRequest(
@@ -369,7 +372,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
     XCTAssertEqual(result.headers["Content-Type"], "application/json")
     XCTAssertEqual(result.headers["Authorization"], "Bearer valid-token")
     XCTAssertEqual(result.headers["X-Custom"], "safe-value")
-    XCTAssertEqual(result.headers["User-Agent"], "ModernNetworking/1.0")
+    XCTAssertEqual(result.headers["User-Agent"], "Networking/1.0")
 
     // Verify dangerous header is removed
     XCTAssertNil(result.headers["x-forwarded-for"])

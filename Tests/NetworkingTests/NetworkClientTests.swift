@@ -11,7 +11,7 @@ struct NetworkClientTests {
 
   @Test("NetworkClient can be created with builder pattern")
   func testClientBuilder() async throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       DefaultTimeout(15.0)
       DefaultHeader("User-Agent", "TestApp/1.0")

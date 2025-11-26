@@ -1,0 +1,518 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: "Environment setup and dependency management standards for development workflows"
+globs: "**/*.py, **/requirements*.txt, **/pyproject.toml, **/setup.cfg, **/.env*"
+alwaysApply: true
+---
+
+# Environment Setup & Dependency Management
+
+## Development Environment
+
+### System Requirements
+
+#### Operating System Support
+- **macOS**: 10.15+ (Catalina and later)
+- **Linux**: Ubuntu 20.04+, CentOS 8+, Debian 11+
+- **Windows**: 10/11 with WSL2 recommended
+
+#### Python Requirements
+- **Python Version**: 3.11+ (required)
+- **Supported Versions**: 3.11, 3.12
+- **Package Manager**: pip 23.0+
+
+#### System Dependencies
+```bash
+# macOS (via Homebrew)
+brew install git python@3.11 pre-commit
+
+# Ubuntu/Debian
+sudo apt update
+sudo apt install git python3.11 python3.11-venv python3-pip
+
+# CentOS/RHEL
+sudo dnf install git python3.11 python3-pip
+
+# Windows (via Chocolatey)
+choco install git python3 --version=3.11.0
+```
+
+### Python Environment Management
+
+#### Using pyenv (Recommended)
+```bash
+# Install pyenv
+curl https://pyenv.run | bash
+
+# Install Python 3.11
+pyenv install 3.11.0
+pyenv global 3.11.0
+
+# Verify installation
+python --version  # Should show Python 3.11.0
+```
+
+#### Using conda
+```bash
+# Create conda environment
+conda create -n swift-debugging python=3.11
+conda activate swift-debugging
+
+# Verify installation
+python --version
+which python
+```
+
+#### Using venv
+```bash
+# Create virtual environment
+python3.11 -m venv venv
+
+# Activate environment
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# Upgrade pip
+pip install --upgrade pip
+```
+
+## Project Setup
+
+### Initial Setup
+```bash
+# Clone repository
+git clone https://github.com/swift-debugging/mcp-server.git
+cd mcp-server
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+
+# Verify installation
+swift-debugging-mcp-server --version
+```
+
+### Development Dependencies
+
+#### Core Dependencies (pyproject.toml)
+```toml
+[project]
+dependencies = [
+    # MCP Protocol
+    "mcp>=1.0.0",
+
+    # Template Engine
+    "Jinja2>=3.1.0",
+
+    # Git Operations
+    "GitPython>=3.1.0",
+
+    # HTTP Client
+    "httpx>=0.25.0",
+
+    # Configuration
+    "PyYAML>=6.0",
+
+    # Data Validation
+    "pydantic>=2.5.0",
+
+    # Search Engine
+    "Whoosh>=2.7.0",
+
+    # Logging
+    "structlog>=23.2.0",
+
+    # Async Support
+    "anyio>=4.0.0",
+
+    # CLI Support
+    "click>=8.0.0",
+
+    # Markdown Processing
+    "python-frontmatter>=1.0.0",
+    "markdown>=3.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+
+    # Code Quality
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.7.0",
+
+    # Pre-commit
+    "pre-commit>=3.5.0",
+]
+```
+
+#### Development Tools Installation
+```bash
+# Install all development dependencies
+pip install -e ".[dev,docker,monitoring]"
+
+# Or install specific groups
+pip install -e ".[dev]"        # Development tools only
+pip install -e ".[docker]"     # Docker deployment
+pip install -e ".[monitoring]" # Monitoring tools
+```
+
+## Configuration Management
+
+### Environment Variables
+
+#### Required Variables
+```bash
+# Strategy Repository Configuration
+export STRATEGIES_REPOSITORY="https://github.com/swift-debugging/strategies.git"
+export STRATEGIES_BRANCH="main"
+
+# Authentication (if required)
+export STRATEGIES_AUTH_TYPE="token"  # none, token, ssh_key
+export STRATEGIES_AUTH_TOKEN="your_github_token"
+
+# Server Configuration
+export MCP_SERVER_HOST="localhost"
+export MCP_SERVER_PORT="8000"
+export MCP_TRANSPORT="stdio"  # stdio, websocket
+export MCP_LOG_LEVEL="INFO"   # DEBUG, INFO, WARNING, ERROR
+```
+
+#### Environment Files
+```bash
+# .env.development
+STRATEGIES_REPOSITORY=https://github.com/swift-debugging/strategies.git
+STRATEGIES_BRANCH=develop
+STRATEGIES_AUTH_TYPE=token
+STRATEGIES_AUTH_TOKEN=${GITHUB_TOKEN}
+MCP_LOG_LEVEL=DEBUG
+MCP_TRANSPORT=stdio
+
+# .env.testing
+STRATEGIES_REPOSITORY=tests/fixtures/test-strategies
+STRATEGIES_BRANCH=main
+MCP_LOG_LEVEL=WARNING
+MCP_TRANSPORT=stdio
+
+# .env.production
+STRATEGIES_REPOSITORY=https://github.com/swift-debugging/strategies.git
+STRATEGIES_BRANCH=main
+STRATEGIES_AUTH_TYPE=token
+STRATEGIES_AUTH_TOKEN=${GITHUB_TOKEN}
+MCP_LOG_LEVEL=INFO
+MCP_TRANSPORT=websocket
+MCP_SERVER_HOST=0.0.0.0
+MCP_SERVER_PORT=8000
+```
+
+### Configuration Files
+
+#### YAML Configuration
+```yaml
+# config.yaml
+repository:
+  url: "https://github.com/swift-debugging/strategies.git"
+  branch: "main"
+  auth_type: "token"
+  auth_token: "${GITHUB_TOKEN}"
+  polling_interval: 300
+  cache_dir: ".cache/strategies"
+
+server:
+  host: "localhost"
+  port: 8000
+  transport: "stdio"
+  log_level: "INFO"
+  max_workers: 4
+
+search:
+  index_dir: ".cache/search_index"
+  max_results: 100
+  enable_fuzzy_search: true
+  relevance_threshold: 0.1
+
+monitoring:
+  enable_metrics: false
+  metrics_port: 9090
+  enable_tracing: false
+```
+
+#### Configuration Loading
+```python
+# Load configuration from multiple sources
+from swift_debugging_mcp_server.config import load_config
+
+# Priority order: CLI args > env vars > config file > defaults
+config = load_config(
+    config_file="config.yaml",
+    env_prefix="MCP_"
+)
+```
+
+## IDE Integration
+
+### VS Code Configuration
+
+#### MCP Server Configuration
+```json
+// .vscode/settings.json
+{
+  "mcpServers": {
+    "swift-debugging": {
+      "command": "swift-debugging-mcp-server",
+      "args": ["serve"],
+      "env": {
+        "STRATEGIES_REPOSITORY": "https://github.com/swift-debugging/strategies.git",
+        "STRATEGIES_AUTH_TOKEN": "${env:GITHUB_TOKEN}",
+        "MCP_LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}
+```
+
+#### Launch Configuration
+```json
+// .vscode/launch.json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug MCP Server",
+      "type": "python",
+      "request": "launch",
+      "module": "swift_debugging_mcp_server.cli",
+      "args": ["serve", "--config", "config.yaml"],
+      "env": {
+        "MCP_LOG_LEVEL": "DEBUG"
+      },
+      "console": "integratedTerminal"
+    }
+  ]
+}
+```
+
+### Cursor Configuration
+
+#### MCP Integration
+```json
+// .cursor/settings.json
+{
+  "mcp.servers": {
+    "swift-debugging": {
+      "command": "swift-debugging-mcp-server",
+      "args": ["serve", "--transport", "stdio"],
+      "env": {
+        "STRATEGIES_REPOSITORY": "https://github.com/swift-debugging/strategies.git"
+      }
+    }
+  }
+}
+```
+
+## Docker Environment
+
+### Development Container
+
+#### Dockerfile.dev
+```dockerfile
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY pyproject.toml setup.cfg ./
+
+# Install Python dependencies
+RUN pip install -e ".[dev]"
+
+# Copy source code
+COPY . .
+
+# Install pre-commit hooks
+RUN pre-commit install
+
+EXPOSE 8000
+
+CMD ["swift-debugging-mcp-server", "serve"]
+```
+
+#### Docker Compose
+```yaml
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/.venv
+    environment:
+      - STRATEGIES_REPOSITORY=https://github.com/swift-debugging/strategies.git
+      - MCP_LOG_LEVEL=DEBUG
+    command: ["swift-debugging-mcp-server", "serve", "--host", "0.0.0.0"]
+```
+
+#### Development Commands
+```bash
+# Build development container
+docker-compose -f docker-compose.dev.yml build
+
+# Start development server
+docker-compose -f docker-compose.dev.yml up
+
+# Run tests in container
+docker-compose -f docker-compose.dev.yml exec mcp-server pytest
+
+# Access container shell
+docker-compose -f docker-compose.dev.yml exec mcp-server bash
+```
+
+## Testing Environment
+
+### Test Configuration
+
+#### pytest Configuration
+```ini
+# pytest.ini
+[tool:pytest]
+minversion = 7.0
+addopts =
+    --strict-markers
+    --strict-config
+    --cov=swift_debugging_mcp_server
+    --cov-report=term-missing
+    --cov-report=html:htmlcov
+    --cov-report=xml
+    --cov-fail-under=90
+testpaths = tests
+python_files = test_*.py *_test.py
+python_classes = Test*
+python_functions = test_*
+markers =
+    unit: Unit tests
+    integration: Integration tests
+    e2e: End-to-end tests
+    slow: Slow running tests
+    network: Tests requiring network access
+```
+
+#### Test Environment Setup
+```bash
+# Create test environment
+python -m venv test-env
+source test-env/bin/activate
+
+# Install test dependencies
+pip install -e ".[dev]"
+
+# Run tests with different markers
+pytest -m unit                    # Unit tests only
+pytest -m "not slow"             # Exclude slow tests
+pytest -m "integration and not network"  # Integration without network
+```
+
+### Test Data Management
+
+#### Test Fixtures
+```python
+# tests/conftest.py
+import pytest
+import tempfile
+from pathlib import Path
+
+@pytest.fixture
+def temp_dir():
+    """Create temporary directory for tests."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+@pytest.fixture
+def test_strategies_repo(temp_dir):
+    """Create test strategies repository."""
+    repo_dir = temp_dir / "test-strategies"
+    repo_dir.mkdir()
+
+    # Create test strategy files
+    strategy_file = repo_dir / "1-test-strategy.md"
+    strategy_file.write_text("""---
+title: "Test Strategy"
+category: "Testing"
+tags: ["test", "example"]
+---
+
+# Test Strategy Content
+This is a test strategy for unit testing.
+""")
+
+    return repo_dir
+```
+
+## Performance Monitoring
+
+### Local Performance Testing
+
+#### Benchmark Setup
+```python
+# tests/performance/test_benchmarks.py
+import pytest
+import time
+from swift_debugging_mcp_server.repositories import GitStrategyRepository
+
+class TestPerformanceBenchmarks:
+    """Performance benchmark tests."""
+
+    @pytest.mark.slow
+    def test_strategy_retrieval_performance(self):
+        """Test strategy retrieval performance."""
+        repository = GitStrategyRepository("test-repo")
+
+        start_time = time.time()
+        strategy = repository.get_strategy("test-strategy")
+        end_time = time.time()
+
+        # Assert sub-100ms response time
+        assert (end_time - start_time) < 0.1
+```
+
+#### Memory Profiling
+```bash
+# Install memory profiler
+pip install memory-profiler
+
+# Profile memory usage
+python -m memory_profiler swift_debugging_mcp_server/main.py
+
+# Generate memory usage report
+mprof run swift-debugging-mcp-server serve
+mprof plot
+```
+
+This environment setup ensures consistent development across different platforms and provides all necessary tools for effective Swift Debugging Framework MCP Server development.

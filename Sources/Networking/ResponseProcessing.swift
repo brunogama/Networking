@@ -201,11 +201,7 @@ public struct ResponseCacheDuration: Sendable {
 
 // ValidatedResponse is now defined in ValidatedResponse.swift
 
-/// A decodable response with automatic JSON decoding
-public struct DecodableResponse<T: Decodable & Sendable>: Sendable {
-  public let response: HTTPResponse
-  public let value: T
-}
+// DecodableResponse is now defined in ValidatedResponse.swift with enhanced features
 
 /// A cached response with cache metadata
 public struct ProcessedCachedResponse<T: Sendable>: Sendable {
@@ -368,7 +364,9 @@ extension ResponseChain where T == HTTPResponse {
   /// - Parameter transformer: The transformer to use for decoding
   /// - Returns: A new ResponseChain with the decoded value
   /// - Throws: HTTPError if decoding fails
-  public func decode<U>(_ transformer: some ResponseTransformer<Data, U>) throws -> ResponseChain<U> {
+  public func decode<U>(
+    _ transformer: some ResponseTransformer<Data, U>
+  ) throws -> ResponseChain<U> {
     guard let body = response.body else {
       throw HTTPError(
         category: .decoding("Response body is empty"),
@@ -381,28 +379,7 @@ extension ResponseChain where T == HTTPResponse {
     return ResponseChain<U>(response: response, value: decodedValue)
   }
 
-  /// Convenience method to decode JSON
-  /// - Parameters:
-  ///   - type: The type to decode to
-  ///   - decoder: The JSON decoder to use
-  /// - Returns: A DecodableResponse with the decoded value
-  /// - Throws: HTTPError if decoding fails
-  public func decode<U: Decodable>(
-    _ type: U.Type,
-    using decoder: JSONDecoder = JSONDecoder()
-  ) throws -> DecodableResponse<U> {
-    guard let body = response.body else {
-      throw HTTPError(
-        category: .decoding("Response body is empty"),
-        request: response.request,
-        response: response
-      )
-    }
-
-    let transformer = JSONDecoderTransformer(type, decoder: decoder)
-    let decodedValue = try transformer.transform(body)
-    return DecodableResponse(response: response, value: decodedValue)
-  }
+  // The decode method that returns DecodableResponse is now available through the enhanced ValidatedResponse system
 
   /// Transforms the response body to a string
   /// - Parameter encoding: The string encoding to use
@@ -428,7 +405,9 @@ extension ResponseChain {
   /// - Parameter transformer: The transformer to use
   /// - Returns: A new ResponseChain with the transformed value
   /// - Throws: HTTPError if transformation fails
-  public func transform<U>(_ transformer: some ResponseTransformer<T, U>) throws -> ResponseChain<U> {
+  public func transform<U>(
+    _ transformer: some ResponseTransformer<T, U>
+  ) throws -> ResponseChain<U> {
     let transformedValue = try transformer.transform(value)
     return ResponseChain<U>(response: response, value: transformedValue)
   }

@@ -297,7 +297,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
       guard let keyToEvict = await selectKeyForEviction() else { break }
       await remove(keyToEvict)
       evictionCount += 1
-    }
+        }
   }
 
   private func selectKeyForEviction() async -> String? {
@@ -420,7 +420,7 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
         appropriateFor: nil,
         create: true
       )
-      self.cacheDirectory = appSupport.appendingPathComponent("ModernNetworkingCache")
+      self.cacheDirectory = appSupport.appendingPathComponent("NetworkingCache")
     }
 
     self.metadataFile = self.cacheDirectory.appendingPathComponent("cache_metadata.json")

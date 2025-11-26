@@ -1,0 +1,45 @@
+{
+  "executable": "/usr/bin/swift",
+  "arguments": ["test", "--parallel"],
+  "excludeList": [
+    "Tests/**/*",
+    "Samples/**/*",
+    "*.playground/**/*",
+    "**/Generated/**/*",
+    "**/DerivedData/**/*",
+    ".build/**/*",
+    "docs/**/*",
+    "PRPs/**/*",
+    ".claude/**/*",
+    "claude_md_files/**/*"
+  ],
+  "mutationScore": {
+    "threshold": 80
+  },
+  "reportOptions": {
+    "format": "json",
+    "outputDirectory": "muter-reports"
+  },
+  "mutationOperators": [
+    "AdditionToSubtraction",
+    "SubtractionToAddition",
+    "MultiplicationToDivision",
+    "DivisionToMultiplication",
+    "RemainderToModulo",
+    "EqualToNotEqual",
+    "NotEqualToEqual",
+    "LessThanToGreaterThanOrEqual",
+    "LessThanOrEqualToGreaterThan",
+    "GreaterThanToLessThanOrEqual",
+    "GreaterThanOrEqualToLessThan",
+    "AndToOr",
+    "OrToAnd",
+    "TrueToFalse",
+    "FalseToTrue",
+    "NilCoalescingToRightHandSide",
+    "NilCoalescingToLeftHandSide"
+  ],
+  "skipSchemes": [],
+  "buildForTesting": true,
+  "buildConfiguration": "Debug"
+}

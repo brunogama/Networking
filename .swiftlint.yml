@@ -15,11 +15,9 @@ excluded:
 - ${PWD}/.build
 
 # Enabled rules beyond default
+# NOTE: Formatting rules removed - handled exclusively by swift-format
 opt_in_rules:
-# Readability
-- attributes
-- closure_end_indentation
-- closure_spacing
+# Readability (logic-focused, non-formatting)
 - collection_alignment
 - contains_over_filter_count
 - contains_over_filter_is_empty
@@ -37,17 +35,11 @@ opt_in_rules:
 - first_where
 - flatmap_over_map_reduce
 - identical_operands
-- implicit_return
 - joined_default_parameter
 - last_where
 - literal_expression_end_indentation
 - lower_acl_than_parent
 - modifier_order
-- multiline_arguments
-- multiline_function_chains
-- multiline_literal_brackets
-- multiline_parameters
-- multiline_parameters_brackets
 - operator_usage_whitespace
 - optional_enum_case_matching
 - overridden_super_call
@@ -67,8 +59,6 @@ opt_in_rules:
 - unowned_variable_capture
 - untyped_error_in_catch
 - vertical_parameter_alignment_on_call
-- vertical_whitespace_closing_braces
-- vertical_whitespace_opening_braces
 - yoda_condition
 
 # Performance
@@ -77,26 +67,51 @@ opt_in_rules:
 - enum_case_associated_values_count
 - reduce_into
 
-# Style (Google-specific)
-- closure_parameter_position
+# Style (Google-specific, non-formatting)
+- closure_end_indentation
 - implicit_getter
-- number_separator
 - object_literal
 - operator_whitespace
 - prefer_self_in_static_references
-# - sorted_imports  # Disabled to prevent conflict with SwiftFormat
-# - trailing_comma  # Disabled to prevent conflict with SwiftFormat
-- type_contents_order
-- vertical_whitespace_between_cases
 
-# Disabled rules (conflicts with Google style and SwiftFormat)
+# Disabled rules (conflicts with Google style and swift-format)
+# swift-format handles all formatting/layout - SwiftLint only does logic/style validation
 disabled_rules:
-- trailing_whitespace # Google allows trailing whitespace in some cases
+# Spacing and whitespace (handled by swift-format)
+- trailing_whitespace # swift-format handles all whitespace
+- vertical_whitespace # Conflicts with maximumBlankLines in swift-format
+- vertical_whitespace_closing_braces # Conflicts with swift-format brace spacing
+- vertical_whitespace_opening_braces # Conflicts with swift-format brace spacing
+- vertical_whitespace_between_cases # Conflicts with swift-format case spacing
+
+# Brace and bracket positioning (handled by swift-format)
+- opening_brace # Conflicts with swift-format multi-line condition formatting
+- statement_position # Conflicts with lineBreakBeforeControlFlowKeywords
+
+# Closure formatting (handled by swift-format)
+- closure_parameter_position # Conflicts with swift-format closure handling
+- closure_spacing # Conflicts with swift-format closure formatting
+
+# Multi-line formatting (handled by swift-format)
+- multiline_arguments # Conflicts with lineBreakBeforeEachArgument
+- multiline_function_chains # Conflicts with swift-format line breaking
+- multiline_literal_brackets # Conflicts with swift-format bracket placement
+- multiline_parameters # Conflicts with SwiftUI ViewBuilder and swift-format
+- multiline_parameters_brackets # Conflicts with swift-format parameter formatting
+
+# Miscellaneous formatting (handled by swift-format)
+- trailing_comma # Handled by swift-format
+- number_separator # Conflicts with GroupNumericLiterals in swift-format
+- attributes # Conflicts with swift-format attribute placement
+- implicit_return # Conflicts with OmitExplicitReturns in swift-format
+- void_return # Conflicts with NoVoidReturnOnFunctionSignature in swift-format
+
+# Import ordering (handled by swift-format - disabled in both)
+- sorted_imports # Disabled in swift-format (OrderedImports: false)
+
+# Google style and project-specific
 - todo # TODOs are allowed
-- trailing_comma # Handled by SwiftFormat
-- sorted_imports # Handled by SwiftFormat
 - type_contents_order # Too strict for SwiftUI projects
-- multiline_parameters # Conflicts with SwiftUI ViewBuilder syntax
 
 # Rule configurations
 analyzer_rules:
@@ -160,23 +175,34 @@ function_parameter_count:
   error: 6
 
 # File and type length limits (Google style)
+# Note: Macro implementations excluded below for longer validation/generation code
 file_length:
   warning: 200
   error: 400
   ignore_comment_only_lines: true
+  excluded:
+    - "Sources/NetworkingMacros/**/*.swift"
+    - "Tests/NetworkingTests/Macros/**/*Tests.swift"
 
 type_body_length:
   warning: 200
   error: 300
+  excluded:
+    - "Sources/NetworkingMacros/**/*.swift"
 
 function_body_length:
   warning: 40
   error: 80
+  excluded:
+    - "Sources/NetworkingMacros/**/*.swift"
 
 # Cyclomatic complexity (Google recommendation)
+# Note: Macro validation logic excluded due to complex parameter checking
 cyclomatic_complexity:
   warning: 10
   error: 15
+  excluded:
+    - "Sources/NetworkingMacros/**/*.swift"
 
 # Nesting (Google recommends shallow nesting)
 nesting:
@@ -211,48 +237,10 @@ nesting:
 #   - subscript
 #   - deinitializer
 
-# Attributes (Google style)
-attributes:
-  always_on_same_line:
-  - "@IBAction"
-  - "@NSManaged"
-  - "@objc"
-  - "@nonobjc"
-  - "@IBOutlet"
-  - "@IBInspectable"
-  - "@GKInspectable"
-  always_on_line_above:
-  - "@available"
-  - "@discardableResult"
-  - "@UIApplicationMain"
-  - "@NSApplicationMain"
-  - "@main"
-  - "@MainActor"
-  - "@Sendable"
-
-# Multiline arguments (Google style)
-multiline_arguments:
-  first_argument_location: next_line
-  only_enforce_after_first_closure_on_first_line: true
-
-# Multiline parameters disabled - conflicts with SwiftUI ViewBuilder syntax
-# multiline_parameters:
-#   allows_single_line: false
-
 # Modifier order - using default configuration due to version compatibility
 
-# Trailing comma - disabled to prevent conflict with SwiftFormat
-# trailing_comma:
-#   mandatory_comma: true
-
-# Vertical whitespace
-vertical_whitespace:
-  max_empty_lines: 2
-
-# Number separator (Google style: underscores for readability)
-number_separator:
-  minimum_length: 5
-  minimum_fraction_length: 5
+# NOTE: Formatting rules (attributes, multiline_arguments, vertical_whitespace, number_separator)
+# removed - all formatting handled by swift-format to prevent conflicts
 
 # Empty count
 empty_count:

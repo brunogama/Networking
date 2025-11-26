@@ -1,0 +1,279 @@
+---
+description: Automated changelog entry generation for tracking code changes and improvements
+globs: CHANGELOG.md, Sources/**/*.swift, Tests/**/*.swift, Documentation/**/*.md
+alwaysApply: false
+---
+
+# Add to Changelog Rule
+
+**Systematic approach for documenting code changes in the project changelog following Keep a Changelog format.**
+
+## **Core Functionality**
+
+- **Automated Change Detection**: Analyze git diff output to identify types of changes
+- **Categorized Entry Generation**: Create properly formatted changelog entries by category
+- **Semantic Versioning Integration**: Align changes with semver principles
+- **Conventional Commit Compliance**: Parse commit messages for change classification
+
+## **Changelog Categories**
+
+### **Added** (New Features)
+```markdown
+#### Core Framework
+- 🚀 New networking feature with async/await support
+- 📦 Additional middleware component for authentication
+- 🔧 New configuration option for timeout handling
+
+#### Documentation & Developer Experience  
+- 📚 New documentation guide for advanced usage
+- 🎯 Code examples for common use cases
+- 📖 API reference updates with detailed descriptions
+```
+
+### **Changed** (Modifications)
+```markdown
+#### Breaking Changes
+- ⚠️ Updated API signature for NetworkClient initialization
+- 🔄 Modified response processing chain interface
+- 📝 Changed configuration parameter names for clarity
+
+#### Improvements
+- ⚡ Enhanced performance in request processing
+- 🛡️ Improved error handling with better context
+- 🎨 Better API ergonomics and type safety
+```
+
+### **Fixed** (Bug Fixes)
+```markdown
+#### Code Quality & Swift 6 Compliance
+- 🐛 Fixed memory leak in response caching
+- ✅ Resolved SwiftLint violations (line length, naming)
+- 🔒 Fixed thread safety issues in progress tracking
+- 📊 Corrected test failures in integration suite
+```
+
+### **Security** (Security Improvements)
+```markdown
+#### Security Implementation
+- 🔐 Enhanced certificate pinning validation
+- 🛡️ Added header injection prevention
+- 🔑 Improved secure token storage implementation
+- 📋 OWASP Top 10 compliance improvements
+```
+
+## **Change Analysis Patterns**
+
+### **File Pattern Analysis**
+```typescript
+interface ChangePattern {
+    filePattern: string;
+    changeType: 'Added' | 'Changed' | 'Fixed' | 'Security';
+    category: string;
+    description: string;
+}
+
+const patterns: ChangePattern[] = [
+    {
+        filePattern: 'Sources/Networking/*.swift',
+        changeType: 'Changed',
+        category: 'Core Framework',
+        description: 'Core networking implementation updates'
+    },
+    {
+        filePattern: 'Tests/**/*Tests.swift',
+        changeType: 'Fixed',
+        category: 'Test Coverage & Validation',
+        description: 'Test suite improvements and fixes'
+    },
+    {
+        filePattern: 'Documentation/**/*.md',
+        changeType: 'Added',
+        category: 'Documentation & Developer Experience',
+        description: 'Documentation enhancements'
+    }
+];
+```
+
+### **Git Diff Analysis**
+```bash
+# Analyze changes by type
+function analyze_changes() {
+    local files_changed=$(git diff --name-only)
+    local lines_added=$(git diff --stat | grep "insertion" | sed 's/.*(\([0-9]*\) insertion.*/\1/')
+    local lines_removed=$(git diff --stat | grep "deletion" | sed 's/.*(\([0-9]*\) deletion.*/\1/')
+    
+    echo "Files changed: $(echo "$files_changed" | wc -l)"
+    echo "Lines added: ${lines_added:-0}"
+    echo "Lines removed: ${lines_removed:-0}"
+}
+```
+
+## **Entry Generation Templates**
+
+### **Feature Addition Template**
+```markdown
+- 🚀 [Feature Name]: [Brief description]
+  - Implementation details and benefits
+  - Integration points and usage examples
+  - Performance implications if significant
+```
+
+### **Bug Fix Template**
+```markdown
+- 🐛 Fixed [Issue Description]
+  - Root cause: [Brief explanation]
+  - Solution: [How it was resolved]
+  - Impact: [What this fixes for users]
+```
+
+### **Breaking Change Template**
+```markdown
+- ⚠️ **BREAKING**: [Change Description]
+  - Previous behavior: [What changed]
+  - New behavior: [How it works now]
+  - Migration: [How to update existing code]
+```
+
+## **Automation Workflow**
+
+### **Pre-commit Hook Integration**
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+
+# Generate changelog entry for staged changes
+function generate_changelog_entry() {
+    local staged_files=$(git diff --cached --name-only)
+    local change_summary=$(git diff --cached --stat)
+    
+    # Analyze file patterns
+    local core_changes=$(echo "$staged_files" | grep "Sources/Networking" | wc -l)
+    local test_changes=$(echo "$staged_files" | grep "Tests/" | wc -l)
+    local doc_changes=$(echo "$staged_files" | grep "Documentation" | wc -l)
+    
+    # Generate appropriate changelog entries
+    if [ $core_changes -gt 0 ]; then
+        echo "### Changed"
+        echo "#### Core Framework"
+        echo "- 🔄 Updated networking implementation with performance improvements"
+    fi
+    
+    if [ $test_changes -gt 0 ]; then
+        echo "### Fixed"
+        echo "#### Test Coverage & Validation"
+        echo "- ✅ Improved test suite reliability and coverage"
+    fi
+}
+```
+
+### **Interactive Change Classification**
+```bash
+function classify_change() {
+    echo "🔍 Analyzing changes..."
+    echo "Files modified: $(git diff --name-only | wc -l)"
+    echo ""
+    echo "Select change type:"
+    echo "1) 🚀 Added (new feature)"
+    echo "2) 🔄 Changed (modification)"
+    echo "3) 🐛 Fixed (bug fix)"
+    echo "4) 🔐 Security (security improvement)"
+    echo "5) 📚 Documentation (docs only)"
+    
+    read -p "Choice (1-5): " choice
+    
+    case $choice in
+        1) echo "Added" ;;
+        2) echo "Changed" ;;
+        3) echo "Fixed" ;;
+        4) echo "Security" ;;
+        5) echo "Documentation" ;;
+        *) echo "Changed" ;;
+    esac
+}
+```
+
+## **Implementation Guidelines**
+
+### **Changelog Entry Format**
+```markdown
+## [Unreleased]
+
+### Added
+#### [Category]
+- 🚀 [Change description with emoji]
+  - Additional context if needed
+  - Usage examples or migration notes
+
+### Changed
+#### [Category]  
+- 🔄 [Change description]
+  - Impact and reasoning
+  - Breaking change warnings if applicable
+
+### Fixed
+#### [Category]
+- 🐛 [Fix description]
+  - What was broken and how it's fixed
+  - Affected functionality
+```
+
+### **Category Guidelines**
+- **Core Framework**: Main networking functionality
+- **Security Implementation**: Security-related changes
+- **Documentation & Developer Experience**: Docs, examples, guides
+- **Configuration & Middleware**: Setup and middleware components
+- **Test Coverage & Validation**: Testing improvements
+- **Build & Tooling**: Development tools and build system
+
+## **Quality Standards**
+
+### **Entry Requirements**
+- ✅ Clear, concise description of the change
+- ✅ Appropriate emoji for visual categorization
+- ✅ Context about impact and reasoning
+- ✅ Breaking change warnings when applicable
+- ✅ Links to relevant documentation or issues
+
+### **Review Checklist**
+- [ ] Change is categorized correctly
+- [ ] Description is user-focused, not implementation-focused
+- [ ] Breaking changes are clearly marked
+- [ ] Security implications are highlighted
+- [ ] Documentation references are included where helpful
+
+## **Integration Points**
+
+### **With Conventional Commits**
+```typescript
+interface CommitMessage {
+    type: 'feat' | 'fix' | 'docs' | 'style' | 'refactor' | 'test' | 'chore';
+    scope?: string;
+    description: string;
+    body?: string;
+    breaking?: boolean;
+}
+
+function mapCommitToChangelog(commit: CommitMessage): ChangelogEntry {
+    const categoryMap = {
+        'feat': 'Added',
+        'fix': 'Fixed', 
+        'docs': 'Documentation',
+        'refactor': 'Changed',
+        'perf': 'Changed',
+        'test': 'Fixed'
+    };
+    
+    return {
+        category: categoryMap[commit.type] || 'Changed',
+        description: commit.description,
+        breaking: commit.breaking
+    };
+}
+```
+
+### **With Release Process**
+- Changelog entries are automatically included in release notes
+- Version bumping triggers changelog finalization
+- Release tags reference specific changelog sections
+
+**🚀 This rule ensures comprehensive, consistent, and user-focused changelog maintenance that enhances project transparency and developer experience.**
