@@ -1,7 +1,14 @@
 import Foundation
-import Security
 
-/// Secure storage service using iOS/macOS Keychain for sensitive data like authentication tokens.
+#if canImport(Security)
+  import Security
+#endif
+
+// MARK: - Platform-specific Keychain Implementation
+
+#if canImport(Security)
+
+  /// Secure storage service using iOS/macOS Keychain for sensitive data like authentication tokens.
 public final class KeychainService: @unchecked Sendable {
   // MARK: - Configuration
 
@@ -490,3 +497,5 @@ extension KeychainTokenProvider {
     )
   }
 }
+
+#endif  // canImport(Security)

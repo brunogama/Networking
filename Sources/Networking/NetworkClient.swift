@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 /// Modern HTTP client implementation using URLSession and structured concurrency.
 ///
 /// `NetworkClient` is the primary implementation of ``HTTPClient`` that provides a comprehensive
