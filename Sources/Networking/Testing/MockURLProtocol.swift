@@ -278,10 +278,8 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
       
       wrapper.client?.urlProtocol(wrapper.protocolInstance, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
       
-      let data = stub.response.data
-      if !data.isEmpty {
-        wrapper.client?.urlProtocol(wrapper.protocolInstance, didLoad: data)
-      }
+      // Always call didLoad, even for empty data to match original behavior
+      wrapper.client?.urlProtocol(wrapper.protocolInstance, didLoad: stub.response.data)
       
       wrapper.client?.urlProtocolDidFinishLoading(wrapper.protocolInstance)
     }
