@@ -1,12 +1,17 @@
 import Foundation
-import OSLog
 
-/// Comprehensive observability middleware that provides detailed monitoring, tracing, and analytics
-/// for HTTP requests. This middleware extends beyond basic timing to provide deep insights into
-/// network behavior, performance patterns, and operational metrics.
-public actor NetworkObservabilityMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware,
-  HTTPErrorMiddleware
-{
+#if canImport(OSLog)
+  import OSLog
+#endif
+
+#if canImport(OSLog)
+
+  /// Comprehensive observability middleware that provides detailed monitoring, tracing, and analytics
+  /// for HTTP requests. This middleware extends beyond basic timing to provide deep insights into
+  /// network behavior, performance patterns, and operational metrics.
+  public actor NetworkObservabilityMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware,
+    HTTPErrorMiddleware
+  {
   // MARK: - Observability Event Types
 
   /// Represents different types of observability events that can be recorded
@@ -810,3 +815,5 @@ extension NetworkObservabilityMiddleware {
     )
   }
 }
+
+#endif  // canImport(OSLog)

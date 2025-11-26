@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 /// Advanced URLProtocol-based mock for comprehensive request/response simulation in tests
 ///
 /// This mock protocol provides:
@@ -213,66 +217,76 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
   }
 
   override public func startLoading() {
-    Task {
-      await handleRequest()
+    // We need to work around Swift concurrency's strict sendability checks
+    // Since URLProtocol is designed for synchronous URL loading subsystem, 
+    // but we're using async/await, we need to use @unchecked Sendable workaround
+    let capturedRequest = request
+    let capturedClient = client
+    
+    // Create a wrapper that can be sent across concurrency boundaries
+    struct UnsafeWrapper: @unchecked Sendable {
+      let protocolInstance: MockURLProtocol
+      let client: URLProtocolClient?
+    }
+    let wrapper = UnsafeWrapper(protocolInstance: self, client: capturedClient)
+    
+    Task { @Sendable in
+      await Self.mockState.captureRequest(capturedRequest)
+      
+      let (stub, stubIndex) = await Self.mockState.findMatchingStub(for: capturedRequest)
+      
+      guard let stub = stub else {
+        wrapper.client?.urlProtocol(wrapper.protocolInstance, didFailWithError: URLError(.fileDoesNotExist))
+        return
+      }
+      
+      // Handle usage count
+      if let stubIndex = stubIndex {
+        var mutableStub = stub
+        if !mutableStub.incrementUsage() {
+          await Self.mockState.removeStub(at: stubIndex)
+        }
+      }
+      
+      // Execute request capture callback
+      stub.requestCapture?(capturedRequest)
+      
+      // Apply delay if specified
+      let delay = stub.response.delay
+      if delay > 0 {
+        try? await Task.sleep(for: .seconds(delay))
+      }
+      
+      // Handle response based on type
+      if let error = stub.response.error {
+        wrapper.client?.urlProtocol(wrapper.protocolInstance, didFailWithError: error)
+        return
+      }
+      
+      // Create successful response
+      guard let url = capturedRequest.url else {
+        wrapper.client?.urlProtocol(wrapper.protocolInstance, didFailWithError: URLError(.badURL))
+        return
+      }
+      
+      let httpResponse = HTTPURLResponse(
+        url: url,
+        statusCode: stub.response.statusCode,
+        httpVersion: "HTTP/1.1",
+        headerFields: stub.response.headers
+      )!
+      
+      wrapper.client?.urlProtocol(wrapper.protocolInstance, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
+      
+      // Always call didLoad, even for empty data to match original behavior
+      wrapper.client?.urlProtocol(wrapper.protocolInstance, didLoad: stub.response.data)
+      
+      wrapper.client?.urlProtocolDidFinishLoading(wrapper.protocolInstance)
     }
   }
 
   override public func stopLoading() {
     // No cleanup needed for our async implementation
-  }
-
-  // MARK: - Request Handling
-
-  private func handleRequest() async {
-    await Self.mockState.captureRequest(request)
-
-    let (stub, stubIndex) = await Self.mockState.findMatchingStub(for: request)
-
-    guard let stub = stub else {
-      client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
-      return
-    }
-
-    // Handle usage count
-    if let stubIndex = stubIndex {
-      var mutableStub = stub
-      if !mutableStub.incrementUsage() {
-        await Self.mockState.removeStub(at: stubIndex)
-      }
-    }
-
-    // Execute request capture callback
-    stub.requestCapture?(request)
-
-    // Apply delay if specified
-    let delay = stub.response.delay
-    if delay > 0 {
-      try? await Task.sleep(for: .seconds(delay))
-    }
-
-    // Handle response based on type
-    if let error = stub.response.error {
-      client?.urlProtocol(self, didFailWithError: error)
-      return
-    }
-
-    // Create successful response
-    guard let url = request.url else {
-      client?.urlProtocol(self, didFailWithError: URLError(.badURL))
-      return
-    }
-
-    let httpResponse = HTTPURLResponse(
-      url: url,
-      statusCode: stub.response.statusCode,
-      httpVersion: "HTTP/1.1",
-      headerFields: stub.response.headers
-    )!
-
-    client?.urlProtocol(self, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(self, didLoad: stub.response.data)
-    client?.urlProtocolDidFinishLoading(self)
   }
 
   // MARK: - Public API

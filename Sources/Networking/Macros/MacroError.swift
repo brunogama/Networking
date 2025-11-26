@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 // MARK: - Macro Expansion Errors
 
 /// Errors that occur during compile-time macro expansion.

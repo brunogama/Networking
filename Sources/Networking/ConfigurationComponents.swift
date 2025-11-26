@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 /// Base protocol for network client configuration components.
 public protocol ConfigurationComponent: Sendable {
   func apply(to configuration: inout NetworkClientBuilder.Configuration)
@@ -122,21 +126,26 @@ public struct EnableRetry: ConfigurationComponent {
   }
 }
 
-public struct EnableLogging: ConfigurationComponent {
-  private let configuration: LoggingMiddleware.Configuration
+#if canImport(OSLog)
 
-  public init(_ configuration: LoggingMiddleware.Configuration = LoggingMiddleware.Configuration())
-  {
-    self.configuration = configuration
+  public struct EnableLogging: ConfigurationComponent {
+    private let configuration: LoggingMiddleware.Configuration
+
+    public init(
+      _ configuration: LoggingMiddleware.Configuration = LoggingMiddleware.Configuration()
+    ) {
+      self.configuration = configuration
+    }
+
+    public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
+      let loggingMiddleware = LoggingMiddleware(configuration: self.configuration)
+      configuration.requestMiddlewares.append(loggingMiddleware)
+      configuration.responseMiddlewares.append(loggingMiddleware)
+      configuration.errorMiddlewares.append(loggingMiddleware)
+    }
   }
 
-  public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
-    let loggingMiddleware = LoggingMiddleware(configuration: self.configuration)
-    configuration.requestMiddlewares.append(loggingMiddleware)
-    configuration.responseMiddlewares.append(loggingMiddleware)
-    configuration.errorMiddlewares.append(loggingMiddleware)
-  }
-}
+#endif  // canImport(OSLog)
 
 public struct CustomSession: ConfigurationComponent {
   private let session: URLSession
