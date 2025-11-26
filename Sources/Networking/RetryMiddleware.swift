@@ -95,7 +95,10 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
     }
 
     /// Default predicate for determining if a response should trigger a retry
-    public static func defaultShouldRetryResponse(_ response: HTTPResponse, _ attempt: Int) -> Bool {
+    public static func defaultShouldRetryResponse(
+      _ response: HTTPResponse,
+      _ attempt: Int
+    ) -> Bool {
       // Generally, we don't retry successful responses
       // This is mainly for custom logic where a 200 response might indicate a temporary issue
       false
@@ -140,7 +143,8 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
 
         // Check if the response indicates we should retry
         if configuration.shouldRetryResponse(response, attempt)
-          && attempt < configuration.maxAttempts {
+          && attempt < configuration.maxAttempts
+        {
           // Convert response to error for retry logic
           let responseError = HTTPError(
             category: .http(response.status),
@@ -230,6 +234,93 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
   }
 }
 
+// MARK: - Recovery Strategy Integration
+
+extension RetryMiddleware {
+  /// Configuration that includes recovery strategy integration
+  public struct RecoveryConfiguration: Sendable {
+    /// The underlying retry configuration
+    public let retryConfig: Configuration
+
+    /// Recovery strategies to apply before retry logic
+    public let recoveryStrategies: [any ErrorRecoveryStrategies.RecoveryStrategy]
+
+    /// Whether to use recovery strategies first or retry first
+    public let prioritizeRecovery: Bool
+
+    public init(
+      retryConfig: Configuration = Configuration(),
+      recoveryStrategies: [any ErrorRecoveryStrategies.RecoveryStrategy] = [],
+      prioritizeRecovery: Bool = true
+    ) {
+      self.retryConfig = retryConfig
+      self.recoveryStrategies = recoveryStrategies
+      self.prioritizeRecovery = prioritizeRecovery
+    }
+  }
+
+  /// Enhanced retry middleware with recovery strategy integration
+  public struct WithRecoveryStrategies: HTTPErrorMiddleware {
+    private let recoveryConfig: RecoveryConfiguration
+    private let baseMiddleware: RetryMiddleware
+
+    public init(configuration: RecoveryConfiguration, client: any HTTPClient) {
+      self.recoveryConfig = configuration
+      self.baseMiddleware = RetryMiddleware(
+        configuration: configuration.retryConfig,
+        client: client
+      )
+    }
+
+    public func handleError(
+      _ error: HTTPError,
+      for request: HTTPRequest
+    ) async throws -> HTTPResponse {
+      if recoveryConfig.prioritizeRecovery {
+        // Try recovery strategies first, then fall back to retry
+        if let recoveredResponse = await tryRecoveryStrategies(error, request: request) {
+          return recoveredResponse
+        }
+
+        // If recovery fails, use standard retry logic
+        return try await baseMiddleware.handleError(error, for: request)
+      } else {
+        // Try retry first, then recovery on final failure
+        do {
+          return try await baseMiddleware.handleError(error, for: request)
+        } catch let finalError as HTTPError {
+          // If retry exhausted, try recovery strategies
+          if let recoveredResponse = await tryRecoveryStrategies(finalError, request: request) {
+            return recoveredResponse
+          }
+          throw finalError
+        }
+      }
+    }
+
+    private func tryRecoveryStrategies(
+      _ error: HTTPError,
+      request: HTTPRequest
+    ) async -> HTTPResponse? {
+      for strategy in recoveryConfig.recoveryStrategies {
+        if strategy.canRecover(from: error) {
+          do {
+            return try await strategy.recover(
+              from: error,
+              request: request,
+              using: baseMiddleware.client
+            )
+          } catch {
+            // Continue to next strategy
+            continue
+          }
+        }
+      }
+      return nil
+    }
+  }
+}
+
 // MARK: - Convenience Factory Methods
 
 extension RetryMiddleware {
@@ -301,6 +392,81 @@ extension RetryMiddleware {
       configuration: Configuration(jitterStrategy: jitterStrategy),
       client: client
     )
+  }
+
+  /// Creates an enhanced retry middleware with authentication recovery
+  /// - Parameters:
+  ///   - client: The HTTP client to use
+  ///   - tokenRefreshHandler: Handler for refreshing authentication tokens
+  /// - Returns: A retry middleware with authentication recovery strategy
+  public static func withAuthenticationRecovery(
+    client: any HTTPClient,
+    tokenRefreshHandler: @escaping @Sendable () async throws -> String
+  ) -> WithRecoveryStrategies {
+    let recoveryConfig = RecoveryConfiguration(
+      recoveryStrategies: [
+        ErrorRecoveryStrategies.AuthenticationRefreshStrategy(
+          tokenRefreshHandler: tokenRefreshHandler
+        ),
+        ErrorRecoveryStrategies.standardRetry(),
+      ]
+    )
+    return WithRecoveryStrategies(configuration: recoveryConfig, client: client)
+  }
+
+  /// Creates a comprehensive retry middleware with multiple recovery strategies
+  /// - Parameters:
+  ///   - client: The HTTP client to use
+  ///   - tokenRefreshHandler: Handler for refreshing authentication tokens (optional)
+  /// - Returns: A retry middleware with comprehensive recovery strategies
+  public static func comprehensive(
+    client: any HTTPClient,
+    tokenRefreshHandler: (@Sendable () async throws -> String)? = nil
+  ) -> WithRecoveryStrategies {
+    var strategies: [any ErrorRecoveryStrategies.RecoveryStrategy] = []
+
+    if let tokenHandler = tokenRefreshHandler {
+      strategies.append(
+        ErrorRecoveryStrategies.AuthenticationRefreshStrategy(
+          tokenRefreshHandler: tokenHandler
+        )
+      )
+    }
+
+    let additionalStrategies: [any ErrorRecoveryStrategies.RecoveryStrategy] = [
+      ErrorRecoveryStrategies.standardRetry(),
+      ErrorRecoveryStrategies.CircuitBreakerRecoveryStrategy(),
+    ]
+    strategies.append(contentsOf: additionalStrategies)
+
+    let recoveryConfig = RecoveryConfiguration(
+      retryConfig: Configuration(maxAttempts: 3, baseDelay: 1.0),
+      recoveryStrategies: strategies,
+      prioritizeRecovery: true
+    )
+
+    return WithRecoveryStrategies(configuration: recoveryConfig, client: client)
+  }
+
+  /// Creates a retry middleware with custom recovery strategies
+  /// - Parameters:
+  ///   - client: The HTTP client to use
+  ///   - strategies: Custom recovery strategies to use
+  ///   - retryConfig: Optional custom retry configuration
+  ///   - prioritizeRecovery: Whether to try recovery before retry (default: true)
+  /// - Returns: A retry middleware with custom recovery strategies
+  public static func withRecoveryStrategies(
+    client: any HTTPClient,
+    strategies: [any ErrorRecoveryStrategies.RecoveryStrategy],
+    retryConfig: Configuration = Configuration(),
+    prioritizeRecovery: Bool = true
+  ) -> WithRecoveryStrategies {
+    let recoveryConfig = RecoveryConfiguration(
+      retryConfig: retryConfig,
+      recoveryStrategies: strategies,
+      prioritizeRecovery: prioritizeRecovery
+    )
+    return WithRecoveryStrategies(configuration: recoveryConfig, client: client)
   }
 }
 

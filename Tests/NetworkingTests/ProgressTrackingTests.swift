@@ -170,12 +170,25 @@ struct ProgressTrackingTests {
   @Test("Progress middleware can be created with callback")
   func testProgressMiddlewareWithCallback() async throws {
     let expectation = AsyncExpectation("Progress callback called")
-    var receivedProgress: TransferProgress?
+
+    actor ProgressReceiver {
+      var receivedProgress: TransferProgress?
+
+      func setProgress(_ progress: TransferProgress) {
+        receivedProgress = progress
+      }
+
+      func getProgress() -> TransferProgress? {
+        receivedProgress
+      }
+    }
+
+    let progressReceiver = ProgressReceiver()
 
     let middleware = ProgressTrackingMiddleware.withCallback(
       for: UUID(),
       callback: { progress in
-        receivedProgress = progress
+        Task { await progressReceiver.setProgress(progress) }
         expectation.fulfill()
       }
     )
@@ -300,10 +313,23 @@ struct ProgressTrackingTests {
   @Test("Progress aggregator calculates aggregate progress correctly")
   func testProgressAggregator() async throws {
     let expectation = AsyncExpectation("Aggregate progress callback called")
-    let receivedProgress = OSAllocatedUnfairLock<TransferProgress?>(initialState: nil)
+
+    actor ProgressStorage {
+      var progress: TransferProgress?
+
+      func set(_ progress: TransferProgress?) {
+        self.progress = progress
+      }
+
+      func get() -> TransferProgress? {
+        progress
+      }
+    }
+
+    let receivedProgress = ProgressStorage()
 
     let aggregator = ProgressAggregator { progress in
-      receivedProgress.withLock { $0 = progress }
+      Task { await receivedProgress.set(progress) }
       expectation.fulfill()
     }
 
@@ -429,7 +455,7 @@ struct ProgressTrackingTests {
     let config = BackgroundTransferConfiguration.default
 
     #expect(config.enableBackgroundTransfer == false)
-    #expect(config.backgroundSessionIdentifier == "ModernNetworking.BackgroundTransfer")
+    #expect(config.backgroundSessionIdentifier == "Networking.BackgroundTransfer")
     #expect(config.allowsCellularAccess == true)
     #expect(config.allowsExpensiveNetworkAccess == false)
     #expect(config.timeoutIntervalForRequest == 60.0)
@@ -501,7 +527,19 @@ struct ProgressTrackingTests {
       configuration: .default
     )
 
-    let progressUpdates = OSAllocatedUnfairLock<[TransferProgress]>(initialState: [])
+    actor ProgressUpdatesStorage {
+      var updates: [TransferProgress] = []
+
+      func append(_ progress: TransferProgress) {
+        updates.append(progress)
+      }
+
+      func getAll() -> [TransferProgress] {
+        updates
+      }
+    }
+
+    let progressUpdates = ProgressUpdatesStorage()
 
     let result = try await fileTransfer.uploadData(
       testData,
@@ -509,7 +547,7 @@ struct ProgressTrackingTests {
       to: testURL,
       mimeType: "text/plain"
     ) { progress in
-      progressUpdates.withLock { $0.append(progress) }
+      Task { await progressUpdates.append(progress) }
     }
 
     #expect(result.isSuccessful == true)

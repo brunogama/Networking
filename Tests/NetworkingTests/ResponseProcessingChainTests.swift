@@ -112,7 +112,9 @@ final class ResponseProcessingChainTests: XCTestCase {
     let response = createMockResponse(body: jsonData)
 
     // When
-    let decodedResponse = try response.chain().decode(TestUser.self, using: decoder)
+    let decodedResponse = try response.chain().decode(
+      JSONDecoderTransformer(TestUser.self, decoder: decoder)
+    )
 
     // Then
     XCTAssertEqual(decodedResponse.value, user)
@@ -286,9 +288,8 @@ final class ResponseProcessingChainTests: XCTestCase {
     let result =
       try response
       .chain()
-      .asString()
+      .decode(StringTransformer())
       .map { $0.uppercased() }
-      .validateSuccess()
       .cache(for: ResponseCacheDuration.hours(1))
 
     // Then
@@ -303,11 +304,14 @@ final class ResponseProcessingChainTests: XCTestCase {
     let response = createMockResponse(status: .badRequest)
 
     // When
-    let recoveredResult = try ResponseChain.withRecovery({
-      try response.chain().validate(StatusValidator.successStatus)
-    }) { _ in
+    let recoveredResult: ResponseChain<String>
+    do {
+      recoveredResult = try response.chain().validate(StatusValidator.successStatus).map { _ in
+        "Should not reach here"
+      }
+    } catch {
       // Recovery: return a default chain
-      try response.chain().map { _ in "Recovered from error" }
+      recoveredResult = try response.chain().map { _ in "Recovered from error" }
     }
 
     // Then
@@ -320,12 +324,14 @@ final class ResponseProcessingChainTests: XCTestCase {
 
     // When & Then
     XCTAssertThrowsError(
-      try ResponseChain.withRecovery({
-        try response.chain().validate(StatusValidator.successStatus)
-      }) { _ in
-        // Recovery also fails
-        throw HTTPError(category: .configuration("Recovery failed"))
-      }
+      try {
+        do {
+          _ = try response.chain().validate(StatusValidator.successStatus)
+        } catch {
+          // Recovery also fails
+          throw HTTPError(category: .configuration("Recovery failed"))
+        }
+      }()
     ) { error in
       XCTAssertTrue(error is HTTPError)
       if let httpError = error as? HTTPError {
@@ -431,6 +437,7 @@ final class ResponseProcessingChainTests: XCTestCase {
     let result =
       try await response
       .asyncChain()
+      .map { $0.body! }
       .transform(AsyncJSONDecoderTransformer(TestUser.self))
 
     // Then
@@ -468,8 +475,8 @@ final class ResponseProcessingChainTests: XCTestCase {
           _ =
             try response
             .chain()
-            .validateSuccess()
             .decode(JSONDecoderTransformer(TestUser.self))
+            .validateSuccess()
             .map { "User: \($0.name)" }
         } catch {
           XCTFail("Chain processing failed: \(error)")

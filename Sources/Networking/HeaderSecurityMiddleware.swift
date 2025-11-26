@@ -95,10 +95,10 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
     // Validate header count
     if request.headers.count > configuration.maxHeaderCount {
+      let message = "Too many headers: \(request.headers.count) > \(configuration.maxHeaderCount)"
       throw HTTPError(
-        category: .security(.headerInjection),
-        request: request,
-        message: "Too many headers: \(request.headers.count) > \(configuration.maxHeaderCount)"
+        category: .security(.headerInjection, message: message),
+        request: request
       )
     }
 
@@ -127,10 +127,10 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
           if configuration.sanitizeHeaders {
             continue  // Skip invalid header
           } else {
+            let message = "Header failed custom validation: \(name)"
             throw HTTPError(
-              category: .security(.headerInjection),
-              request: request,
-              message: "Header failed custom validation: \(name)"
+              category: .security(.headerInjection, message: message),
+              request: request
             )
           }
         }
@@ -156,10 +156,10 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
   private func validateHeaderName(_ name: String, for request: HTTPRequest) throws {
     // Check for empty header name
     if name.isEmpty {
+      let message = "Empty header name"
       throw HTTPError(
-        category: .security(.headerInjection),
-        request: request,
-        message: "Empty header name"
+        category: .security(.headerInjection, message: message),
+        request: request
       )
     }
 
@@ -172,20 +172,20 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
       if configuration.sanitizeHeaders {
         return  // Will be sanitized later
       } else {
+        let message = "Invalid characters in header name: \(name)"
         throw HTTPError(
-          category: .security(.headerInjection),
-          request: request,
-          message: "Invalid characters in header name: \(name)"
+          category: .security(.headerInjection, message: message),
+          request: request
         )
       }
     }
 
     // Check for header injection patterns
     if containsInjectionPattern(name) {
+      let message = "Potential header injection in name: \(name)"
       throw HTTPError(
-        category: .security(.headerInjection),
-        request: request,
-        message: "Potential header injection in name: \(name)"
+        category: .security(.headerInjection, message: message),
+        request: request
       )
     }
   }
@@ -193,10 +193,10 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
   private func validateHeaderValue(_ value: String, for request: HTTPRequest) throws {
     // Check maximum length
     if value.count > configuration.maxHeaderValueLength {
+      let message = "Header value too long: \(value.count) > \(configuration.maxHeaderValueLength)"
       throw HTTPError(
-        category: .security(.headerInjection),
-        request: request,
-        message: "Header value too long: \(value.count) > \(configuration.maxHeaderValueLength)"
+        category: .security(.headerInjection, message: message),
+        request: request
       )
     }
 
@@ -209,29 +209,29 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
       if configuration.sanitizeHeaders {
         return  // Will be sanitized later
       } else {
+        let message = "Invalid control characters in header value: \(value.prefix(50))"
         throw HTTPError(
-          category: .security(.headerInjection),
-          request: request,
-          message: "Invalid control characters in header value: \(value.prefix(50))"
+          category: .security(.headerInjection, message: message),
+          request: request
         )
       }
     }
 
     // Check for header injection patterns
     if containsInjectionPattern(value) {
+      let message = "Potential header injection in value: \(value.prefix(50))"
       throw HTTPError(
-        category: .security(.headerInjection),
-        request: request,
-        message: "Potential header injection in value: \(value.prefix(50))"
+        category: .security(.headerInjection, message: message),
+        request: request
       )
     }
 
     // Check for common injection patterns
     if containsSuspiciousPatterns(value) {
+      let message = "Suspicious patterns detected in header value"
       throw HTTPError(
-        category: .security(.headerInjection),
-        request: request,
-        message: "Suspicious patterns detected in header value"
+        category: .security(.headerInjection, message: message),
+        request: request
       )
     }
   }
@@ -316,20 +316,23 @@ extension HTTPError {
 }
 
 extension HTTPError.Category {
-  public static func security(_ error: HTTPError.SecurityError) -> Self {
+  public static func security(_ error: HTTPError.SecurityError, message: String? = nil) -> Self {
+    let defaultMessage: String
     switch error {
     case .headerInjection:
-      return .custom("Security", "Header injection attack detected")
+      defaultMessage = "Header injection attack detected"
 
     case .maliciousContent:
-      return .custom("Security", "Malicious content detected")
+      defaultMessage = "Malicious content detected"
 
     case .suspiciousActivity:
-      return .custom("Security", "Suspicious activity detected")
+      defaultMessage = "Suspicious activity detected"
 
     case .rateLimitExceeded:
-      return .custom("Security", "Rate limit exceeded")
+      defaultMessage = "Rate limit exceeded"
     }
+
+    return .custom("Security", message ?? defaultMessage)
   }
 }
 

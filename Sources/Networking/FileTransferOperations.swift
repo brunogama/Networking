@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
 /// Represents the result of a file transfer operation.
 public struct FileTransferResult: Sendable {
   /// The unique identifier for this transfer
@@ -185,7 +189,7 @@ public struct BackgroundTransferConfiguration: Sendable {
 
   public init(
     enableBackgroundTransfer: Bool = false,
-    backgroundSessionIdentifier: String = "ModernNetworking.BackgroundTransfer",
+    backgroundSessionIdentifier: String = "Networking.BackgroundTransfer",
     allowsCellularAccess: Bool = true,
     allowsExpensiveNetworkAccess: Bool = false,
     timeoutIntervalForRequest: TimeInterval = 60.0,
@@ -254,7 +258,7 @@ public actor FileTransferOperations {
   private let configuration: FileTransferConfiguration
   private let progressMiddleware: ProgressTrackingMiddleware
   private var activeTransfers: [UUID: ActiveTransfer] = [:]
-  private nonisolated(unsafe) var backgroundSession: URLSession?
+  nonisolated(unsafe) private var backgroundSession: URLSession?
 
   // MARK: - Internal State
 
@@ -288,9 +292,11 @@ public actor FileTransferOperations {
       )
     )
 
-    if configuration.backgroundTransferConfiguration.enableBackgroundTransfer {
-      self.backgroundSession = createBackgroundSession()
-    }
+    #if !os(Linux)
+      if configuration.backgroundTransferConfiguration.enableBackgroundTransfer {
+        self.backgroundSession = createBackgroundSession()
+      }
+    #endif
   }
 
   // MARK: - File Upload Operations
@@ -506,12 +512,14 @@ public actor FileTransferOperations {
   public func configureBackgroundTransfer(
     _ configuration: BackgroundTransferConfiguration
   ) async {
-    if configuration.enableBackgroundTransfer {
-      self.backgroundSession = createBackgroundSession(with: configuration)
-    } else {
-      self.backgroundSession?.invalidateAndCancel()
-      self.backgroundSession = nil
-    }
+    #if !os(Linux)
+      if configuration.enableBackgroundTransfer {
+        self.backgroundSession = createBackgroundSession(with: configuration)
+      } else {
+        self.backgroundSession?.invalidateAndCancel()
+        self.backgroundSession = nil
+      }
+    #endif
   }
 
   // MARK: - Private Methods
@@ -560,7 +568,8 @@ public actor FileTransferOperations {
     // Check MIME type
     if let supportedTypes = configuration.supportedMimeTypes,
       let mimeType = metadata.mimeType,
-      !supportedTypes.contains(mimeType) {
+      !supportedTypes.contains(mimeType)
+    {
       throw FileTransferError.unsupportedFileType(mimeType: mimeType)
     }
 
@@ -655,7 +664,8 @@ public actor FileTransferOperations {
       // Verify checksum if applicable
       if configuration.enableIntegrityCheck,
         let data = response.body ?? request.body,
-        let expectedChecksum = metadata?.checksum {
+        let expectedChecksum = metadata?.checksum
+      {
         let actualChecksum = calculateChecksum(for: data)
         if actualChecksum != expectedChecksum {
           throw FileTransferError.checksumMismatch(
@@ -713,26 +723,28 @@ public actor FileTransferOperations {
     )
   }
 
-  private nonisolated func createBackgroundSession(
-    with config: BackgroundTransferConfiguration? = nil
-  ) -> URLSession {
-    let configuration = config ?? self.configuration.backgroundTransferConfiguration
+  #if !os(Linux)
+    nonisolated private func createBackgroundSession(
+      with config: BackgroundTransferConfiguration? = nil
+    ) -> URLSession {
+      let configuration = config ?? self.configuration.backgroundTransferConfiguration
 
-    let sessionConfig = URLSessionConfiguration.background(
-      withIdentifier: configuration.backgroundSessionIdentifier
-    )
+      let sessionConfig = URLSessionConfiguration.background(
+        withIdentifier: configuration.backgroundSessionIdentifier
+      )
 
-    sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess
-    sessionConfig.allowsExpensiveNetworkAccess = configuration.allowsExpensiveNetworkAccess
-    sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest
-    sessionConfig.timeoutIntervalForResource = configuration.timeoutIntervalForResource
+      sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess
+      sessionConfig.allowsExpensiveNetworkAccess = configuration.allowsExpensiveNetworkAccess
+      sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest
+      sessionConfig.timeoutIntervalForResource = configuration.timeoutIntervalForResource
 
-    return URLSession(
-      configuration: sessionConfig,
-      delegate: BackgroundTransferDelegate(),
-      delegateQueue: nil
-    )
-  }
+      return URLSession(
+        configuration: sessionConfig,
+        delegate: BackgroundTransferDelegate(),
+        delegateQueue: nil
+      )
+    }
+  #endif
 
   private func getMimeType(for fileURL: URL) -> String? {
     let fileExtension = fileURL.pathExtension.lowercased()
@@ -765,53 +777,63 @@ public actor FileTransferOperations {
 
 // MARK: - Background Transfer Delegate
 
-/// Delegate for handling background transfer events.
-private final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDelegate, @unchecked
-  Sendable {
-  func urlSession(
-    _ session: URLSession,
-    downloadTask: URLSessionDownloadTask,
-    didFinishDownloadingTo location: URL
-  ) {
-    // Handle completed download
-    // In a real implementation, this would notify the FileTransferOperations actor
+#if !os(Linux)
+
+  /// Delegate for handling background transfer events.
+  private final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDelegate, @unchecked
+    Sendable
+  {
+    func urlSession(
+      _ session: URLSession,
+      downloadTask: URLSessionDownloadTask,
+      didFinishDownloadingTo location: URL
+    ) {
+      // Handle completed download
+      // In a real implementation, this would notify the FileTransferOperations actor
+    }
+
+    func urlSession(
+      _ session: URLSession,
+      downloadTask: URLSessionDownloadTask,
+      didWriteData bytesWritten: Int64,
+      totalBytesWritten: Int64,
+      totalBytesExpectedToWrite: Int64
+    ) {
+      // Handle progress updates
+      // In a real implementation, this would update progress through the middleware
+    }
+
+    func urlSession(
+      _ session: URLSession,
+      downloadTask: URLSessionDownloadTask,
+      didResumeAtOffset fileOffset: Int64,
+      expectedTotalBytes: Int64
+    ) {
+      // Handle resumed download
+      // In a real implementation, this would update the transfer state
+    }
+
+    func urlSession(
+      _ session: URLSession,
+      task: URLSessionTask,
+      didCompleteWithError error: (any Error)?
+    ) {
+      // Handle task completion or error
+      // In a real implementation, this would notify the FileTransferOperations actor
+    }
   }
 
-  func urlSession(
-    _ session: URLSession,
-    downloadTask: URLSessionDownloadTask,
-    didWriteData bytesWritten: Int64,
-    totalBytesWritten: Int64,
-    totalBytesExpectedToWrite: Int64
-  ) {
-    // Handle progress updates
-    // In a real implementation, this would update progress through the middleware
-  }
-
-  func urlSession(
-    _ session: URLSession,
-    downloadTask: URLSessionDownloadTask,
-    didResumeAtOffset fileOffset: Int64,
-    expectedTotalBytes: Int64
-  ) {
-    // Handle resumed download
-    // In a real implementation, this would update the transfer state
-  }
-
-  func urlSession(
-    _ session: URLSession,
-    task: URLSessionTask,
-    didCompleteWithError error: (any Error)?
-  ) {
-    // Handle task completion or error
-    // In a real implementation, this would notify the FileTransferOperations actor
-  }
-}
+#endif  // !os(Linux)
 
 // MARK: - CommonCrypto Integration
 
-// Import CommonCrypto for checksum calculation
-import CommonCrypto
+// Import CommonCrypto for checksum calculation (Apple platforms only)
+#if canImport(CommonCrypto)
+  import CommonCrypto
+#else
+  // For non-Apple platforms, define the CC_LONG type
+  private typealias CC_LONG = UInt32
+#endif
 
 // Helper constants for CommonCrypto (secure algorithms only)
 private let sha256DigestLength = Int(32)

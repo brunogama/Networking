@@ -12,7 +12,7 @@ struct IntegrationTests {
       return try NetworkClient {
         try BaseURL("https://httpbin.org")
         DefaultTimeout(30.0)
-        DefaultHeader("User-Agent", "ModernNetworking-Tests/1.0")
+        DefaultHeader("User-Agent", "Networking-Tests/1.0")
       }
     } catch {
       fatalError("Failed to create test client: \(error)")
@@ -48,8 +48,7 @@ struct IntegrationTests {
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
       let args = json["args"] as? [String: String],
-      let headers = json["headers"] as? [String: String]
-    {
+      let headers = json["headers"] as? [String: String] {
       #expect(args["param1"] == "value1")
       #expect(args["param2"] == "value2")
       #expect(headers["X-Custom-Header"] == "custom-value")
@@ -81,8 +80,7 @@ struct IntegrationTests {
     // Verify the request body was sent correctly
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let jsonData = json["json"] as? [String: Any]
-    {
+      let jsonData = json["json"] as? [String: Any] {
       #expect(jsonData["id"] as? String == "123")
       #expect(jsonData["name"] as? String == "John Doe")
       #expect(jsonData["email"] as? String == "john@example.com")
@@ -111,8 +109,7 @@ struct IntegrationTests {
     // Verify the update was processed
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let jsonData = json["json"] as? [String: Any]
-    {
+      let jsonData = json["json"] as? [String: Any] {
       #expect(jsonData["name"] as? String == "Jane Doe Updated")
       #expect(jsonData["email"] as? String == "jane.updated@example.com")
     }
@@ -134,8 +131,7 @@ struct IntegrationTests {
     // Verify authorization header was included
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let headers = json["headers"] as? [String: String]
-    {
+      let headers = json["headers"] as? [String: String] {
       #expect(headers["Authorization"] == "Bearer test-token")
     }
   }
@@ -146,11 +142,12 @@ struct IntegrationTests {
 
     let patchData = ["name": "Partially Updated Name"]
 
-    let request = try HTTPRequest {
-      PATCH("/patch")
-      Header("Content-Type", "application/json")
-      JSONBody(patchData)
-    }
+    let request = HTTPRequest(
+      method: .patch,
+      url: URL(string: "https://httpbin.org/patch")!,
+      headers: ["Content-Type": "application/json"],
+      body: try JSONEncoder().encode(patchData)
+    )
 
     let response = try await client.execute(request)
 
@@ -159,8 +156,7 @@ struct IntegrationTests {
     // Verify partial update was processed
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let jsonData = json["json"] as? [String: Any]
-    {
+      let jsonData = json["json"] as? [String: Any] {
       #expect(jsonData["name"] as? String == "Partially Updated Name")
     }
   }
@@ -343,13 +339,11 @@ struct IntegrationTests {
   func testLoggingMiddlewareIntegration() async throws {
     var loggedMessages: [String] = []
 
-    let loggingMiddleware = LoggingMiddleware { level, message, _ in
-      loggedMessages.append("\(level): \(message)")
-    }
+    let loggingMiddleware = LoggingMiddleware(configuration: LoggingMiddleware.Configuration())
 
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
-      Middleware(loggingMiddleware)
+      Middleware(loggingMiddleware as any HTTPRequestMiddleware)
     }
 
     let request = try HTTPRequest {
@@ -385,15 +379,20 @@ struct IntegrationTests {
       attemptCount += 1
     }
 
-    let retryMiddleware = RetryMiddleware(
+    let retryConfig = RetryMiddleware.Configuration(
       maxAttempts: 3,
-      baseDelay: 0.1,
-      backoffMultiplier: 1.5
+      baseDelay: 0.1
     )
 
-    let clientWithRetry = NetworkClient {
+    let tempClient = NetworkClient()
+    let retryMiddleware = RetryMiddleware(
+      configuration: retryConfig,
+      client: tempClient
+    )
+
+    let clientWithRetry = try NetworkClient {
       try BaseURL("https://example.com")
-      Middleware(retryMiddleware)
+      Middleware(retryMiddleware as any HTTPErrorMiddleware)
     }
 
     // Override the client's internal HTTP client
@@ -414,13 +413,34 @@ struct IntegrationTests {
 
   @Test("Authentication middleware integration")
   func testAuthenticationMiddlewareIntegration() async throws {
+    struct TestTokenProvider: AuthenticationMiddleware.TokenProvider {
+      let token: String
+
+      func getCurrentToken() async throws -> String? {
+        token
+      }
+
+      func refreshToken() async throws -> String {
+        token
+      }
+
+      func shouldRefreshToken(for error: HTTPError) async -> Bool {
+        false
+      }
+    }
+
+    let tokenProvider = TestTokenProvider(token: "test-token-123")
+    let authConfig = AuthenticationMiddleware.Configuration()
+    let tempClient = NetworkClient()
     let authMiddleware = AuthenticationMiddleware(
-      tokenProvider: { "Bearer test-token-123" }
+      configuration: authConfig,
+      tokenProvider: tokenProvider,
+      client: tempClient
     )
 
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
-      Middleware(authMiddleware)
+      Middleware(authMiddleware as any HTTPRequestMiddleware)
     }
 
     let request = try HTTPRequest {
@@ -434,8 +454,7 @@ struct IntegrationTests {
     // Verify the authentication header was added
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let headers = json["headers"] as? [String: String]
-    {
+      let headers = json["headers"] as? [String: String] {
       #expect(headers["Authorization"] == "Bearer test-token-123")
     }
   }
@@ -443,14 +462,16 @@ struct IntegrationTests {
   @Test("Caching middleware integration")
   func testCachingMiddlewareIntegration() async throws {
     let storage = MemoryCacheStorage()
+    let tempClient = NetworkClient()
     let cachingMiddleware = CachingMiddleware(
       configuration: CachingMiddleware.Configuration(defaultTTL: 300.0),
-      storage: storage
+      storage: storage,
+      client: tempClient
     )
 
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
-      Middleware(cachingMiddleware)
+      Middleware(cachingMiddleware as any HTTPRequestMiddleware)
     }
 
     let request = try HTTPRequest {
@@ -478,14 +499,16 @@ struct IntegrationTests {
 
   @Test("NetworkClient builder pattern integration")
   func testNetworkClientBuilderIntegration() async throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://httpbin.org")
       DefaultTimeout(15.0)
-      DefaultHeader("User-Agent", "ModernNetworking-Builder-Test/1.0")
+      DefaultHeader("User-Agent", "Networking-Builder-Test/1.0")
       DefaultHeader("Accept", "application/json")
 
-      Middleware(LoggingMiddleware { _, _, _ in })
-      Middleware(RetryMiddleware(maxAttempts: 2))
+      Middleware(
+        LoggingMiddleware(configuration: LoggingMiddleware.Configuration())
+          as any HTTPRequestMiddleware
+      )
     }
 
     let request = try HTTPRequest {
@@ -500,9 +523,8 @@ struct IntegrationTests {
     // Verify default headers were applied
     if let responseData = response.body,
       let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-      let headers = json["headers"] as? [String: String]
-    {
-      #expect(headers["User-Agent"] == "ModernNetworking-Builder-Test/1.0")
+      let headers = json["headers"] as? [String: String] {
+      #expect(headers["User-Agent"] == "Networking-Builder-Test/1.0")
       #expect(headers["Accept"] == "application/json")
     }
   }
@@ -517,13 +539,12 @@ struct IntegrationTests {
       Header("Authorization", "Bearer complex-token")
       QueryParam("version", "2.0")
       QueryParam("format", "json")
-      JSONBody([
-        "operation": "complex-test",
-        "parameters": [
-          "param1": "value1",
-          "param2": "value2",
-        ],
-      ])
+      JSONBody(
+        ComplexRequestData(
+          operation: "complex-test",
+          parameters: ["param1": "value1", "param2": "value2"]
+        )
+      )
       Timeout(25.0)
     }
 
@@ -533,8 +554,7 @@ struct IntegrationTests {
 
     // Verify all components were applied correctly
     if let responseData = response.body,
-      let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any]
-    {
+      let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] {
       // Check query parameters
       if let args = json["args"] as? [String: String] {
         #expect(args["version"] == "2.0")
@@ -683,10 +703,10 @@ struct IntegrationTests {
 
   @Test("Real network integration test", .disabled("Requires network access"))
   func testRealNetworkIntegration() async throws {
-    let client = NetworkClient {
+    let client = try NetworkClient {
       try BaseURL("https://api.github.com")
       DefaultTimeout(30.0)
-      DefaultHeader("User-Agent", "ModernNetworking-Integration-Test/1.0")
+      DefaultHeader("User-Agent", "Networking-Integration-Test/1.0")
     }
 
     let request = try HTTPRequest {
@@ -724,6 +744,11 @@ struct ErrorResponse: Codable {
   let error: String
   let message: String
   let code: Int
+}
+
+struct ComplexRequestData: Codable {
+  let operation: String
+  let parameters: [String: String]
 }
 
 struct RawResponseData: Codable {

@@ -5,7 +5,7 @@ import Foundation
 final class AuthenticationConfigurationTest: XCTestCase {
   func testAuthenticationConfigurationCreation() throws {
     // Test that we can create authentication configuration without crashes
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       Authentication {
         BearerToken("test-token")
@@ -18,7 +18,7 @@ final class AuthenticationConfigurationTest: XCTestCase {
 
   func testRetryConfigurationCreation() throws {
     // Test that we can create retry configuration without crashes
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       Retry {
         MaxAttempts(3)
@@ -32,7 +32,7 @@ final class AuthenticationConfigurationTest: XCTestCase {
 
   func testCachingConfigurationCreation() throws {
     // Test that we can create caching configuration without crashes
-    let client = NetworkClient {
+    let client = try NetworkClient {
       BaseURL(URL(string: "https://api.example.com")!)
       Caching {
         Policy.standard()

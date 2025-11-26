@@ -1,5 +1,20 @@
 import Foundation
 
+/// Protocol for providing current time, enabling deterministic testing.
+public protocol TimeProvider: Sendable {
+  /// Returns the current date/time.
+  func now() -> Date
+}
+
+/// Default time provider using system clock.
+public struct SystemTimeProvider: TimeProvider {
+  public init() {}
+
+  public func now() -> Date {
+    Date()
+  }
+}
+
 /// Circuit breaker middleware that prevents cascading failures by temporarily stopping requests
 /// to failing services, allowing them time to recover.
 ///
@@ -72,6 +87,7 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
 
   private let configuration: Configuration
   private let client: any HTTPClient
+  private let timeProvider: any TimeProvider
 
   // Circuit breaker state
   private var state: State = .closed
@@ -85,9 +101,15 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
   /// - Parameters:
   ///   - configuration: The circuit breaker configuration
   ///   - client: The HTTP client to use for requests
-  public init(configuration: Configuration, client: any HTTPClient) {
+  ///   - timeProvider: Provider for current time (defaults to system clock)
+  public init(
+    configuration: Configuration,
+    client: any HTTPClient,
+    timeProvider: any TimeProvider = SystemTimeProvider()
+  ) {
     self.configuration = configuration
     self.client = client
+    self.timeProvider = timeProvider
   }
 
   // MARK: - HTTPErrorMiddleware
@@ -98,7 +120,7 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
   ) async throws -> HTTPResponse {
     // Check if circuit is open and should remain open
     if case .open(let openedAt) = state {
-      let timeSinceOpened = Date().timeIntervalSince(openedAt)
+      let timeSinceOpened = timeProvider.now().timeIntervalSince(openedAt)
       if timeSinceOpened < configuration.recoveryTimeout {
         throw HTTPError(
           category: .network(.serverUnreachable),
@@ -177,7 +199,7 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
       return
     }
 
-    let now = Date()
+    let now = timeProvider.now()
 
     // Clean up old failures outside the rolling window
     let cutoffTime = now.addingTimeInterval(-configuration.rollingWindow)
@@ -211,7 +233,7 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
   }
 
   private func transitionToOpen() async {
-    state = .open(openedAt: Date())
+    state = .open(openedAt: timeProvider.now())
     successCount = 0
   }
 
@@ -238,19 +260,30 @@ public struct CircuitBreakerError: Error, Sendable, LocalizedError {
 
 extension CircuitBreakerMiddleware {
   /// Creates a circuit breaker with default configuration
-  /// - Parameter client: The HTTP client to wrap
+  /// - Parameters:
+  ///   - client: The HTTP client to wrap
+  ///   - timeProvider: Provider for current time (defaults to system clock)
   /// - Returns: A configured circuit breaker middleware
-  public static func `default`(client: any HTTPClient) -> CircuitBreakerMiddleware {
+  public static func `default`(
+    client: any HTTPClient,
+    timeProvider: any TimeProvider = SystemTimeProvider()
+  ) -> CircuitBreakerMiddleware {
     CircuitBreakerMiddleware(
       configuration: Configuration(),
-      client: client
+      client: client,
+      timeProvider: timeProvider
     )
   }
 
   /// Creates a circuit breaker with aggressive settings for unstable services
-  /// - Parameter client: The HTTP client to wrap
+  /// - Parameters:
+  ///   - client: The HTTP client to wrap
+  ///   - timeProvider: Provider for current time (defaults to system clock)
   /// - Returns: A configured circuit breaker middleware with lower thresholds
-  public static func aggressive(client: any HTTPClient) -> CircuitBreakerMiddleware {
+  public static func aggressive(
+    client: any HTTPClient,
+    timeProvider: any TimeProvider = SystemTimeProvider()
+  ) -> CircuitBreakerMiddleware {
     CircuitBreakerMiddleware(
       configuration: Configuration(
         failureThreshold: 3,
@@ -258,14 +291,20 @@ extension CircuitBreakerMiddleware {
         successThreshold: 2,
         rollingWindow: 60.0
       ),
-      client: client
+      client: client,
+      timeProvider: timeProvider
     )
   }
 
   /// Creates a circuit breaker with lenient settings for stable services
-  /// - Parameter client: The HTTP client to wrap
+  /// - Parameters:
+  ///   - client: The HTTP client to wrap
+  ///   - timeProvider: Provider for current time (defaults to system clock)
   /// - Returns: A configured circuit breaker middleware with higher thresholds
-  public static func lenient(client: any HTTPClient) -> CircuitBreakerMiddleware {
+  public static func lenient(
+    client: any HTTPClient,
+    timeProvider: any TimeProvider = SystemTimeProvider()
+  ) -> CircuitBreakerMiddleware {
     CircuitBreakerMiddleware(
       configuration: Configuration(
         failureThreshold: 10,
@@ -273,7 +312,8 @@ extension CircuitBreakerMiddleware {
         successThreshold: 5,
         rollingWindow: 300.0
       ),
-      client: client
+      client: client,
+      timeProvider: timeProvider
     )
   }
 }
