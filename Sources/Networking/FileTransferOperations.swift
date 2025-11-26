@@ -711,34 +711,19 @@ public actor FileTransferOperations {
     )
   }
 
-  #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
   private nonisolated func createBackgroundSession(
     with config: BackgroundTransferConfiguration? = nil
   ) -> URLSession {
     let configuration = config ?? self.configuration.backgroundTransferConfiguration
 
+    #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
     let sessionConfig = URLSessionConfiguration.background(
       withIdentifier: configuration.backgroundSessionIdentifier
     )
-
-    sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess
     sessionConfig.allowsExpensiveNetworkAccess = configuration.allowsExpensiveNetworkAccess
-    sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest
-    sessionConfig.timeoutIntervalForResource = configuration.timeoutIntervalForResource
-
-    return URLSession(
-      configuration: sessionConfig,
-      delegate: BackgroundTransferDelegate(),
-      delegateQueue: nil
-    )
-  }
-  #else
-  private nonisolated func createBackgroundSession(
-    with config: BackgroundTransferConfiguration? = nil
-  ) -> URLSession {
-    let configuration = config ?? self.configuration.backgroundTransferConfiguration
-
+    #else
     let sessionConfig = URLSessionConfiguration.default
+    #endif
 
     sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess
     sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest
@@ -750,7 +735,6 @@ public actor FileTransferOperations {
       delegateQueue: nil
     )
   }
-  #endif
 
   private func getMimeType(for fileURL: URL) -> String? {
     let fileExtension = fileURL.pathExtension.lowercased()

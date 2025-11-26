@@ -278,7 +278,7 @@ public struct SessionConfiguration: Sendable {
     let config = URLSessionConfiguration.default
     config.timeoutIntervalForRequest = timeout
     config.allowsCellularAccess = allowsCellularAccess
-    #if canImport(Security)
+    #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
     config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
     config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
     config.waitsForConnectivity = waitsForConnectivity
