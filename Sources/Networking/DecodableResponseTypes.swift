@@ -55,12 +55,11 @@ public struct DecodableResponse<T: Decodable & Sendable>: ValidatedResponseProto
       )
     }
 
-    let startTime = CFAbsoluteTimeGetCurrent()
+    let startTime = Date()
 
     do {
       let decodedValue = try decoder.decode(T.self, from: body)
-      let endTime = CFAbsoluteTimeGetCurrent()
-      let decodingDuration = endTime - startTime
+      let decodingDuration = Date().timeIntervalSince(startTime)
 
       let metadata = DecodingMetadata(
         decoder: "JSONDecoder",

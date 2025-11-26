@@ -1,6 +1,16 @@
 import Foundation
-import Security
-import CommonCrypto
+
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
+#if canImport(Security)
+  import Security
+#endif
+
+#if canImport(CommonCrypto)
+  import CommonCrypto
+#endif
 
 /// Configuration for security-related networking features.
 public struct SecurityConfiguration: Sendable {
@@ -133,25 +143,27 @@ public struct TLSConfiguration: Sendable {
   }
 }
 
-/// SSL Pinning Validator that handles certificate and public key validation.
-public final class SSLPinningValidator: NSObject, URLSessionDelegate {
-  private let securityConfiguration: SecurityConfiguration
+#if canImport(Security)
 
-  public init(securityConfiguration: SecurityConfiguration) {
-    self.securityConfiguration = securityConfiguration
-    super.init()
-  }
+  /// SSL Pinning Validator that handles certificate and public key validation.
+  public final class SSLPinningValidator: NSObject, URLSessionDelegate {
+    private let securityConfiguration: SecurityConfiguration
 
-  // MARK: - URLSessionDelegate
+    public init(securityConfiguration: SecurityConfiguration) {
+      self.securityConfiguration = securityConfiguration
+      super.init()
+    }
 
-  public func urlSession(
-    _ session: URLSession,
-    didReceive challenge: URLAuthenticationChallenge,
-    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-  ) {
-    // Only handle server trust challenges
-    guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust
-    else {
+    // MARK: - URLSessionDelegate
+
+    public func urlSession(
+      _ session: URLSession,
+      didReceive challenge: URLAuthenticationChallenge,
+      completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+      // Only handle server trust challenges
+      guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust
+      else {
       completionHandler(.performDefaultHandling, nil)
       return
     }
@@ -374,6 +386,8 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
     return digest.map { String(format: "%02x", $0) }.joined()
   }
 }
+
+#endif  // canImport(Security)
 
 // MARK: - Convenience Extensions
 
