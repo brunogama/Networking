@@ -262,7 +262,7 @@ public struct ProgressTracking: Sendable {
       // Clean up after a brief delay to allow final processing
       Task {
         try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 second
-        cleanupStream(transferId)
+        await cleanupStream(transferId)
       }
     }
 
@@ -272,7 +272,7 @@ public struct ProgressTracking: Sendable {
       guard let handle = activeStreams[transferId] else { return }
 
       handle.continuation.finish(throwing: ProgressError.streamCancelled)
-      cleanupStream(transferId)
+      await cleanupStream(transferId)
     }
 
     /// Returns active transfer IDs
@@ -281,7 +281,7 @@ public struct ProgressTracking: Sendable {
     }
 
     /// Cleans up completed or cancelled streams
-    private func cleanupStream(_ transferId: UUID) {
+    private func cleanupStream(_ transferId: UUID) async {
       activeStreams.removeValue(forKey: transferId)
     }
 
