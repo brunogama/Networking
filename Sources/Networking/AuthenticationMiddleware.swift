@@ -161,7 +161,7 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
     let task = Task<String, any Error> {
       defer {
         // Clean up the task reference when done
-        Task { await self.clearRefreshTask() }
+        Task { self.clearRefreshTask() }
       }
 
       return try await tokenProvider.refreshToken()
