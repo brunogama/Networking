@@ -126,20 +126,15 @@ public struct AsyncJSONDecoderTransformer<T: Decodable & Sendable>: AsyncRespons
   }
 
   public func transform(_ input: Data) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      Task {
-        do {
-          let result = try decoder.decode(type, from: input)
-          continuation.resume(returning: result)
-        } catch {
-          continuation.resume(
-            throwing: HTTPError(
-              category: .decoding("Failed to decode \(type): \(error.localizedDescription)"),
-              underlyingError: error
-            )
-          )
-        }
-      }
+    // We're already async - no need for continuation + Task nesting
+    // Just do the work directly
+    do {
+      return try decoder.decode(type, from: input)
+    } catch {
+      throw HTTPError(
+        category: .decoding("Failed to decode \(type): \(error.localizedDescription)"),
+        underlyingError: error
+      )
     }
   }
 }
@@ -166,15 +161,12 @@ public struct AsyncImageDecoderTransformer: AsyncResponseTransformer {
   public init() {}
 
   public func transform(_ input: Data) async throws -> ImageData {
-    try await withCheckedThrowingContinuation { continuation in
-      Task {
-        let format = detectImageFormat(from: input)
-        let size = extractImageSize(from: input, format: format)
+    // We're already async - no need for continuation + Task nesting
+    // Just do the work directly
+    let format = detectImageFormat(from: input)
+    let size = extractImageSize(from: input, format: format)
 
-        let imageData = ImageData(data: input, format: format, size: size)
-        continuation.resume(returning: imageData)
-      }
-    }
+    return ImageData(data: input, format: format, size: size)
   }
 
   private func detectImageFormat(from data: Data) -> ImageData.ImageFormat {
