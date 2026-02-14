@@ -328,7 +328,11 @@ public struct TransferControls: Sendable {
 
       try await transitionToState(transferId: transferId, newState: .resuming)
 
-      // Automatically transition to active after a brief delay
+      // LIFECYCLE: Fire-and-forget state transition - safe because:
+      // 1. resuming→active transition is idempotent
+      // 2. Actor isolation ensures thread safety
+      // 3. Bounded delay (0.1s) followed by state mutation
+      // 4. Failure to transition doesn't leak resources (state remains resuming)
       Task {
         _ = try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 second
         _ = try? await transitionToState(transferId: transferId, newState: .active)
@@ -348,7 +352,11 @@ public struct TransferControls: Sendable {
 
       try await transitionToState(transferId: transferId, newState: .cancelling)
 
-      // Complete cancellation after cleanup
+      // LIFECYCLE: Fire-and-forget cleanup - safe because:
+      // 1. unregisterTransfer only removes dictionary entry
+      // 2. Actor isolation ensures thread safety
+      // 3. Bounded delay (0.5s) followed by single dictionary mutation
+      // 4. Transfer already in terminal cancelling state, cleanup is just housekeeping
       Task {
         try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second
         await unregisterTransfer(transferId)
