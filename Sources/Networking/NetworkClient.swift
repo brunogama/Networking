@@ -177,6 +177,8 @@ public final class NetworkClient: HTTPClient {
     var urlRequest = URLRequest(url: httpRequest.url)
     urlRequest.httpMethod = httpRequest.method.rawValue
     urlRequest.timeoutInterval = httpRequest.timeout
+    // Use session's configuration cache policy if set, otherwise default
+    urlRequest.cachePolicy = session.configuration.requestCachePolicy
 
     // Set headers
     for (key, value) in httpRequest.headers {
@@ -663,6 +665,8 @@ private struct ConfigurableRetryMiddleware: HTTPErrorMiddleware {
     var urlRequest = URLRequest(url: httpRequest.url)
     urlRequest.httpMethod = httpRequest.method.rawValue
     urlRequest.timeoutInterval = httpRequest.timeout
+    // Use session's configuration cache policy if set, otherwise default
+    urlRequest.cachePolicy = session.configuration.requestCachePolicy
 
     // Set headers
     for (key, value) in httpRequest.headers {
@@ -812,6 +816,13 @@ private struct ConfigurableCachingMiddleware: HTTPRequestMiddleware, HTTPRespons
 }
 
 /// Internal cached response wrapper for NetworkClient's caching middleware
+/// Immutable cached response for internal use.
+///
+/// - Note: `@unchecked Sendable` justification:
+///   1. Required to be a class because `NSCache` requires reference types
+///   2. All properties are `let` (immutable) and themselves `Sendable`
+///   3. Instance is only written once at construction, then shared read-only
+///   4. Access to the cache itself is serialized through `CacheActor`
 private final class InternalCachedResponse: @unchecked Sendable {
   let response: HTTPResponse
   let cachedAt: Date
