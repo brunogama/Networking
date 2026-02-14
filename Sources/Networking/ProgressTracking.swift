@@ -172,6 +172,11 @@ public struct ProgressTracking: Sendable {
 
         // Set up cancellation handler
         continuation.onTermination = { [weak self] _ in
+          // LIFECYCLE: Fire-and-forget cleanup - safe because:
+          // 1. cleanupStream only removes dictionary entry (no external resources)
+          // 2. Actor isolation ensures thread safety
+          // 3. Short-lived operation (single dictionary mutation)
+          // 4. Weak self prevents retain cycles
           Task {
             await self?.cleanupStream(transferId)
           }
@@ -259,7 +264,11 @@ public struct ProgressTracking: Sendable {
 
       activeStreams[transferId] = handle
 
-      // Clean up after a brief delay to allow final processing
+      // LIFECYCLE: Fire-and-forget cleanup - safe because:
+      // 1. cleanupStream only removes dictionary entry (no external resources)
+      // 2. Actor isolation ensures thread safety
+      // 3. Bounded delay (0.1s) followed by single dictionary mutation
+      // 4. No user-facing impact if delayed cleanup fails
       Task {
         try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 second
         await cleanupStream(transferId)
