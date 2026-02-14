@@ -9,7 +9,10 @@ import Foundation
 #if canImport(Security)
 
   /// Secure storage service using iOS/macOS Keychain for sensitive data like authentication tokens.
-public final class KeychainService: @unchecked Sendable {
+  ///
+  /// This is implemented as an actor to ensure thread-safe access to keychain operations.
+  /// All keychain operations are serialized through actor isolation.
+public actor KeychainService {
   // MARK: - Configuration
 
   public struct Configuration: Sendable {
@@ -75,10 +78,9 @@ public final class KeychainService: @unchecked Sendable {
     self.configuration = configuration
   }
 
-  /// Convenience initializer with default configuration
-  public convenience init(service: String) {
-    let config = Configuration(service: service)
-    self.init(configuration: config)
+  /// Initializer with service name (creates default configuration)
+  public init(service: String) {
+    self.configuration = Configuration(service: service)
   }
 
   // MARK: - Public Methods
@@ -396,7 +398,7 @@ public final class KeychainTokenProvider: BearerTokenProvider {
   }
 
   public func getCurrentToken() async throws -> String? {
-    try keychainService.retrieveString(forKey: tokenKey)
+    try await keychainService.retrieveString(forKey: tokenKey)
   }
 
   public func refreshToken() async throws -> String {
@@ -408,7 +410,7 @@ public final class KeychainTokenProvider: BearerTokenProvider {
     // 4. Return the new access token
 
     guard let refreshTokenKey = refreshTokenKey,
-      let _ = try keychainService.retrieveString(forKey: refreshTokenKey)
+      let _ = try await keychainService.retrieveString(forKey: refreshTokenKey)
     else {
       throw HTTPError(category: .configuration("No refresh token available"))
     }
@@ -418,23 +420,23 @@ public final class KeychainTokenProvider: BearerTokenProvider {
   }
 
   /// Stores an access token securely in the keychain
-  public func storeToken(_ token: String) throws {
-    try keychainService.store(token, forKey: tokenKey)
+  public func storeToken(_ token: String) async throws {
+    try await keychainService.store(token, forKey: tokenKey)
   }
 
   /// Stores a refresh token securely in the keychain
-  public func storeRefreshToken(_ token: String) throws {
+  public func storeRefreshToken(_ token: String) async throws {
     guard let refreshTokenKey = refreshTokenKey else {
       throw HTTPError(category: .configuration("Refresh token key not configured"))
     }
-    try keychainService.store(token, forKey: refreshTokenKey)
+    try await keychainService.store(token, forKey: refreshTokenKey)
   }
 
   /// Clears all stored tokens
-  public func clearTokens() throws {
-    try keychainService.delete(tokenKey)
+  public func clearTokens() async throws {
+    try await keychainService.delete(tokenKey)
     if let refreshTokenKey = refreshTokenKey {
-      try keychainService.delete(refreshTokenKey)
+      try await keychainService.delete(refreshTokenKey)
     }
   }
 }
