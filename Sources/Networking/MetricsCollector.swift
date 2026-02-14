@@ -885,7 +885,7 @@ extension ComprehensiveMetricsCollector {
       eventRetentionDuration: 3600,  // 1 hour
       enablePersistence: false,
       enableAlerting: false,
-      enableBusinessMetrics: false
+      enableBusinessMetrics: true
     )
     return ComprehensiveMetricsCollector(configuration: config)
   }

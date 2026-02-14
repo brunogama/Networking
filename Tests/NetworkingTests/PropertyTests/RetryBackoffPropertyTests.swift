@@ -173,9 +173,9 @@ struct RetryConfig: Sendable {
   let maxDelay: TimeInterval
 }
 
-// MARK: - Retry Configuration Generator
+// MARK: - Arbitrary Conformance
 
-enum RetryConfigGen {
+extension RetryConfig: Arbitrary {
   static var arbitrary: Gen<RetryConfig> {
     Gen<RetryConfig>.compose { composer in
       // Generate reasonable retry configuration values
@@ -189,5 +189,13 @@ enum RetryConfigGen {
         maxDelay: TimeInterval(maxDelay) / 10.0  // 1.0 to 100.0 seconds
       )
     }
+  }
+}
+
+// MARK: - Retry Configuration Generator (Legacy, now using Arbitrary conformance)
+
+enum RetryConfigGen {
+  static var arbitrary: Gen<RetryConfig> {
+    RetryConfig.arbitrary
   }
 }

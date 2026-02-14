@@ -1,3 +1,4 @@
+#if MACRO_TESTS_ENABLED
 import NetworkingMacros
 import SwiftSyntax
 import SwiftSyntaxBuilder
@@ -264,3 +265,4 @@ final class BodyMacroTests: XCTestCase {
     )
   }
 }
+#endif

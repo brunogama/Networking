@@ -16,11 +16,11 @@ final class KeychainServiceTests: XCTestCase {
     sut = KeychainService(service: testService)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     // Clean up test keychain items
-    try? sut.deleteAll()
+    try? await sut.deleteAll()
     sut = nil
-    super.tearDown()
+    try await super.tearDown()
   }
 
   // MARK: - Configuration Tests
@@ -86,190 +86,204 @@ final class KeychainServiceTests: XCTestCase {
 
   // MARK: - String Storage Tests
 
-  func testStoreStringValue() throws {
+  func testStoreStringValue() async throws {
     let key = "testKey"
     let value = "testValue"
 
-    try sut.store(value, forKey: key)
+    try await sut.store(value, forKey: key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertEqual(retrieved, value)
   }
 
-  func testStoreEmptyString() throws {
+  func testStoreEmptyString() async throws {
     let key = "emptyKey"
     let value = ""
 
-    try sut.store(value, forKey: key)
+    try await sut.store(value, forKey: key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertEqual(retrieved, value)
   }
 
-  func testStoreUnicodeString() throws {
+  func testStoreUnicodeString() async throws {
     let key = "unicodeKey"
     let value = "Test with unicode: cafe\u{0301} and symbols"
 
-    try sut.store(value, forKey: key)
+    try await sut.store(value, forKey: key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertEqual(retrieved, value)
   }
 
-  func testStoreLongString() throws {
+  func testStoreLongString() async throws {
     let key = "longKey"
     let value = String(repeating: "a", count: 10_000)
 
-    try sut.store(value, forKey: key)
+    try await sut.store(value, forKey: key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertEqual(retrieved, value)
   }
 
-  func testOverwriteExistingValue() throws {
+  func testOverwriteExistingValue() async throws {
     let key = "overwriteKey"
-    try sut.store("original", forKey: key)
+    try await sut.store("original", forKey: key)
 
-    try sut.store("updated", forKey: key)
+    try await sut.store("updated", forKey: key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertEqual(retrieved, "updated")
   }
 
   // MARK: - Data Storage Tests
 
-  func testStoreData() throws {
+  func testStoreData() async throws {
     let key = "dataKey"
     let data = Data([0x01, 0x02, 0x03, 0x04])
 
-    try sut.store(data, forKey: key)
+    try await sut.store(data, forKey: key)
 
-    let retrieved = try sut.retrieveData(forKey: key)
+    let retrieved = try await sut.retrieveData(forKey: key)
     XCTAssertEqual(retrieved, data)
   }
 
-  func testStoreLargeData() throws {
+  func testStoreLargeData() async throws {
     let key = "largeDataKey"
     let data = Data(repeating: 0xAB, count: 100_000)
 
-    try sut.store(data, forKey: key)
+    try await sut.store(data, forKey: key)
 
-    let retrieved = try sut.retrieveData(forKey: key)
+    let retrieved = try await sut.retrieveData(forKey: key)
     XCTAssertEqual(retrieved, data)
   }
 
-  func testStoreEmptyData() throws {
+  func testStoreEmptyData() async throws {
     let key = "emptyDataKey"
     let data = Data()
 
-    try sut.store(data, forKey: key)
+    try await sut.store(data, forKey: key)
 
-    let retrieved = try sut.retrieveData(forKey: key)
+    let retrieved = try await sut.retrieveData(forKey: key)
     XCTAssertEqual(retrieved, data)
   }
 
   // MARK: - Retrieval Tests
 
-  func testRetrieveNonExistentKeyReturnsNil() throws {
-    let retrieved = try sut.retrieveString(forKey: "nonexistent")
+  func testRetrieveNonExistentKeyReturnsNil() async throws {
+    let retrieved = try await sut.retrieveString(forKey: "nonexistent")
     XCTAssertNil(retrieved)
   }
 
-  func testRetrieveDataNonExistentKeyReturnsNil() throws {
-    let retrieved = try sut.retrieveData(forKey: "nonexistent")
+  func testRetrieveDataNonExistentKeyReturnsNil() async throws {
+    let retrieved = try await sut.retrieveData(forKey: "nonexistent")
     XCTAssertNil(retrieved)
   }
 
   // MARK: - Update Tests
 
-  func testUpdateExistingString() throws {
+  func testUpdateExistingString() async throws {
     let key = "updateKey"
-    try sut.store("original", forKey: key)
+    try await sut.store("original", forKey: key)
 
-    try sut.update("updated", forKey: key)
+    try await sut.update("updated", forKey: key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertEqual(retrieved, "updated")
   }
 
-  func testUpdateNonExistentKeyCreatesItem() throws {
+  func testUpdateNonExistentKeyCreatesItem() async throws {
     let key = "newUpdateKey"
 
-    try sut.update("newValue", forKey: key)
+    try await sut.update("newValue", forKey: key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertEqual(retrieved, "newValue")
   }
 
-  func testUpdateData() throws {
+  func testUpdateData() async throws {
     let key = "updateDataKey"
-    try sut.store(Data([0x01]), forKey: key)
+    try await sut.store(Data([0x01]), forKey: key)
 
-    try sut.update(Data([0x02, 0x03]), forKey: key)
+    try await sut.update(Data([0x02, 0x03]), forKey: key)
 
-    let retrieved = try sut.retrieveData(forKey: key)
+    let retrieved = try await sut.retrieveData(forKey: key)
     XCTAssertEqual(retrieved, Data([0x02, 0x03]))
   }
 
   // MARK: - Delete Tests
 
-  func testDeleteExistingKey() throws {
+  func testDeleteExistingKey() async throws {
     let key = "deleteKey"
-    try sut.store("value", forKey: key)
+    try await sut.store("value", forKey: key)
 
-    try sut.delete(key)
+    try await sut.delete(key)
 
-    let retrieved = try sut.retrieveString(forKey: key)
+    let retrieved = try await sut.retrieveString(forKey: key)
     XCTAssertNil(retrieved)
   }
 
-  func testDeleteNonExistentKeyDoesNotThrow() throws {
-    XCTAssertNoThrow(try sut.delete("nonexistent"))
+  func testDeleteNonExistentKeyDoesNotThrow() async throws {
+    do {
+      try await sut.delete("nonexistent")
+    } catch {
+      XCTFail("delete should not throw for non-existent key: \(error)")
+    }
   }
 
   // MARK: - Exists Tests
 
-  func testExistsReturnsTrueForExistingKey() throws {
+  func testExistsReturnsTrueForExistingKey() async throws {
     let key = "existsKey"
-    try sut.store("value", forKey: key)
+    try await sut.store("value", forKey: key)
 
-    XCTAssertTrue(sut.exists(key))
+    let exists = await sut.exists(key)
+    XCTAssertTrue(exists)
   }
 
-  func testExistsReturnsFalseForNonExistentKey() {
-    XCTAssertFalse(sut.exists("nonexistent"))
+  func testExistsReturnsFalseForNonExistentKey() async {
+    let exists = await sut.exists("nonexistent")
+    XCTAssertFalse(exists)
   }
 
   // MARK: - All Keys Tests
 
-  func testAllKeysReturnsStoredKeys() throws {
-    try sut.store("value1", forKey: "key1")
-    try sut.store("value2", forKey: "key2")
-    try sut.store("value3", forKey: "key3")
+  func testAllKeysReturnsStoredKeys() async throws {
+    try await sut.store("value1", forKey: "key1")
+    try await sut.store("value2", forKey: "key2")
+    try await sut.store("value3", forKey: "key3")
 
-    let keys = try sut.allKeys()
+    let keys = try await sut.allKeys()
 
     XCTAssertEqual(Set(keys), Set(["key1", "key2", "key3"]))
   }
 
-  func testAllKeysReturnsEmptyArrayWhenNoItems() throws {
-    let keys = try sut.allKeys()
+  func testAllKeysReturnsEmptyArrayWhenNoItems() async throws {
+    let keys = try await sut.allKeys()
     XCTAssertTrue(keys.isEmpty)
   }
 
   // MARK: - Delete All Tests
 
-  func testDeleteAllDoesNotThrow() throws {
+  func testDeleteAllDoesNotThrow() async throws {
     // Store some items first
-    try sut.store("value1", forKey: "deleteAllKey1")
-    try sut.store("value2", forKey: "deleteAllKey2")
+    try await sut.store("value1", forKey: "deleteAllKey1")
+    try await sut.store("value2", forKey: "deleteAllKey2")
 
     // deleteAll should not throw
-    XCTAssertNoThrow(try sut.deleteAll())
+    do {
+      try await sut.deleteAll()
+    } catch {
+      XCTFail("deleteAll should not throw: \(error)")
+    }
   }
 
-  func testDeleteAllDoesNotThrowWhenEmpty() throws {
-    XCTAssertNoThrow(try sut.deleteAll())
+  func testDeleteAllDoesNotThrowWhenEmpty() async throws {
+    do {
+      try await sut.deleteAll()
+    } catch {
+      XCTFail("deleteAll should not throw when empty: \(error)")
+    }
   }
 
   // MARK: - KeychainError Tests
@@ -366,21 +380,21 @@ final class KeychainServiceTests: XCTestCase {
   func testTokenProviderStoreAndRetrieveToken() async throws {
     let provider = KeychainTokenProvider(keychainService: sut)
 
-    try provider.storeToken("test_access_token")
+    try await provider.storeToken("test_access_token")
 
     let retrievedToken = try await provider.getCurrentToken()
     XCTAssertEqual(retrievedToken, "test_access_token")
   }
 
-  func testTokenProviderStoreRefreshToken() throws {
+  func testTokenProviderStoreRefreshToken() async throws {
     let provider = KeychainTokenProvider(
       keychainService: sut,
       refreshTokenKey: "refresh_token"
     )
 
-    try provider.storeRefreshToken("test_refresh_token")
+    try await provider.storeRefreshToken("test_refresh_token")
 
-    let retrieved = try sut.retrieveString(forKey: "refresh_token")
+    let retrieved = try await sut.retrieveString(forKey: "refresh_token")
     XCTAssertEqual(retrieved, "test_refresh_token")
   }
 
@@ -390,14 +404,14 @@ final class KeychainServiceTests: XCTestCase {
       tokenKey: "access_token",
       refreshTokenKey: "refresh_token"
     )
-    try provider.storeToken("access")
-    try provider.storeRefreshToken("refresh")
+    try await provider.storeToken("access")
+    try await provider.storeRefreshToken("refresh")
 
-    try provider.clearTokens()
+    try await provider.clearTokens()
 
     let accessToken = try await provider.getCurrentToken()
     XCTAssertNil(accessToken)
-    let refreshToken = try sut.retrieveString(forKey: "refresh_token")
+    let refreshToken = try await sut.retrieveString(forKey: "refresh_token")
     XCTAssertNil(refreshToken)
   }
 
@@ -418,36 +432,36 @@ final class KeychainServiceTests: XCTestCase {
 
   // MARK: - Sequential Access Tests
 
-  func testSequentialWriteAccess() throws {
+  func testSequentialWriteAccess() async throws {
     let iterations = 10
 
     for i in 0..<iterations {
-      try sut.store("value\(i)", forKey: "sequential\(i)")
+      try await sut.store("value\(i)", forKey: "sequential\(i)")
     }
 
     // Verify all values are retrievable
     for i in 0..<iterations {
-      let value = try sut.retrieveString(forKey: "sequential\(i)")
+      let value = try await sut.retrieveString(forKey: "sequential\(i)")
       XCTAssertEqual(value, "value\(i)")
     }
   }
 
-  func testSequentialReadWriteAccess() throws {
+  func testSequentialReadWriteAccess() async throws {
     let key = "sharedKey"
-    try sut.store("initial", forKey: key)
+    try await sut.store("initial", forKey: key)
 
     let iterations = 10
 
     for i in 0..<iterations {
       if i % 2 == 0 {
-        try sut.store("value\(i)", forKey: key)
+        try await sut.store("value\(i)", forKey: key)
       } else {
-        _ = try sut.retrieveString(forKey: key)
+        _ = try await sut.retrieveString(forKey: key)
       }
     }
 
     // Should be able to retrieve some value
-    let finalValue = try sut.retrieveString(forKey: key)
+    let finalValue = try await sut.retrieveString(forKey: key)
     XCTAssertNotNil(finalValue)
   }
 }

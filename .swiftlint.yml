@@ -199,8 +199,8 @@ function_body_length:
 # Cyclomatic complexity (Google recommendation)
 # Note: Macro validation logic excluded due to complex parameter checking
 cyclomatic_complexity:
-  warning: 10
-  error: 15
+  warning: 4
+  error: 5
   excluded:
     - "Sources/NetworkingMacros/**/*.swift"
 

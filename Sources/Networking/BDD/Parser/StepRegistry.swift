@@ -27,6 +27,10 @@ import Foundation
 ///   // ... verify status
 /// }
 /// ```
+///
+/// - Note: `@unchecked Sendable` justification:
+///   All mutable state (`givenSteps`, `whenSteps`, `thenSteps`) is protected
+///   by an internal `NSLock`. All public methods synchronize access via this lock.
 public final class StepRegistry: @unchecked Sendable {
   // MARK: - Types
 

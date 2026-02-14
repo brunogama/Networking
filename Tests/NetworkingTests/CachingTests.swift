@@ -56,18 +56,18 @@ struct CachingTests {
   func testCacheEntryExpiration() async throws {
     let response = createTestResponse()
 
-    // Create entry with very short TTL
+    // Create entry with short but measurable TTL
     let entry = CachingMiddleware.CacheEntry(
       response: response,
-      ttl: 0.001,  // 1ms
+      ttl: 0.05,  // 50ms
       etag: "test-etag"
     )
 
-    // Wait for expiration
-    try await Task.sleep(nanoseconds: 10_000_000)  // 10ms
+    // Wait for expiration with sufficient margin
+    try await Task.sleep(nanoseconds: 100_000_000)  // 100ms
 
     #expect(entry.isExpired)
-    #expect(entry.age > 0.005)  // At least 5ms old
+    #expect(entry.age > 0.05)  // At least 50ms old
   }
 
   // MARK: - Memory Cache Storage Tests
@@ -127,13 +127,13 @@ struct CachingTests {
     let response = createTestResponse()
     let entry = CachingMiddleware.CacheEntry(
       response: response,
-      ttl: 0.001  // Very short TTL
+      ttl: 0.1  // 100ms TTL - reliable for timing tests
     )
 
     await cache.set(key, entry: entry)
 
-    // Wait for expiration
-    try await Task.sleep(nanoseconds: 10_000_000)  // 10ms
+    // Wait for expiration with sufficient margin (3x TTL)
+    try await Task.sleep(nanoseconds: 300_000_000)  // 300ms
 
     // Entry should be automatically removed when accessed
     let retrievedEntry = await cache.get(key)
@@ -144,10 +144,10 @@ struct CachingTests {
       "test-key",
       entry: CachingMiddleware.CacheEntry(
         response: response,
-        ttl: 0.001
+        ttl: 0.1  // 100ms TTL
       )
     )
-    try await Task.sleep(nanoseconds: 10_000_000)
+    try await Task.sleep(nanoseconds: 300_000_000)  // 300ms
 
     await cache.removeExpired()
     let cleanedEntry = await cache.get("test-key")
@@ -620,31 +620,4 @@ private final class CachingTestMockHTTPClient: HTTPClient {
       body: "mock response".data(using: .utf8)
     )
   }
-}
-
-// MARK: - Test Extensions for HTTPStatus
-
-extension HTTPStatus {
-  init(rawValue: Int) {
-    switch rawValue {
-    case 200:
-      self = .ok
-
-    case 304:
-      self = .notModified
-
-    case 404:
-      self = .notFound
-
-    case 500:
-      self = .internalServerError
-
-    default:
-      self = .ok  // Default for testing
-    }
-  }
-}
-
-extension HTTPStatus {
-  static let notModified = HTTPStatus(rawValue: 304)
 }
