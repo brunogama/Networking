@@ -182,7 +182,7 @@ public struct ErrorRecoveryStrategies: Sendable {
       request: HTTPRequest,
       using client: any HTTPClient
     ) async throws -> HTTPResponse {
-      let currentState = await getCurrentState()
+      let currentState = getCurrentState()
 
       switch currentState {
       case .open:
@@ -197,13 +197,13 @@ public struct ErrorRecoveryStrategies: Sendable {
         // Try the request
         do {
           let response = try await client.execute(request)
-          await recordSuccess()
+          recordSuccess()
           return response
         } catch let recoveryError as HTTPError {
-          await recordFailure()
+          recordFailure()
           throw recoveryError
         } catch {
-          await recordFailure()
+          recordFailure()
           throw HTTPError(
             category: .network(.serverUnreachable),
             request: request,
