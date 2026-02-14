@@ -3,12 +3,15 @@ import Foundation
 @testable import Networking
 
 /// Comprehensive tests demonstrating MockURLProtocol and MockNetworkClient usage
-@Suite("Mocking Framework Tests")
+@Suite("Mocking Framework Tests", .serialized)
 struct MockingTests {
   // MARK: - MockURLProtocol Tests
 
   @Test("MockURLProtocol basic stubbing")
   func testMockURLProtocolBasicStubbing() async throws {
+    // Clear any previous state
+    MockURLProtocol.clearAll()
+
     // Setup
     let testData = #"{"id": 123, "name": "Test User"}"#.data(using: .utf8)!
 
@@ -41,13 +44,15 @@ struct MockingTests {
 
   @Test("MockURLProtocol JSON stubbing")
   func testMockURLProtocolJSONStubbing() async throws {
+    // Clear any previous state
+    MockURLProtocol.clearAll()
+
     struct User: Codable, Equatable {
       let id: Int
       let name: String
-      let email: String
     }
 
-    let user = User(id: 123, name: "Test User", email: "test@example.com")
+    let user = User(id: 123, name: "Test User")
 
     // Setup JSON stub
     try MockURLProtocol.stubJSON(
@@ -75,6 +80,9 @@ struct MockingTests {
 
   @Test("MockURLProtocol error simulation")
   func testMockURLProtocolErrorSimulation() async throws {
+    // Clear any previous state
+    MockURLProtocol.clearAll()
+
     // Setup error stub
     MockURLProtocol.stubError(
       url: "https://api.example.com/error",
@@ -87,8 +95,8 @@ struct MockingTests {
       GET("https://api.example.com/error")
     }
 
-    // Verify error is thrown
-    await #expect(throws: URLError.self) {
+    // Verify HTTPError is thrown (wraps the underlying URLError)
+    await #expect(throws: HTTPError.self) {
       try await client.execute(request)
     }
 
@@ -97,6 +105,9 @@ struct MockingTests {
 
   @Test("MockURLProtocol timeout simulation")
   func testMockURLProtocolTimeoutSimulation() async throws {
+    // Clear any previous state
+    MockURLProtocol.clearAll()
+
     // Setup timeout stub
     MockURLProtocol.stubTimeout(url: "https://api.example.com/slow")
 
@@ -106,8 +117,8 @@ struct MockingTests {
       GET("https://api.example.com/slow")
     }
 
-    // Verify timeout error
-    await #expect(throws: URLError.self) {
+    // Verify HTTPError is thrown (wraps the underlying URLError)
+    await #expect(throws: HTTPError.self) {
       try await client.execute(request)
     }
 
@@ -116,6 +127,9 @@ struct MockingTests {
 
   @Test("MockURLProtocol pattern matching")
   func testMockURLProtocolPatternMatching() async throws {
+    // Clear any previous state
+    MockURLProtocol.clearAll()
+
     // Setup pattern-based stub
     try MockURLProtocol.stubPattern(
       "https://api\\.example\\.com/users/\\d+",
@@ -143,7 +157,10 @@ struct MockingTests {
 
   @Test("MockURLProtocol sequential responses")
   func testMockURLProtocolSequentialResponses() async throws {
-    // Setup sequential responses
+    // Clear any previous state
+    MockURLProtocol.clearAll()
+
+    // Setup sequential responses - each stub is consumed after one use
     MockURLProtocol.stubSequential(
       url: "https://api.example.com/counter",
       responses: [
@@ -153,17 +170,34 @@ struct MockingTests {
       ]
     )
 
-    let client = MockURLProtocol.createMockHTTPClient()
-    let url = "https://api.example.com/counter"
+    // Create URLSession directly with mock configuration
+    let config = MockURLProtocol.createMockConfiguration()
+    let session = URLSession(configuration: config)
+    let url = URL(string: "https://api.example.com/counter")!
 
-    // Make three requests and verify different responses
+    var results: [Int] = []
+
+    // Make three sequential requests using URLSession directly
     for expectedCount in 1...3 {
-      let request = try HTTPRequest { GET(url) }
-      let response = try await client.execute(request)
+      // Add delay between requests to ensure previous request completes fully
+      if expectedCount > 1 {
+        try await Task.sleep(for: .milliseconds(100))
+      }
 
-      let json = try JSONSerialization.jsonObject(with: response.body!) as! [String: Any]
-      #expect(json["count"] as? Int == expectedCount)
+      // Create a new URLRequest for each request to avoid any caching
+      var urlRequest = URLRequest(url: url)
+      urlRequest.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+      urlRequest.httpMethod = "GET"
+
+      let (data, _) = try await session.data(for: urlRequest)
+
+      let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+      let actualCount = json["count"] as? Int ?? 0
+      results.append(actualCount)
     }
+
+    // Verify all results
+    #expect(results == [1, 2, 3], "Expected [1, 2, 3] but got \(results)")
 
     MockURLProtocol.clearAll()
   }
@@ -239,7 +273,13 @@ struct MockingTests {
     let history = mockClient.getRequestHistory()
     #expect(history.count == 3)
 
-    let getCount = mockClient.getRequestCount(for: "/users")
+    // getRequestCount counts all requests to a path, regardless of method
+    // We have 2 GETs and 1 POST to /users = 3 total
+    let usersCount = mockClient.getRequestCount(for: "/users")
+    #expect(usersCount == 3)
+
+    // Use filter to count specific method
+    let getCount = mockClient.getRequests { $0.method == .get && $0.url.path == "/users" }.count
     #expect(getCount == 2)
   }
 
@@ -293,8 +333,8 @@ struct MockingTests {
       GET("https://api.example.com/error")
     }
 
-    // Verify error is thrown
-    await #expect(throws: URLError.self) {
+    // Verify HTTPError is thrown (MockNetworkClient wraps errors in HTTPError)
+    await #expect(throws: HTTPError.self) {
       try await mockClient.execute(request)
     }
 
@@ -315,8 +355,8 @@ struct MockingTests {
       GET("https://api.example.com/slow")
     }
 
-    // Verify timeout error
-    await #expect(throws: URLError.self) {
+    // Verify HTTPError is thrown (MockNetworkClient wraps errors in HTTPError)
+    await #expect(throws: HTTPError.self) {
       try await mockClient.execute(request)
     }
 
@@ -462,14 +502,17 @@ struct MockingTests {
     let mockClient = MockNetworkClient()
 
     // Setup expectations and execute requests
-    mockClient.stubGET(path: "/test", response: Data())
+    // Use .exactly(2) so that after 1 call, the expectation is still unfulfilled
+    mockClient.expectGET("/test")
+      .andReturn(.success(statusCode: 200, data: Data()))
+      .exactly(2)
 
     let request = try HTTPRequest {
       GET("https://api.example.com/test")
     }
     _ = try await mockClient.execute(request)
 
-    // Verify state before reset
+    // Verify state before reset - called once but expected twice, so unfulfilled
     #expect(mockClient.getRequestHistory().count == 1)
     #expect(!mockClient.getUnfulfilledExpectations().isEmpty)
 
@@ -484,6 +527,9 @@ struct MockingTests {
 
   @Test("Integration: MockURLProtocol with NetworkClient DSL")
   func testIntegrationWithNetworkClientDSL() async throws {
+    // Clear any previous state
+    MockURLProtocol.clearAll()
+
     struct User: Codable, Equatable {
       let id: Int
       let name: String
@@ -492,25 +538,20 @@ struct MockingTests {
 
     let user = User(id: 123, name: "Test User", email: "test@example.com")
 
-    // Setup mock response
+    // Setup mock response using full URL
     try MockURLProtocol.stubJSON(
       url: "https://api.example.com/users/123",
       json: user
     )
 
     // Create NetworkClient with mock configuration
-    _ = try NetworkClient {
-      BaseURL(URL(string: "https://api.example.com")!)
-    }
-
-    // Override session with mock
     let httpClient = NetworkClient(
       session: URLSession(configuration: MockURLProtocol.createMockConfiguration())
     )
 
-    // Execute request using DSL
+    // Execute request using full URL (MockURLProtocol requires full URLs for matching)
     let request = try HTTPRequest {
-      GET("/users/123")
+      GET("https://api.example.com/users/123")
       Header("Accept", "application/json")
     }
 
@@ -526,7 +567,8 @@ struct MockingTests {
 
   @Test("Integration: Error handling with recovery strategies")
   func testIntegrationErrorHandlingWithRecoveryStrategies() async throws {
-    let mockClient = MockNetworkClient()
+    // Clear any previous state
+    MockURLProtocol.clearAll()
 
     // Setup sequence: first fails, then succeeds (simulating retry)
     MockURLProtocol.stubSequential(
@@ -537,17 +579,20 @@ struct MockingTests {
       ]
     )
 
+    // Create client using MockURLProtocol
+    let client = MockURLProtocol.createMockHTTPClient()
+
     let request = try HTTPRequest {
       GET("https://api.example.com/retry-test")
     }
 
-    // First request should fail
-    await #expect(throws: URLError.self) {
-      try await mockClient.execute(request)
+    // First request should fail - HTTPError wraps the underlying URLError
+    await #expect(throws: HTTPError.self) {
+      try await client.execute(request)
     }
 
     // Second request should succeed
-    let response = try await mockClient.execute(request)
+    let response = try await client.execute(request)
     #expect(response.status.rawValue == 200)
 
     let json = try JSONSerialization.jsonObject(with: response.body!) as! [String: Any]

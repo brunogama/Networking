@@ -22,6 +22,10 @@ import Foundation
 /// // Generate report
 /// let report = collector.generateReport()
 /// ```
+///
+/// - Note: `@unchecked Sendable` justification:
+///   All mutable state (`results` array) is protected by an internal `NSLock`.
+///   All public methods synchronize access through this lock.
 public final class ReportCollector: @unchecked Sendable {
   // MARK: - Types
 

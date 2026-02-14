@@ -120,10 +120,10 @@ struct TestResponseInterceptor: ResponseInterceptor {
   }
 }
 
-// MARK: - Generators
+// MARK: - Arbitrary Conformance
 
-enum InterceptorChainGen {
-  static var arbitrary: Gen<InterceptorChain> {
+extension InterceptorChain: Arbitrary {
+  public static var arbitrary: Gen<InterceptorChain> {
     Gen<InterceptorChain>.compose { composer in
       // Generate 0-5 request interceptors
       let requestCount = composer.generate(using: Gen.choose((0, 5)))
@@ -142,5 +142,13 @@ enum InterceptorChainGen {
         responseInterceptors: responseInterceptors
       )
     }
+  }
+}
+
+// MARK: - Generators (Legacy, now using Arbitrary conformance)
+
+enum InterceptorChainGen {
+  static var arbitrary: Gen<InterceptorChain> {
+    InterceptorChain.arbitrary
   }
 }

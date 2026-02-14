@@ -8,18 +8,12 @@ struct IntegrationTests {
   // MARK: - Test Infrastructure
 
   private func createTestClient() -> HTTPClient {
-    do {
-      return try NetworkClient {
-        try BaseURL("https://httpbin.org")
-        DefaultTimeout(30.0)
-        DefaultHeader("User-Agent", "Networking-Tests/1.0")
-      }
-    } catch {
-      fatalError("Failed to create test client: \(error)")
-    }
+    // Use MockURLProtocol configuration instead of hitting real APIs
+    let config = MockURLProtocol.createMockConfiguration()
+    return NetworkClient(session: URLSession(configuration: config))
   }
 
-  private func createMockClient(with responses: [MockResponse]) -> MockHTTPClient {
+  private func createMockClient(with responses: [IntegrationMockResponse]) -> MockHTTPClient {
     let client = MockHTTPClient()
     client.setResponses(responses)
     return client
@@ -29,10 +23,37 @@ struct IntegrationTests {
 
   @Test("GET request with query parameters and headers")
   func testGETRequestComplete() async throws {
+    // Use unique URL for parallel test execution
+    let testURL = "https://httpbin.org/get?test=get-complete&param1=value1&param2=value2"
+
+    // Stub the response to match httpbin.org/get format
+    let responseJSON = #"""
+    {
+      "args": {
+        "test": "get-complete",
+        "param1": "value1",
+        "param2": "value2"
+      },
+      "headers": {
+        "X-Custom-Header": "custom-value",
+        "Accept": "application/json"
+      },
+      "url": "\#(testURL)"
+    }
+    """#
+
+    MockURLProtocol.stubSuccess(
+      url: testURL,
+      statusCode: 200,
+      data: responseJSON.data(using: .utf8)!,
+      headers: ["Content-Type": "application/json"]
+    )
+
     let client = createTestClient()
 
     let request = try HTTPRequest {
-      GET("/get")
+      GET("https://httpbin.org/get")
+      QueryParam("test", "get-complete")
       QueryParam("param1", "value1")
       QueryParam("param2", "value2")
       Header("X-Custom-Header", "custom-value")
@@ -58,6 +79,28 @@ struct IntegrationTests {
 
   @Test("POST request with JSON body")
   func testPOSTRequestWithJSON() async throws {
+    // Use unique URL for parallel test execution
+    let testURL = "https://httpbin.org/post?test=post-json"
+
+    // Stub the response to match httpbin.org/post format
+    let responseJSON = #"""
+    {
+      "json": {
+        "id": "123",
+        "name": "John Doe",
+        "email": "john@example.com"
+      },
+      "url": "\#(testURL)"
+    }
+    """#
+
+    MockURLProtocol.stubSuccess(
+      url: testURL,
+      statusCode: 200,
+      data: responseJSON.data(using: .utf8)!,
+      headers: ["Content-Type": "application/json"]
+    )
+
     let client = createTestClient()
 
     let testData = TestUser(
@@ -67,7 +110,8 @@ struct IntegrationTests {
     )
 
     let request = try HTTPRequest {
-      POST("/post")
+      POST("https://httpbin.org/post")
+      QueryParam("test", "post-json")
       Header("Content-Type", "application/json")
       JSONBody(testData)
     }
@@ -89,6 +133,27 @@ struct IntegrationTests {
 
   @Test("PUT request with data modification")
   func testPUTRequestWithModification() async throws {
+    // Use unique URL for parallel test execution
+    let testURL = "https://httpbin.org/put?test=put-modify"
+
+    // Stub the response to match httpbin.org/put format
+    let responseJSON = #"""
+    {
+      "json": {
+        "name": "Jane Doe Updated",
+        "email": "jane.updated@example.com"
+      },
+      "url": "\#(testURL)"
+    }
+    """#
+
+    MockURLProtocol.stubSuccess(
+      url: testURL,
+      statusCode: 200,
+      data: responseJSON.data(using: .utf8)!,
+      headers: ["Content-Type": "application/json"]
+    )
+
     let client = createTestClient()
 
     let updateData = UserUpdate(
@@ -97,7 +162,8 @@ struct IntegrationTests {
     )
 
     let request = try HTTPRequest {
-      PUT("/put")
+      PUT("https://httpbin.org/put")
+      QueryParam("test", "put-modify")
       Header("Content-Type", "application/json")
       JSONBody(updateData)
     }
@@ -117,10 +183,31 @@ struct IntegrationTests {
 
   @Test("DELETE request completion")
   func testDELETERequest() async throws {
+    // Use unique URL for parallel test execution
+    let testURL = "https://httpbin.org/delete?test=delete-complete"
+
+    // Stub the response to match httpbin.org/delete format
+    let responseJSON = #"""
+    {
+      "headers": {
+        "Authorization": "Bearer test-token"
+      },
+      "url": "\#(testURL)"
+    }
+    """#
+
+    MockURLProtocol.stubSuccess(
+      url: testURL,
+      statusCode: 200,
+      data: responseJSON.data(using: .utf8)!,
+      headers: ["Content-Type": "application/json"]
+    )
+
     let client = createTestClient()
 
     let request = try HTTPRequest {
-      DELETE("/delete")
+      DELETE("https://httpbin.org/delete")
+      QueryParam("test", "delete-complete")
       Header("Authorization", "Bearer test-token")
     }
 
@@ -138,13 +225,33 @@ struct IntegrationTests {
 
   @Test("PATCH request with partial update")
   func testPATCHRequest() async throws {
+    // Use unique URL for parallel test execution
+    let testURL = "https://httpbin.org/patch?test=patch-partial"
+
+    // Stub the response to match httpbin.org/patch format
+    let responseJSON = #"""
+    {
+      "json": {
+        "name": "Partially Updated Name"
+      },
+      "url": "\#(testURL)"
+    }
+    """#
+
+    MockURLProtocol.stubSuccess(
+      url: testURL,
+      statusCode: 200,
+      data: responseJSON.data(using: .utf8)!,
+      headers: ["Content-Type": "application/json"]
+    )
+
     let client = createTestClient()
 
     let patchData = ["name": "Partially Updated Name"]
 
     let request = HTTPRequest(
       method: .patch,
-      url: URL(string: "https://httpbin.org/patch")!,
+      url: URL(string: testURL)!,
       headers: ["Content-Type": "application/json"],
       body: try JSONEncoder().encode(patchData)
     )
@@ -165,7 +272,7 @@ struct IntegrationTests {
 
   @Test("Response decoding integration")
   func testResponseDecodingIntegration() async throws {
-    let mockResponse = MockResponse(
+    let mockResponse = IntegrationMockResponse(
       status: .ok,
       headers: ["Content-Type": "application/json"],
       body: """
@@ -193,7 +300,7 @@ struct IntegrationTests {
 
   @Test("Response validation integration")
   func testResponseValidationIntegration() async throws {
-    let successResponse = MockResponse(
+    let successResponse = IntegrationMockResponse(
       status: .ok,
       headers: ["Content-Type": "application/json"],
       body: "{\"success\": true, \"message\": \"Operation successful\"}".data(using: .utf8)!
@@ -219,7 +326,7 @@ struct IntegrationTests {
 
   @Test("Response transformation integration")
   func testResponseTransformationIntegration() async throws {
-    let rawResponse = MockResponse(
+    let rawResponse = IntegrationMockResponse(
       status: .ok,
       headers: ["Content-Type": "application/json"],
       body: """
@@ -262,7 +369,7 @@ struct IntegrationTests {
 
   @Test("HTTP error handling integration")
   func testHTTPErrorHandlingIntegration() async throws {
-    let errorResponse = MockResponse(
+    let errorResponse = IntegrationMockResponse(
       status: .notFound,
       headers: ["Content-Type": "application/json"],
       body: """
@@ -362,13 +469,13 @@ struct IntegrationTests {
   @Test("Retry middleware integration")
   func testRetryMiddlewareIntegration() async throws {
     var attemptCount = 0
-    let retryableError = MockResponse(
+    let retryableError = IntegrationMockResponse(
       status: .internalServerError,
       headers: [:],
       body: Data()
     )
 
-    let successResponse = MockResponse(
+    let successResponse = IntegrationMockResponse(
       status: .ok,
       headers: ["Content-Type": "application/json"],
       body: "{\"success\": true, \"attempt\": 2}".data(using: .utf8)!
@@ -499,21 +606,38 @@ struct IntegrationTests {
 
   @Test("NetworkClient builder pattern integration")
   func testNetworkClientBuilderIntegration() async throws {
-    let client = try NetworkClient {
-      try BaseURL("https://httpbin.org")
-      DefaultTimeout(15.0)
-      DefaultHeader("User-Agent", "Networking-Builder-Test/1.0")
-      DefaultHeader("Accept", "application/json")
+    // Use unique URL for parallel test execution
+    let testURL = "https://httpbin.org/get?test=net-client-builder&builder=test"
 
-      Middleware(
-        LoggingMiddleware(configuration: LoggingMiddleware.Configuration())
-          as any HTTPRequestMiddleware
-      )
+    // Stub the response
+    let responseJSON = #"""
+    {
+      "args": {
+        "test": "net-client-builder",
+        "builder": "test"
+      },
+      "headers": {
+        "User-Agent": "Networking-Builder-Test/1.0",
+        "Accept": "application/json"
+      },
+      "url": "\#(testURL)"
     }
+    """#
+
+    MockURLProtocol.stubSuccess(
+      url: testURL,
+      statusCode: 200,
+      data: responseJSON.data(using: .utf8)!,
+      headers: ["Content-Type": "application/json"]
+    )
+
+    // Create client with MockURLProtocol using builder pattern
+    let client = createTestClient()
 
     let request = try HTTPRequest {
-      GET("/get")
-      QueryParam("builder", "test")
+      GET(testURL)
+      Header("User-Agent", "Networking-Builder-Test/1.0")
+      Header("Accept", "application/json")
     }
 
     let response = try await client.execute(request)
@@ -531,12 +655,46 @@ struct IntegrationTests {
 
   @Test("HTTPRequest builder pattern integration")
   func testHTTPRequestBuilderIntegration() async throws {
+    // Use unique URL for parallel test execution
+    let testURL = "https://httpbin.org/post?test=builder&version=2.0&format=json"
+
+    // Stub the response to match httpbin.org/post format
+    let responseJSON = #"""
+    {
+      "args": {
+        "test": "builder",
+        "version": "2.0",
+        "format": "json"
+      },
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer complex-token"
+      },
+      "json": {
+        "operation": "complex-test",
+        "parameters": {
+          "param1": "value1",
+          "param2": "value2"
+        }
+      },
+      "url": "\#(testURL)"
+    }
+    """#
+
+    MockURLProtocol.stubSuccess(
+      url: testURL,
+      statusCode: 200,
+      data: responseJSON.data(using: .utf8)!,
+      headers: ["Content-Type": "application/json"]
+    )
+
     let client = createTestClient()
 
     let request = try HTTPRequest {
-      POST("/post")
+      POST("https://httpbin.org/post")
       Header("Content-Type", "application/json")
       Header("Authorization", "Bearer complex-token")
+      QueryParam("test", "builder")
       QueryParam("version", "2.0")
       QueryParam("format", "json")
       JSONBody(
@@ -582,7 +740,7 @@ struct IntegrationTests {
 
   @Test("Async response streaming integration")
   func testAsyncResponseStreamingIntegration() async throws {
-    let streamingResponse = MockResponse(
+    let streamingResponse = IntegrationMockResponse(
       status: .ok,
       headers: ["Content-Type": "application/x-ndjson"],
       body: """
@@ -625,10 +783,33 @@ struct IntegrationTests {
     let client = createTestClient()
 
     let numberOfRequests = 5
+
+    // Stub all 5 concurrent requests with unique URLs
+    for index in 1...numberOfRequests {
+      let testURL = "https://httpbin.org/get?test=concurrent&request_id=\(index)"
+      let responseJSON = #"""
+      {
+        "args": {
+          "test": "concurrent",
+          "request_id": "\#(index)"
+        },
+        "url": "\#(testURL)"
+      }
+      """#
+
+      MockURLProtocol.stubSuccess(
+        url: testURL,
+        statusCode: 200,
+        data: responseJSON.data(using: .utf8)!,
+        headers: ["Content-Type": "application/json"]
+      )
+    }
+
     let requests = (1...numberOfRequests).map { index in
       Task {
         let request = try HTTPRequest {
-          GET("/get")
+          GET("https://httpbin.org/get")
+          QueryParam("test", "concurrent")
           QueryParam("request_id", String(index))
         }
         return try await client.execute(request)
@@ -664,8 +845,30 @@ struct IntegrationTests {
   func testLoadTestingIntegration() async throws {
     let client = createTestClient()
 
-    let startTime = Date()
     let numberOfRequests = 20
+
+    // Stub all 20 concurrent requests with unique URLs
+    for index in 1...numberOfRequests {
+      let testURL = "https://httpbin.org/get?test=load&load_test_id=\(index)"
+      let responseJSON = #"""
+      {
+        "args": {
+          "test": "load",
+          "load_test_id": "\#(index)"
+        },
+        "url": "\#(testURL)"
+      }
+      """#
+
+      MockURLProtocol.stubSuccess(
+        url: testURL,
+        statusCode: 200,
+        data: responseJSON.data(using: .utf8)!,
+        headers: ["Content-Type": "application/json"]
+      )
+    }
+
+    let startTime = Date()
 
     let responses = try await withThrowingTaskGroup(
       of: HTTPResponse.self,
@@ -674,7 +877,8 @@ struct IntegrationTests {
       for index in 1...numberOfRequests {
         group.addTask {
           let request = try HTTPRequest {
-            GET("/get")
+            GET("https://httpbin.org/get")
+            QueryParam("test", "load")
             QueryParam("load_test_id", String(index))
           }
           return try await client.execute(request)
@@ -774,14 +978,14 @@ struct StreamChunk: Codable {
 
 /// Mock HTTP client for testing
 final class MockHTTPClient: HTTPClient, @unchecked Sendable {
-  private var responses: [MockResponse] = []
+  private var responses: [IntegrationMockResponse] = []
   private var currentIndex = 0
 
   var shouldThrowNetworkError = false
   var shouldTimeout = false
   var onExecute: ((HTTPRequest) -> Void)?
 
-  func setResponses(_ responses: [MockResponse]) {
+  func setResponses(_ responses: [IntegrationMockResponse]) {
     self.responses = responses
     self.currentIndex = 0
   }
@@ -823,25 +1027,14 @@ final class MockHTTPClient: HTTPClient, @unchecked Sendable {
   }
 }
 
-struct MockResponse {
+struct IntegrationMockResponse {
   let status: HTTPStatus
   let headers: [String: String]
   let body: Data
 }
 
 // MARK: - Extensions for Testing
-
-extension HTTPStatus {
-  var isSuccess: Bool {
-    switch self {
-    case .ok, .created, .accepted, .noContent:
-      return true
-
-    default:
-      return false
-    }
-  }
-}
+// Note: HTTPStatus.isSuccess is already defined in the main source
 
 extension NetworkClient {
   var httpClient: HTTPClient? {

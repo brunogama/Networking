@@ -4,9 +4,26 @@
 
 | Phases | Requirements | Depth |
 |--------|--------------|-------|
-| 6 | 55 | Standard |
+| 7 | 55+ | Standard |
 
 ## Phase Structure
+
+### Phase 0: Audit URLSession and Apple APIs for Async/Await Modernization
+
+**Goal**: Identify all legacy URLSession and Apple API usages that should be refactored to modern async/await patterns.
+
+**Requirements**: AUDIT-01, AUDIT-02, AUDIT-03
+
+**Success Criteria**:
+1. Complete inventory of all URLSession callback-based APIs in codebase
+2. Complete inventory of all completion handler patterns
+3. Document all deprecated Apple API usages (pre-async/await)
+4. Prioritized list of refactoring candidates with complexity estimates
+5. No blocking issues for Phase 1 concurrency compliance
+
+**Rationale**: Foundation audit to understand the scope of async/await modernization. Must complete before Phase 1 to ensure concurrency compliance work is comprehensive.
+
+---
 
 ### Phase 1: Swift 6 Concurrency Compliance
 
@@ -22,6 +39,8 @@
 5. All actors audited for reentrancy with fix patterns applied
 
 **Rationale**: Foundation for all other phases. Without concurrency compliance, advanced features cannot be safely implemented.
+
+**Depends on**: Phase 0
 
 ---
 
@@ -118,28 +137,31 @@
 
 | Phase | Requirements | Count |
 |-------|--------------|-------|
+| 0 | AUDIT-01 to AUDIT-03 | 3 |
 | 1 | CONC-01 to CONC-10 | 10 |
 | 2 | DX-01 to DX-09 | 9 |
 | 3 | WS-01 to WS-07, GQL-01 to GQL-06 | 13 |
 | 4 | BATCH-01 to BATCH-05, PROG-01 to PROG-05 | 10 |
 | 5 | OBS-01 to OBS-07 | 7 |
 | 6 | TEST-01 to TEST-07, DOC-01 to DOC-05 | 12 |
-| **Total** | | **55** |
+| **Total** | | **64** |
 
 ## Dependencies
 
 ```
-Phase 1 (Concurrency) ─────────────┐
-                                   │
-Phase 2 (DX) ──────────────────────┼───► Phase 5 (Observability)
-                                   │           │
-Phase 3 (WebSocket/GraphQL) ───────┤           │
-                                   │           ▼
-Phase 4 (Batch/Progress) ──────────┘     Phase 6 (Testing/Docs)
+Phase 0 (Audit) ────────────────────┐
+                                    │
+Phase 1 (Concurrency) ──────────────┼───┐
+                                    │   │
+Phase 2 (DX) ───────────────────────┤   ├───► Phase 5 (Observability)
+                                    │   │           │
+Phase 3 (WebSocket/GraphQL) ────────┤   │           │
+                                    │   │           ▼
+Phase 4 (Batch/Progress) ───────────┘   └─────► Phase 6 (Testing/Docs)
 ```
 
-**Critical path**: Phase 1 must complete first. Phases 2-4 can parallelize. Phase 5 depends on 2-4. Phase 6 is final.
+**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phases 2-4 can parallelize after Phase 1. Phase 5 depends on 2-4. Phase 6 is final.
 
 ---
 *Created: 2026-02-14*
-*Total: 6 phases, 55 requirements*
+*Total: 7 phases, 64 requirements*

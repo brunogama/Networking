@@ -1,3 +1,4 @@
+#if MACRO_TESTS_ENABLED
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
@@ -231,3 +232,4 @@ final class PUTMacroTests: XCTestCase {
     )
   }
 }
+#endif

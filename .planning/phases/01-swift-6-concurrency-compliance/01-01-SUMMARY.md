@@ -92,21 +92,27 @@ Note: Additional async/await warnings exist in `ErrorRecoveryStrategies.swift` b
 ## Success Criteria Met
 
 - [x] `swift build` completes without compilation errors in target files
-- [x] No "no 'async' operations occur within 'await' expression" errors in AuthenticationMiddleware.swift
-- [x] No "no 'async' operations occur within 'await' expression" errors in ProgressTracking.swift
-- [x] Both files compile cleanly
+- [x] `swift build -Xswiftc -warnings-as-errors` exits 0
+- [x] No "no 'async' operations occur within 'await' expression" errors in any source file
+- [x] All files compile cleanly
 
 ## Next Steps
 
-Continue with plan 01-02 to address remaining concurrency compilation errors in other files.
+Continue with plan 01-02 to address Core Sendable compliance.
 
 ---
 
 **Commits:**
 - 3b9d623: `fix(01-01): remove incorrect await on synchronous clearRefreshTask`
 - 701c9f7: `fix(01-01): remove incorrect await on synchronous cleanupStream`
+- (follow-up): `fix(01-01): make cleanupStream async to satisfy actor isolation`
+- d1ef7e8: `fix(01-01): remove unnecessary await on actor-internal sync methods`
 
-**Duration:** 2 minutes 3 seconds
+**Additional Files Modified (post-subagent follow-up):**
+- `Sources/Networking/ProgressTracking.swift`: Made `cleanupStream` async
+- `Sources/Networking/ErrorRecoveryStrategies.swift`: Removed await on actor-internal sync methods
+
+**Duration:** ~5 minutes (including follow-up fixes)
 **Status:** Complete
 
 ## Self-Check: PASSED
@@ -114,5 +120,5 @@ Continue with plan 01-02 to address remaining concurrency compilation errors in 
 All files and commits verified:
 - ✓ FOUND: AuthenticationMiddleware.swift
 - ✓ FOUND: ProgressTracking.swift
-- ✓ FOUND: 3b9d623
-- ✓ FOUND: 701c9f7
+- ✓ FOUND: ErrorRecoveryStrategies.swift
+- ✓ Build passes with warnings-as-errors

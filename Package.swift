@@ -30,6 +30,10 @@ let package = Package(
     .target(
       name: "Networking",
       dependencies: ["NetworkingMacros"],
+      exclude: [
+        // Exclude BDD module - incomplete integration code that depends on Quick/Nimble
+        "BDD",
+      ],
       swiftSettings: [
         .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
       ]

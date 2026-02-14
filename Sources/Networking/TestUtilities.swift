@@ -56,6 +56,10 @@ public enum NetworkingTestUtilities {
 // MARK: - Async Testing Support
 
 /// Expectation for async/await testing
+///
+/// - Note: `@unchecked Sendable` justification:
+///   Mutable state (`isFulfilled`) is protected by an internal `NSLock`.
+///   All access is synchronized through this lock.
 public final class AsyncExpectation: @unchecked Sendable {
   private let description: String
   private var isFulfilled = false

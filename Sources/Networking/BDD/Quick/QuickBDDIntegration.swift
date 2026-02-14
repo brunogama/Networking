@@ -4,6 +4,11 @@ import Foundation
 import Quick
 import Nimble
 
+// MARK: - Type Aliases
+
+/// Filter flags for Quick specs (mirrors Quick's internal FilterFlags type)
+public typealias FilterFlags = [String: Bool]
+
 // MARK: - QuickSpec BDD Extensions
 
 extension QuickSpec {
