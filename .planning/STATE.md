@@ -35,6 +35,7 @@
 | 2026-02-14 | Phase 0 added | Audit URLSession/Apple APIs for async/await modernization |
 | 2026-02-14 | Plan 01-02 completed | Removed @unchecked Sendable from core types |
 | 2026-02-14 | Plan 01-03 completed | Continuation safety audit and fixes |
+| 2026-02-14 | Plan 01-04 completed | Actor reentrancy audit and hardening |
 
 ## Phase 1 Progress Summary
 
@@ -42,12 +43,13 @@
 1. **Plan 01-01**: Fixed async/await compilation errors (2 fixes)
 2. **Plan 01-02**: Converted KeychainService and TraceSpan to actors, documented InternalCachedResponse
 3. **Plan 01-03**: Audited continuation safety - added cancellation handling to AsyncSemaphore, removed nested Task antipattern
+4. **Plan 01-04**: Actor reentrancy audit - added in-flight tracking to TokenManager and CachingMiddleware, documented WebSocketClient state transitions
 
 ### Current Status
 - **Build**: Passes with `-warnings-as-errors`
 - **Tests**: Passing (concurrency-related tests)
 - **Zero concurrency warnings**: No Sendable, actor, or data race issues
-- **Next**: Plan 01-04 (Actor reentrancy audit)
+- **Next**: Plan 01-05 (Continue Swift 6 compliance)
 
 ### @unchecked Sendable Types Documented
 1. `InternalCachedResponse` (NetworkClient.swift)
