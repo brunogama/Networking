@@ -258,6 +258,17 @@ public actor FileTransferOperations {
   private let configuration: FileTransferConfiguration
   private let progressMiddleware: ProgressTrackingMiddleware
   private var activeTransfers: [UUID: ActiveTransfer] = [:]
+
+  /// Background URLSession for file transfers.
+  ///
+  /// - Note: `nonisolated(unsafe)` justification:
+  ///   1. URLSession is thread-safe by design (Apple documentation)
+  ///   2. Only set once during initialization in init(), never mutated after
+  ///   3. All access goes through actor-isolated methods, serializing reads
+  ///   4. Session lifetime matches actor lifetime (invalidated with actor)
+  ///
+  /// Alternative would require making session access async, but URLSession
+  /// delegates already handle threading internally.
   nonisolated(unsafe) private var backgroundSession: URLSession?
 
   // MARK: - Internal State
