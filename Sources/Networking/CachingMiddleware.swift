@@ -244,6 +244,9 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   private let storage: any CacheStorage
   private let client: any HTTPClient
 
+  // REENTRANCY-SAFE: track in-flight requests to deduplicate concurrent fetches
+  private var inFlightRequests: [String: Task<HTTPResponse, Error>] = [:]
+
   // MARK: - Initialization
 
   /// Creates a new caching middleware
@@ -417,6 +420,7 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   /// Prefetches a single request and stores it in cache
   /// - Parameter request: The request to prefetch
   /// - Returns: Result indicating success or failure
+  /// - Note: REENTRANCY-SAFE - deduplicates concurrent requests for same key
   public func prefetchSingle(request: HTTPRequest) async -> WarmCacheResult {
     do {
       // Check if already cached and fresh
@@ -427,12 +431,23 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
         return .alreadyCached(key: cacheKey)
       }
 
-      // Execute the request
-      let response = try await client.execute(request)
+      // Check if request already in flight - join existing
+      if let existingTask = inFlightRequests[cacheKey] {
+        let response = try await existingTask.value
+        return .success(key: cacheKey, response: response)
+      }
 
-      // Process and cache the response
-      let processedResponse = try await processResponse(response, for: request)
+      // Start new request - store task BEFORE await
+      let task = Task<HTTPResponse, Error> {
+        let response = try await client.execute(request)
+        return try await processResponse(response, for: request)
+      }
+      inFlightRequests[cacheKey] = task
 
+      // Clean up after completion
+      defer { inFlightRequests[cacheKey] = nil }
+
+      let processedResponse = try await task.value
       return .success(key: cacheKey, response: processedResponse)
     } catch {
       return .failure(request: request, error: error)
