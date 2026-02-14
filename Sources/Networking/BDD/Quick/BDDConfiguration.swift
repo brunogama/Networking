@@ -91,6 +91,13 @@ public struct BDDConfiguration: Sendable {
 // MARK: - BDD Test Runner
 
 /// Runs BDD tests from Gherkin feature files.
+///
+/// - Note: `@unchecked Sendable` justification:
+///   1. Test infrastructure only
+///   2. Mutable state (`results`) protected by NSLock
+///   3. Configuration and parser are immutable after initialization
+///   4. Tests run sequentially or with explicit parallelization control
+///   5. Temporary test execution lifetime
 public final class BDDTestRunner: @unchecked Sendable {
   // MARK: - Properties
 
