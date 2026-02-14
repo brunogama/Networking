@@ -111,16 +111,17 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| CONC-01 to CONC-10 | TBD | Pending |
-| DX-01 to DX-09 | TBD | Pending |
-| WS-01 to WS-07 | TBD | Pending |
-| GQL-01 to GQL-06 | TBD | Pending |
-| BATCH-01 to BATCH-05 | TBD | Pending |
-| PROG-01 to PROG-05 | TBD | Pending |
-| OBS-01 to OBS-07 | TBD | Pending |
-| TEST-01 to TEST-07 | TBD | Pending |
-| DOC-01 to DOC-05 | TBD | Pending |
+| CONC-01 to CONC-10 | Phase 1: Swift 6 Concurrency | Pending |
+| DX-01 to DX-09 | Phase 2: Developer Experience | Pending |
+| WS-01 to WS-07 | Phase 3: WebSocket & GraphQL | Pending |
+| GQL-01 to GQL-06 | Phase 3: WebSocket & GraphQL | Pending |
+| BATCH-01 to BATCH-05 | Phase 4: Batch & Progress | Pending |
+| PROG-01 to PROG-05 | Phase 4: Batch & Progress | Pending |
+| OBS-01 to OBS-07 | Phase 5: Observability | Pending |
+| TEST-01 to TEST-07 | Phase 6: Testing & Docs | Pending |
+| DOC-01 to DOC-05 | Phase 6: Testing & Docs | Pending |
 
 ---
 *Created: 2026-02-14*
 *Total: 55 requirements across 9 categories*
+*Mapped to 6 phases*
