@@ -30,6 +30,13 @@ import Foundation
 /// // Execute test
 /// let response = try await client.execute(request)
 /// ```
+///
+/// - Note: `@unchecked Sendable` justification:
+///   1. URLProtocol is not Sendable-aware (Apple framework constraint)
+///   2. Required for URLSession configuration and request interception
+///   3. Static state protected by actor isolation (`MockState` actor)
+///   4. URLProtocol callbacks come from URLSession's internal queue (Apple manages threading)
+///   5. Test-only code with explicit synchronization in test setup
 public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
   // MARK: - Types
 
@@ -123,7 +130,8 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     let maxUsageCount: Int?
     let requestCapture: (@Sendable (URLRequest) -> Void)?
 
-    private var _usageCount = 0
+    // Internal to allow MockState to update
+    internal var _usageCount = 0
 
     public init(
       matchers: [RequestMatcher],
@@ -161,6 +169,11 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
       stubs.append(stub)
     }
 
+    /// Get current stub count for testing/debugging
+    func getStubCount() -> Int {
+      stubs.count
+    }
+
     func findMatchingStub(for request: URLRequest) -> (RequestStub?, Int?) {
       for (index, stub) in stubs.enumerated() {
         if stub.matches(request) {
@@ -170,9 +183,44 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
       return (nil, nil)
     }
 
+    /// Find and consume a matching stub atomically
+    /// - Parameter request: The request to match
+    /// - Returns: The matching stub if found (already removed if maxUsageCount reached)
+    func findAndConsumeStub(for request: URLRequest) -> RequestStub? {
+      for (index, stub) in stubs.enumerated() {
+        if stub.matches(request) {
+          // Copy the result BEFORE incrementing (to return original state)
+          let result = stubs[index]
+          // Increment usage count
+          stubs[index]._usageCount += 1
+          // Remove stub if it reached max usage
+          if let maxCount = stub.maxUsageCount, stubs[index]._usageCount >= maxCount {
+            stubs.remove(at: index)
+          }
+          return result
+        }
+      }
+      return nil
+    }
+
     func removeStub(at index: Int) {
       guard index < stubs.count else { return }
       stubs.remove(at: index)
+    }
+
+    /// Increment stub usage and remove if exhausted
+    /// - Parameter index: Index of the stub
+    /// - Returns: true if stub should be kept, false if exhausted and removed
+    func incrementStubUsage(at index: Int) -> Bool {
+      guard index < stubs.count else { return false }
+      stubs[index]._usageCount += 1
+      // Remove stub AFTER it's been used maxUsageCount times
+      // With maxUsageCount=1, remove after first use (usageCount=1 >= 1)
+      if let maxCount = stubs[index].maxUsageCount, stubs[index]._usageCount >= maxCount {
+        stubs.remove(at: index)
+        return false
+      }
+      return true
     }
 
     func captureRequest(_ request: URLRequest) {
@@ -218,36 +266,33 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
   override public func startLoading() {
     // We need to work around Swift concurrency's strict sendability checks
-    // Since URLProtocol is designed for synchronous URL loading subsystem, 
+    // Since URLProtocol is designed for synchronous URL loading subsystem,
     // but we're using async/await, we need to use @unchecked Sendable workaround
     let capturedRequest = request
     let capturedClient = client
-    
-    // Create a wrapper that can be sent across concurrency boundaries
+
+    /// Wrapper to send URLProtocol instance across concurrency boundaries.
+    ///
+    /// - Note: `@unchecked Sendable` justification:
+    ///   1. Bridges non-Sendable URLProtocol API to async/await Task
+    ///   2. Instance captured at single point, used in single Task
+    ///   3. URLProtocolClient managed by URLSession (thread-safe)
+    ///   4. No actual concurrent access - sequential use in Task closure
     struct UnsafeWrapper: @unchecked Sendable {
       let protocolInstance: MockURLProtocol
       let client: URLProtocolClient?
     }
     let wrapper = UnsafeWrapper(protocolInstance: self, client: capturedClient)
-    
+
     Task { @Sendable in
       await Self.mockState.captureRequest(capturedRequest)
-      
-      let (stub, stubIndex) = await Self.mockState.findMatchingStub(for: capturedRequest)
-      
-      guard let stub = stub else {
+
+      // Find and consume stub atomically to prevent race conditions
+      guard let stub = await Self.mockState.findAndConsumeStub(for: capturedRequest) else {
         wrapper.client?.urlProtocol(wrapper.protocolInstance, didFailWithError: URLError(.fileDoesNotExist))
         return
       }
-      
-      // Handle usage count
-      if let stubIndex = stubIndex {
-        var mutableStub = stub
-        if !mutableStub.incrementUsage() {
-          await Self.mockState.removeStub(at: stubIndex)
-        }
-      }
-      
+
       // Execute request capture callback
       stub.requestCapture?(capturedRequest)
       
@@ -310,9 +355,14 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
       requestCapture: requestCapture
     )
 
+    // Use synchronous-style registration with semaphore for reliable test setup
+    let semaphore = DispatchSemaphore(value: 0)
     Task { @Sendable in
       await mockState.addStub(stub)
+      semaphore.signal()
     }
+    // Wait briefly to ensure stub is registered before test continues
+    _ = semaphore.wait(timeout: .now() + 1.0)
   }
 
   /// Stub a simple URL with success response
@@ -422,9 +472,17 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
   /// Clear all stubs and captured requests
   public static func clearAll() {
+    let semaphore = DispatchSemaphore(value: 0)
     Task { @Sendable in
       await mockState.clearAll()
+      semaphore.signal()
     }
+    _ = semaphore.wait(timeout: .now() + 1.0)
+  }
+
+  /// Get current stub count for testing/debugging
+  public static func getStubCount() async -> Int {
+    await mockState.getStubCount()
   }
 
   // MARK: - Convenience Methods
@@ -434,6 +492,9 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
   public static func createMockConfiguration() -> URLSessionConfiguration {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
+    // Disable caching to ensure fresh responses for each request
+    config.urlCache = nil
+    config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
     return config
   }
 
@@ -551,3 +612,35 @@ extension MockURLProtocol {
 }
 
 #endif
+
+// MARK: - MockResponse HTTPResponse Conversion
+
+extension MockURLProtocol.MockResponse {
+  /// Convert MockResponse to HTTPResponse for use with MockNetworkClient
+  /// - Parameter request: The original HTTP request
+  /// - Returns: HTTPResponse based on the mock configuration
+  /// - Throws: The configured error if this is a failure response
+  public func toHTTPResponse(for request: HTTPRequest) async throws -> HTTPResponse {
+    // Apply delay if configured
+    if delay > 0 {
+      try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+    }
+
+    // Handle error cases
+    if let responseError = error {
+      throw HTTPError(
+        category: .network(.connectionLost),
+        request: request,
+        underlyingError: responseError
+      )
+    }
+
+    // Build successful response
+    return HTTPResponse(
+      request: request,
+      status: HTTPStatus(rawValue: statusCode),
+      headers: headers,
+      body: data
+    )
+  }
+}

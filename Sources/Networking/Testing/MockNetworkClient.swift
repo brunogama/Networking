@@ -29,13 +29,26 @@ import Foundation
 /// // Verify expectations
 /// mockClient.verifyExpectations()
 /// ```
+///
+/// - Note: `@unchecked Sendable` justification:
+///   1. Test-only code, not production
+///   2. Mutable state (`expectations`, `requestHistory`) protected by `DispatchQueue.concurrent` with barrier writes
+///   3. All public methods synchronize access through concurrent queue
+///   4. Tests run with explicit synchronization or serially
+///   5. Acceptable tradeoff for test ergonomics and API simplicity
 public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   // MARK: - Types
 
   /// Request expectation with flexible matching and response configuration
+  ///
+  /// - Note: `@unchecked Sendable` justification:
+  ///   1. Test infrastructure only
+  ///   2. Mutable state protected by parent `MockNetworkClient`'s concurrent queue with barrier
+  ///   3. All mutations synchronized through parent's queue operations
+  ///   4. Short-lived during test execution (created, used, verified, discarded)
   public final class RequestExpectation: @unchecked Sendable {
     private let client: MockNetworkClient
-    internal let matcher: RequestMatcher
+    internal var matchers: [RequestMatcher]
     private var response: MockResponse?
     private var expectedCallCount: CallCountExpectation = .atLeastOnce
     private var actualCallCount: Int = 0
@@ -79,7 +92,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
     internal init(client: MockNetworkClient, matcher: RequestMatcher) {
       self.client = client
-      self.matcher = matcher
+      self.matchers = [matcher]
     }
 
     // MARK: - Response Configuration
@@ -220,8 +233,14 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     // MARK: - Internal Methods
 
     internal func matches(_ request: HTTPRequest) -> Bool {
-      let urlRequest = URLRequest(url: request.url)
-      return matcher.matches(urlRequest)
+      var urlRequest = URLRequest(url: request.url)
+      urlRequest.httpMethod = request.method.rawValue
+      urlRequest.httpBody = request.body
+      for (key, value) in request.headers {
+        urlRequest.setValue(value, forHTTPHeaderField: key)
+      }
+      // All matchers must match for the expectation to match
+      return matchers.allSatisfy { $0.matches(urlRequest) }
     }
 
     internal func recordCall(for request: HTTPRequest) {
@@ -234,7 +253,8 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     }
 
     internal var expectationDescription: String {
-      "Expected request matching \(matcher) to be called \(expectedCallCount.description), but was called \(actualCallCount) time(s)"
+      let matcherDescriptions = matchers.map(\.description).joined(separator: ", ")
+      return "Expected request matching [\(matcherDescriptions)] to be called \(expectedCallCount.description), but was called \(actualCallCount) time(s)"
     }
 
     internal var mockResponse: MockResponse {
@@ -365,33 +385,38 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
       }
     }
 
-    // Find and record matching expectations
+    // Find matching expectation and record call
+    var matchingExpectation: RequestExpectation?
     queue.sync(flags: .barrier) {
       for expectation in expectations {
         if expectation.matches(request) {
           expectation.recordCall(for: request)
+          if matchingExpectation == nil {
+            matchingExpectation = expectation
+          }
         }
       }
     }
 
-    // Set up MockURLProtocol stubs based on expectations
-    setupMockStubs()
+    // Return mocked response based on matching expectation
+    guard let expectation = matchingExpectation else {
+      throw HTTPError(category: .network(.connectionLost), request: request)
+    }
 
-    // Execute request through parent HTTPClient
-    // Simple mock implementation - return mocked response based on expectations
-    // In practice, you'd match against expectations and return appropriate response
-    throw HTTPError(category: .network(.connectionLost))
+    let mockResponse = expectation.mockResponse
+    return try await mockResponse.toHTTPResponse(for: request)
   }
 
   private func setupMockStubs() {
     queue.sync {
       for expectation in expectations {
         // Convert expectation to MockURLProtocol stub
-        // This is a simplified mapping - in practice, you'd need more sophisticated conversion
-        MockURLProtocol.stub(
-          matching: convertToURLProtocolMatcher(expectation.matcher),
-          response: expectation.mockResponse
-        )
+        // This is a simplified mapping - combines all matchers into a single custom matcher
+        let matchers = expectation.matchers.map { convertToURLProtocolMatcher($0) }
+        let combinedMatcher: MockURLProtocol.RequestMatcher = .custom { request in
+          matchers.allSatisfy { $0.matches(request) }
+        }
+        MockURLProtocol.stub(matching: combinedMatcher, response: expectation.mockResponse)
       }
     }
   }
@@ -573,9 +598,8 @@ extension MockNetworkClient.RequestExpectation {
   /// - Returns: Self for method chaining
   @discardableResult
   public func expect(_ matcher: MockNetworkClient.RequestMatcher) -> Self {
-    // This would require refactoring the internal structure to support multiple matchers
-    // For now, we'll create a composite matcher
-    self
+    matchers.append(matcher)
+    return self
   }
 
   /// Expect a specific header
