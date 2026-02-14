@@ -713,8 +713,19 @@ public actor AsyncSemaphore {
     if currentCount > 0 {
       currentCount -= 1
     } else {
-      await withCheckedContinuation { continuation in
-        waiters.append(continuation)
+      await withTaskCancellationHandler {
+        await withCheckedContinuation { continuation in
+          // Check cancellation before storing
+          if Task.isCancelled {
+            continuation.resume()
+            return
+          }
+          waiters.append(continuation)
+        }
+      } onCancel: {
+        Task {
+          await self.cancelWait()
+        }
       }
     }
   }
@@ -725,6 +736,16 @@ public actor AsyncSemaphore {
       waiter.resume()
     } else {
       currentCount = min(currentCount + 1, maxCount)
+    }
+  }
+
+  /// Cancels a waiting continuation when task is cancelled
+  private func cancelWait() {
+    // When cancelled, we need to release one waiter if any are waiting
+    // This ensures the continuation stored before cancellation is resumed
+    if !waiters.isEmpty {
+      let waiter = waiters.removeFirst()
+      waiter.resume()
     }
   }
 }
@@ -743,7 +764,15 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func get(_ key: String) async -> CachingMiddleware.CacheEntry? {
-    cache[key]
+    guard let entry = cache[key] else {
+      return nil
+    }
+    // Check expiration and remove if expired
+    if entry.isExpired {
+      cache.removeValue(forKey: key)
+      return nil
+    }
+    return entry
   }
 
   public func set(_ key: String, entry: CachingMiddleware.CacheEntry) async {
