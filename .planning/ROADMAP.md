@@ -23,6 +23,11 @@
 
 **Rationale**: Foundation audit to understand the scope of async/await modernization. Must complete before Phase 1 to ensure concurrency compliance work is comprehensive.
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 00-01-PLAN.md — Execute systematic scan and create audit inventory document
+
 ---
 
 ### Phase 1: Swift 6 Concurrency Compliance ✓
