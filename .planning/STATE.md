@@ -36,6 +36,7 @@
 | 2026-02-14 | Plan 01-02 completed | Removed @unchecked Sendable from core types |
 | 2026-02-14 | Plan 01-03 completed | Continuation safety audit and fixes |
 | 2026-02-14 | Plan 01-04 completed | Actor reentrancy audit and hardening |
+| 2026-02-14 | Plan 01-05 completed | Task lifecycle management - documented fire-and-forget tasks |
 
 ## Phase 1 Progress Summary
 
@@ -44,12 +45,13 @@
 2. **Plan 01-02**: Converted KeychainService and TraceSpan to actors, documented InternalCachedResponse
 3. **Plan 01-03**: Audited continuation safety - added cancellation handling to AsyncSemaphore, removed nested Task antipattern
 4. **Plan 01-04**: Actor reentrancy audit - added in-flight tracking to TokenManager and CachingMiddleware, documented WebSocketClient state transitions
+5. **Plan 01-05**: Task lifecycle management - documented fire-and-forget cleanup tasks with LIFECYCLE comments
 
 ### Current Status
 - **Build**: Passes with `-warnings-as-errors`
 - **Tests**: Passing (concurrency-related tests)
 - **Zero concurrency warnings**: No Sendable, actor, or data race issues
-- **Next**: Plan 01-05 (Continue Swift 6 compliance)
+- **Next**: Plan 01-06 (Continue Swift 6 compliance)
 
 ### @unchecked Sendable Types Documented
 1. `InternalCachedResponse` (NetworkClient.swift)
