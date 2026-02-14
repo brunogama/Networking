@@ -150,29 +150,25 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
     }
   }
 
+  // REENTRANCY-SAFE: in-flight tracking pattern
+  // Multiple concurrent calls share single refresh task
   private func getRefreshedToken() async throws -> String {
-    // Check if there's already a refresh task in progress
+    // Check if there's already a refresh task in progress - join existing
     if let existingTask = refreshTask {
-      // Wait for the existing refresh to complete
       return try await existingTask.value
     }
 
-    // Create a new refresh task
+    // Start new refresh - store task reference BEFORE await
     let task = Task<String, any Error> {
-      defer {
-        // Clean up the task reference when done
-        Task { self.clearRefreshTask() }
-      }
-
-      return try await tokenProvider.refreshToken()
+      try await tokenProvider.refreshToken()
     }
-
     refreshTask = task
-    return try await task.value
-  }
 
-  private func clearRefreshTask() {
-    refreshTask = nil
+    // Clean up after completion (success or failure)
+    defer { refreshTask = nil }
+
+    let newToken = try await task.value
+    return newToken
   }
 }
 
