@@ -37,6 +37,7 @@
 | 2026-02-14 | Plan 01-03 completed | Continuation safety audit and fixes |
 | 2026-02-14 | Plan 01-04 completed | Actor reentrancy audit and hardening |
 | 2026-02-14 | Plan 01-05 completed | Task lifecycle management - documented fire-and-forget tasks |
+| 2026-02-14 | Plan 01-06 completed | Documented all @unchecked Sendable and nonisolated(unsafe) justifications |
 
 ## Phase 1 Progress Summary
 
@@ -46,25 +47,30 @@
 3. **Plan 01-03**: Audited continuation safety - added cancellation handling to AsyncSemaphore, removed nested Task antipattern
 4. **Plan 01-04**: Actor reentrancy audit - added in-flight tracking to TokenManager and CachingMiddleware, documented WebSocketClient state transitions
 5. **Plan 01-05**: Task lifecycle management - documented fire-and-forget cleanup tasks with LIFECYCLE comments
+6. **Plan 01-06**: Unsafe marker documentation - added inline justifications for all @unchecked Sendable and nonisolated(unsafe)
 
 ### Current Status
 - **Build**: Passes with `-warnings-as-errors`
 - **Tests**: Passing (concurrency-related tests)
 - **Zero concurrency warnings**: No Sendable, actor, or data race issues
-- **Next**: Plan 01-06 (Continue Swift 6 compliance)
+- **Documentation**: 100% coverage for unsafe concurrency markers
+- **Next**: Plan 01-07 (if exists) or Phase 1 completion verification
 
-### @unchecked Sendable Types Documented
-1. `InternalCachedResponse` (NetworkClient.swift)
-2. `ScenarioContext` (BDD/Core)
-3. `MockNetworkClient` (Testing)
-4. `RequestExpectation` (Testing)
-5. `MockURLProtocol` (Testing)
-6. `UnsafeWrapper` (Testing)
-7. `StepRegistry` (BDD/Parser)
-8. `ReportCollector` (BDD/Reporting)
-9. `BDDTestRunner` (BDD/Quick)
-10. `AsyncExpectation` (TestUtilities)
-11. `RespondComponent` (MockDSL)
+### @unchecked Sendable Types Documented (11 total)
+1. `InternalCachedResponse` (NetworkClient.swift) - Cache response wrapper
+2. `ScenarioContext` (BDD/Core) - BDD scenario state
+3. `MockNetworkClient` (Testing) - Test mock client with DispatchQueue protection
+4. `RequestExpectation` (Testing) - Test expectation with parent queue sync
+5. `MockURLProtocol` (Testing) - URLProtocol test mock with actor state
+6. `UnsafeWrapper` (Testing) - URLProtocol bridging wrapper
+7. `StepRegistry` (BDD/Parser) - BDD step definitions with NSLock
+8. `ReportCollector` (BDD/Reporting) - BDD test report collector
+9. `BDDTestRunner` (BDD/Quick) - BDD test execution runner
+10. `AsyncExpectation` (TestUtilities) - Async test expectation
+11. `RespondComponent` (MockDSL) - Mock response builder
+
+### nonisolated(unsafe) Properties Documented (1 total)
+1. `backgroundSession` (FileTransferOperations.swift) - Thread-safe URLSession for background transfers
 
 ## Accumulated Context
 
