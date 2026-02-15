@@ -1,7 +1,7 @@
 import XCTest
 import SwiftSyntax
 import MacroTemplateKit
-@testable import NetworkingMacros
+@testable import NetworkingMacrosPlugin
 
 final class HTTPPhantomTypeTests: XCTestCase {
 

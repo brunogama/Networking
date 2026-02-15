@@ -15,7 +15,7 @@ let package = Package(
   products: [
     .library(
       name: "NetworkingMacros",
-      targets: ["NetworkingMacros"]
+      targets: ["NetworkingMacrosPlugin"]
     )
   ],
   dependencies: [
@@ -36,7 +36,7 @@ let package = Package(
   targets: [
     // Macro implementation (compiler plugin)
     .macro(
-      name: "NetworkingMacros",
+      name: "NetworkingMacrosPlugin",
       dependencies: [
         .product(name: "MacroTemplateKit", package: "MacroTemplateKit"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -50,7 +50,7 @@ let package = Package(
     .testTarget(
       name: "NetworkingMacrosTests",
       dependencies: [
-        "NetworkingMacros",
+        "NetworkingMacrosPlugin",
         .product(name: "MacroTesting", package: "swift-macro-testing"),
       ]
     ),
