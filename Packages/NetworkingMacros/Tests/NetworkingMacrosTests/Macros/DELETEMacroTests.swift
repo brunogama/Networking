@@ -1,10 +1,12 @@
-#if MACRO_TESTS_ENABLED
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
+
+#if canImport(NetworkingMacros)
 import NetworkingMacros
+#endif
 
 /// Tests for @DELETE macro expansion.
 final class DELETEMacroTests: XCTestCase {
@@ -220,4 +222,3 @@ final class DELETEMacroTests: XCTestCase {
     )
   }
 }
-#endif

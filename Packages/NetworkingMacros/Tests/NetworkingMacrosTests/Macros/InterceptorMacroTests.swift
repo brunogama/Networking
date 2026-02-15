@@ -1,10 +1,12 @@
-#if MACRO_TESTS_ENABLED
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
+
+#if canImport(NetworkingMacros)
 import NetworkingMacros
+#endif
 
 /// Tests for @Interceptors macro and interceptor chain generation.
 final class InterceptorMacroTests: XCTestCase {
@@ -304,4 +306,3 @@ final class InterceptorMacroTests: XCTestCase {
     )
   }
 }
-#endif

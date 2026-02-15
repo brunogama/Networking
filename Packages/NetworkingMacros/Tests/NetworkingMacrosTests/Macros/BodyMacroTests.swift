@@ -1,10 +1,12 @@
-#if MACRO_TESTS_ENABLED
-import NetworkingMacros
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
+
+#if canImport(NetworkingMacros)
+import NetworkingMacros
+#endif
 
 /// Tests for @Body macro validation and behavior.
 ///
@@ -265,4 +267,3 @@ final class BodyMacroTests: XCTestCase {
     )
   }
 }
-#endif
