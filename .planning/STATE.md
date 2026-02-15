@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 10 |
-| Current Plan | 04 |
+| Current Plan | 05 |
 | Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
@@ -66,6 +66,7 @@
 | 2026-02-15 | Plan 10-02 completed | MacroTemplateKit dependency wired to NetworkingMacros - workspace dependency order updated, all packages build successfully |
 | 2026-02-15 | Plan 10-03 completed | MacroTemplateKit testing complete - 51 tests (26 functor laws + 25 renderer tests), all 6 packages build with warnings-as-errors, TMPL-06 verified |
 | 2026-02-15 | Plan 10-04 completed | @TemplateBuilder result builder and fluent factory DSL - 3 tasks, 3 commits, 16 tests, 67/67 total tests passing |
+| 2026-02-15 | Plan 10-05 completed | HTTP phantom types and TypedHTTPTemplate - 3 tasks, 3 commits, 14 tests, compile-time body constraints via conditional extensions |
 
 ## Phase 0 Progress Summary
 
@@ -266,6 +267,9 @@ Packages/NetworkingMacros/ (standalone package)
 | 2026-02-15 | 10 | Split Template conformances into separate file | Meet 200-line file length limit while maintaining cohesion (Template.swift 187 lines, Template+Conformances.swift 182 lines) |
 | 2026-02-15 | 10 | Refactor map/===/hash into helper functions | Avoid cyclomatic complexity violations (9-case switch exceeds limit of 4, split into partial matchers) |
 | 2026-02-15 | 10 | List MacroTemplateKit FIRST in workspace dependencies | SPM resolves dependencies in order; leaf nodes (no dependencies) must come before consumers |
+| 2026-02-15 | 10 | HTTP phantom types in NetworkingMacros, not MacroTemplateKit | MacroTemplateKit remains pure and networking-agnostic; HTTP-specific types belong in NetworkingMacros |
+| 2026-02-15 | 10 | Conditional extension for .withBody() based on BodyAllowedProtocol | Type-safe API prevents GET/HEAD/DELETE from having bodies at compile time, not runtime |
+| 2026-02-15 | 10 | Empty enums for phantom types instead of structs | Zero runtime cost, cannot be instantiated, only used as type parameters |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 - [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
@@ -312,8 +316,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 10-02 | 92 | 3 | 2 | 2 |
 | 10-03 | 576 | 3 | 2 | 2 |
 | 10-04 | 223 | 3 | 3 | 3 |
-| **Total** | **6860** | **72** | **306** | **57** |
-| Phase 10 P04 | 223 | 3 tasks | 3 files |
+| 10-05 | 247 | 3 | 3 | 3 |
+| **Total** | **7107** | **75** | **309** | **60** |
 
 ## Blockers
 
@@ -332,7 +336,7 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 10-04-PLAN.md - @TemplateBuilder result builder and fluent factory DSL (67 tests passing), all packages build with warnings-as-errors
+- **Stopped At**: Completed 10-05-PLAN.md - HTTP phantom types and TypedHTTPTemplate with compile-time body constraints (33 NetworkingMacros tests passing), all packages build with warnings-as-errors
 - **Next Action**: Phase 10 IN PROGRESS. Continue with next plan (Refactor macro implementations to use Template algebra)
 
 ---
