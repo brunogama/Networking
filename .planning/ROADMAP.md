@@ -4,7 +4,7 @@
 
 | Phases | Requirements | Depth |
 |--------|--------------|-------|
-| 10 | 86 | Standard |
+| 11 | 92 | Standard |
 
 ## Phase Structure
 
@@ -202,8 +202,8 @@ Plans:
 **Architecture:**
 - Monorepo with Swift Package workspace (Package.swift at root)
 - NetworkingMacros as separate package within Packages/
-- One-way dependency: Core Networking depends on NetworkingMacros and re-exports via @_exported import
-- Macro tests in dedicated test target with MacroTesting support
+- One-way dependency: Core Networking depends on NetworkingMacros and declares macros via #externalMacro
+- Macro tests in dedicated test target (infrastructure refactor required - see plan 08-05)
 
 **Depends on:** Phase 7 (Extract WebSocket & GraphQL)
 
@@ -213,10 +213,10 @@ Plans:
 3. All 17 macro test files in Packages/NetworkingMacros/Tests/NetworkingMacrosTests/
 4. NetworkingMacros has NO dependency on Core Networking (pure swift-syntax)
 5. Core Networking depends on NetworkingMacros via `.package(path: "../NetworkingMacros")`
-6. Core Networking re-exports macros via `@_exported import NetworkingMacros`
+6. Core Networking declares macros via #externalMacro(module: "NetworkingMacros", type: "XxxMacro")
 7. Root workspace includes NetworkingMacros BEFORE Networking (dependency order)
 8. All 4 packages build with `swift build -Xswiftc -warnings-as-errors`
-9. All 4 packages test independently with `swift test`
+9. NetworkingMacros tests compile and run without SwiftCompilerPlugin errors
 
 **Plans:** 4 plans in 3 waves
 
@@ -262,7 +262,8 @@ Plans:
 | 7 | PKG-01 to PKG-08 | 8 |
 | 8 | MACRO-01 to MACRO-09 | 9 |
 | 9 | CI-01 to CI-05 | 5 |
-| **Total** | | **86** |
+| 10 | TMPL-01 to TMPL-06 | 6 |
+| **Total** | | **92** |
 
 ## Dependencies
 
@@ -280,13 +281,56 @@ Phase 7 (Extract WS/GQL) ───────────┤   │           �
 Phase 8 (Extract Macros) ───────────┘               │
       │                                             ▼
       ▼                                       Phase 6 (Testing/Docs)
-Phase 9 (CI/Hooks) ◄──────────────────────────────┘
+Phase 10 (Template/Render) ◄───────────────────────┘
+      │
+      ▼
+Phase 9 (CI/Hooks)
       │
       ▼
 Phase 3 (Batch/Progress)
 ```
 
-**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phase 9 (CI/Hooks) follows Phase 8 to update infrastructure for the new workspace layout. Phases 3-6 can proceed in parallel or after Phase 9.
+**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phase 10 (Template/Render refactor) modernizes macro code generation immediately after extraction. Phase 9 (CI/Hooks) follows Phase 10 to update infrastructure for the new workspace layout. Phases 3-6 can proceed in parallel or after Phase 9.
+
+### Phase 10: Refactor NetworkingMacros to Functional Template-Render API
+
+**Goal:** Replace imperative SwiftSyntax AST construction in all macro expansion code with a pure-functional Template/Render algebra. This introduces a **functor-based templating engine** that separates template definition from AST rendering, improving testability, composability, and maintainability.
+
+**Architecture:**
+- `Template<A>` — Pure-functional ADT (algebraic data type) representing AST templates
+- `Renderer` — Natural transformation from Template to SwiftSyntax ExprSyntax
+- Template DSL — Fluent builder API for compositional template construction
+- Functor laws guarantee referential transparency and compositional correctness
+
+**Template Cases:**
+- `.literal(LiteralValue)` — Integer, double, string, boolean, nil literals
+- `.variable(String, payload: A)` — Identifier references with parametric payload
+- `.conditional(condition:thenBranch:elseBranch:)` — Ternary expressions
+- `.loop(variable:collection:body:)` — For-in iteration
+- `.functionCall(function:arguments:)` — N-ary function application
+- `.binaryOperation(left:operator:right:)` — Infix operators
+- `.propertyAccess(base:property:)` — Member access chains
+- `.variableDeclaration(name:type:initializer:)` — Variable bindings
+- `.arrayLiteral([Template<A>])` — Collection literals
+
+**Depends on:** Phase 8 (Extract Core Networking Macros) — Executes immediately after Phase 8, before Phase 9
+
+**Success Criteria**:
+1. Template.swift and Renderer.swift added to NetworkingMacros/Sources/
+2. All 18 macro source files refactored to use Template DSL instead of raw SwiftSyntax
+3. Functor laws verified via property-based tests (identity, composition)
+4. Natural transformation property verified (render preserves structure)
+5. Zero regression in macro expansion output (existing tests pass)
+6. Build passes with `-Xswiftc -warnings-as-errors`
+
+**Plans:** TBD
+
+Plans:
+- [ ] 10-01-PLAN.md — Add Template.swift and Renderer.swift to NetworkingMacros package
+- [ ] 10-02-PLAN.md — Refactor HTTP macros (GET, POST, PUT, PATCH, DELETE) to Template DSL
+- [ ] 10-03-PLAN.md — Refactor Configuration macros (Cacheable, Measured, DefaultHeaders, Timeout) to Template DSL
+- [ ] 10-04-PLAN.md — Refactor API and Interceptor macros to Template DSL
+- [ ] 10-05-PLAN.md — Add property-based tests for functor laws and natural transformation
 
 ---
 *Created: 2026-02-14*
