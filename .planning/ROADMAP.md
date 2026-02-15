@@ -238,29 +238,30 @@ Plans:
 
 ---
 
-### Phase 9: Update CI and Pre-commit Hooks for SPM Workspace Layout
+### Phase 9: Update CI and Pre-commit Hooks for SPM Workspace Layout ✓
 
-**Status**: Pending
+**Status**: COMPLETE (2026-02-15)
 
 **Goal:** Modernize CI/CD pipeline and pre-commit hooks for the new monorepo workspace structure. Add automated changelog generation, LLMs.txt generation for AI assistants, and Documentation.docc catalog updates.
 
 **Depends on:** Phase 8 (Extract Core Networking Macros)
 
 **Success Criteria**:
-1. CI workflows updated to build/test all 5 packages (MacroTemplateKit, NetworkingMacros, Networking, NetworkingWebSocket, NetworkingGraphQL)
-2. Pre-commit hooks validate all packages in workspace
-3. Auto-changelog generation on version tags/releases
-4. Auto LLMs.txt generation from public API surface
-5. Auto Documentation.docc catalog updates on source changes
+1. ✓ CI workflows updated to build/test all 5 packages (MacroTemplateKit, NetworkingMacros, Networking, NetworkingWebSocket, NetworkingGraphQL)
+2. ✓ Pre-commit hooks validate all packages in workspace
+3. ✓ Auto-changelog generation on version tags/releases
+4. ✓ Auto LLMs.txt generation from public API surface
+5. ✓ Auto Documentation.docc catalog updates on source changes
 
-**Plans:** 5 plans in 3 waves
+**Plans Executed**: 5 plans in 3 waves
+**Artifacts**: ci.yml, docs-sync.yml, changelog.yml, llms-txt.yml, docs.yml, cliff.toml, llms.txt, 3 scripts
 
 Plans:
-- [ ] 09-01-PLAN.md — Create multi-package CI workflow and update docs-sync (Wave 1)
-- [ ] 09-02-PLAN.md — Update pre-commit hooks for workspace validation (Wave 1)
-- [ ] 09-03-PLAN.md — Add automated changelog generation with git-cliff (Wave 2)
-- [ ] 09-04-PLAN.md — Add LLMs.txt generation from public API (Wave 2)
-- [ ] 09-05-PLAN.md — Add Documentation.docc automation workflow (Wave 3)
+- [x] 09-01-PLAN.md — Create multi-package CI workflow and update docs-sync (Wave 1)
+- [x] 09-02-PLAN.md — Update pre-commit hooks for workspace validation (Wave 1)
+- [x] 09-03-PLAN.md — Add automated changelog generation with git-cliff (Wave 2)
+- [x] 09-04-PLAN.md — Add LLMs.txt generation from public API (Wave 2)
+- [x] 09-05-PLAN.md — Add Documentation.docc automation workflow (Wave 3)
 
 ---
 
