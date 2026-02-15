@@ -1,3 +1,27 @@
+import SwiftSyntax
+
+// MARK: - Access Level
+
+/// Swift access level modifiers for declarations.
+///
+/// Maps directly to Swift's access control keywords.
+public enum AccessLevel: Equatable, Hashable, Sendable {
+  case `public`
+  case `internal`
+  case `fileprivate`
+  case `private`
+
+  /// Returns nil for internal (default), SwiftSyntax Keyword otherwise.
+  public var keyword: Keyword? {
+    switch self {
+    case .internal: nil
+    case .public: .public
+    case .private: .private
+    case .fileprivate: .fileprivate
+    }
+  }
+}
+
 /// Declaration-level code generation templates.
 ///
 /// `Declaration<A>` extends the Template algebra to handle top-level Swift declarations.
@@ -83,12 +107,27 @@ public indirect enum Declaration<A> {
   ///
   /// SwiftSyntax equivalent: `StructDeclSyntax`
   case structDecl(StructSignature<A>)
+
+  /// Initializer declaration.
+  ///
+  /// Renders to:
+  /// ```swift
+  /// public init(label param: Type = default, ...) throws {
+  ///   statements...
+  /// }
+  /// ```
+  ///
+  /// SwiftSyntax equivalent: `InitializerDeclSyntax`
+  case initDecl(InitializerSignature<A>)
 }
 
 // MARK: - Supporting Types
 
 /// Function signature with all declaration components.
 public struct FunctionSignature<A>: Sendable where A: Sendable {
+  /// Access level (public, internal, private, fileprivate).
+  public let accessLevel: AccessLevel
+
   /// Function name.
   public let name: String
 
@@ -108,6 +147,7 @@ public struct FunctionSignature<A>: Sendable where A: Sendable {
   public let body: [Statement<A>]
 
   public init(
+    accessLevel: AccessLevel = .internal,
     name: String,
     parameters: [ParameterSignature] = [],
     isAsync: Bool = false,
@@ -115,6 +155,7 @@ public struct FunctionSignature<A>: Sendable where A: Sendable {
     returnType: String? = nil,
     body: [Statement<A>] = []
   ) {
+    self.accessLevel = accessLevel
     self.name = name
     self.parameters = parameters
     self.isAsync = isAsync
@@ -138,21 +179,28 @@ public struct ParameterSignature: Equatable, Hashable, Sendable {
   /// Whether parameter is inout.
   public let isInout: Bool
 
+  /// Default value expression as raw string (e.g., ".shared", "nil", "42").
+  public let defaultValue: String?
+
   public init(
     label: String? = nil,
     name: String,
     type: String,
-    isInout: Bool = false
+    isInout: Bool = false,
+    defaultValue: String? = nil
   ) {
     self.label = label
     self.name = name
     self.type = type
     self.isInout = isInout
+    self.defaultValue = defaultValue
   }
 }
 
 /// Property signature for stored properties.
 public struct PropertySignature<A>: Sendable where A: Sendable {
+  /// Access level (public, internal, private, fileprivate).
+  public let accessLevel: AccessLevel
   public let name: String
   public let type: String?
   public let isStatic: Bool
@@ -160,12 +208,14 @@ public struct PropertySignature<A>: Sendable where A: Sendable {
   public let initializer: Template<A>?
 
   public init(
+    accessLevel: AccessLevel = .internal,
     name: String,
     type: String? = nil,
     isStatic: Bool = false,
     isLet: Bool = true,
     initializer: Template<A>? = nil
   ) {
+    self.accessLevel = accessLevel
     self.name = name
     self.type = type
     self.isStatic = isStatic
@@ -230,18 +280,49 @@ public struct ExtensionSignature<A>: Sendable where A: Sendable {
 
 /// Struct signature with name and members.
 public struct StructSignature<A>: Sendable where A: Sendable {
+  /// Access level (public, internal, private, fileprivate).
+  public let accessLevel: AccessLevel
   public let name: String
   public let conformances: [String]
   public let members: [Declaration<A>]
 
   public init(
+    accessLevel: AccessLevel = .internal,
     name: String,
     conformances: [String] = [],
     members: [Declaration<A>] = []
   ) {
+    self.accessLevel = accessLevel
     self.name = name
     self.conformances = conformances
     self.members = members
+  }
+}
+
+/// Initializer signature for init declarations.
+public struct InitializerSignature<A>: Sendable where A: Sendable {
+  /// Access level (public, internal, private, fileprivate).
+  public let accessLevel: AccessLevel
+
+  /// Parameter list with labels, names, types, and default values.
+  public let parameters: [ParameterSignature]
+
+  /// Whether initializer can throw.
+  public let canThrow: Bool
+
+  /// Initializer body statements.
+  public let body: [Statement<A>]
+
+  public init(
+    accessLevel: AccessLevel = .internal,
+    parameters: [ParameterSignature] = [],
+    canThrow: Bool = false,
+    body: [Statement<A>] = []
+  ) {
+    self.accessLevel = accessLevel
+    self.parameters = parameters
+    self.canThrow = canThrow
+    self.body = body
   }
 }
 
@@ -271,6 +352,8 @@ extension Declaration {
       return .extensionDecl(signature.map(transform))
     case .structDecl(let signature):
       return .structDecl(signature.map(transform))
+    case .initDecl(let signature):
+      return .initDecl(signature.map(transform))
     }
   }
 }
@@ -279,6 +362,7 @@ extension FunctionSignature {
   func map<B>(_ transform: @escaping @Sendable (A) -> B) -> FunctionSignature<B>
   where A: Sendable, B: Sendable {
     FunctionSignature<B>(
+      accessLevel: accessLevel,
       name: name,
       parameters: parameters,
       isAsync: isAsync,
@@ -293,6 +377,7 @@ extension PropertySignature {
   func map<B>(_ transform: @escaping @Sendable (A) -> B) -> PropertySignature<B>
   where A: Sendable, B: Sendable {
     PropertySignature<B>(
+      accessLevel: accessLevel,
       name: name,
       type: type,
       isStatic: isStatic,
@@ -340,9 +425,22 @@ extension StructSignature {
   func map<B>(_ transform: @escaping @Sendable (A) -> B) -> StructSignature<B>
   where A: Sendable, B: Sendable {
     StructSignature<B>(
+      accessLevel: accessLevel,
       name: name,
       conformances: conformances,
       members: members.map { $0.map(transform) }
+    )
+  }
+}
+
+extension InitializerSignature {
+  func map<B>(_ transform: @escaping @Sendable (A) -> B) -> InitializerSignature<B>
+  where A: Sendable, B: Sendable {
+    InitializerSignature<B>(
+      accessLevel: accessLevel,
+      parameters: parameters,
+      canThrow: canThrow,
+      body: body.map { $0.map(transform) }
     )
   }
 }
@@ -378,3 +476,7 @@ extension ExtensionSignature: Hashable where A: Hashable {}
 extension StructSignature: Equatable where A: Equatable {}
 
 extension StructSignature: Hashable where A: Hashable {}
+
+extension InitializerSignature: Equatable where A: Equatable {}
+
+extension InitializerSignature: Hashable where A: Hashable {}

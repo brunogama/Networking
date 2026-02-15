@@ -34,22 +34,17 @@ extension Renderer {
 
     case .structDecl(let sig):
       return DeclSyntax(renderStruct(sig))
+
+    case .initDecl(let sig):
+      return DeclSyntax(renderInitializer(sig))
     }
   }
 
   // MARK: - Private Declaration Helpers
 
-  private static func renderFunction<A: Sendable>(_ sig: FunctionSignature<A>) -> FunctionDeclSyntax {
-    let params = sig.parameters.map { param -> FunctionParameterSyntax in
-      let firstName = param.label.map { TokenSyntax.identifier($0) } ?? .identifier(param.name)
-      let secondName = param.label != nil ? TokenSyntax.identifier(param.name) : nil
-
-      return FunctionParameterSyntax(
-        firstName: firstName,
-        secondName: secondName,
-        type: TypeSyntax(stringLiteral: param.isInout ? "inout \(param.type)" : param.type)
-      )
-    }
+  private static func renderFunction<A: Sendable>(_ sig: FunctionSignature<A>) -> FunctionDeclSyntax
+  {
+    let params = renderParameterList(sig.parameters)
 
     let parameterClause = FunctionParameterClauseSyntax(
       parameters: FunctionParameterListSyntax(params)
@@ -76,17 +71,23 @@ extension Renderer {
     let body = CodeBlockSyntax(statements: renderStatements(sig.body))
 
     return FunctionDeclSyntax(
+      modifiers: renderModifiers(accessLevel: sig.accessLevel),
       name: .identifier(sig.name),
       signature: signature,
       body: body
     )
   }
 
-  private static func renderProperty<A: Sendable>(_ sig: PropertySignature<A>) -> VariableDeclSyntax {
-    var modifiers = DeclModifierListSyntax([])
-    if sig.isStatic {
-      modifiers = DeclModifierListSyntax([DeclModifierSyntax(name: .keyword(.static))])
+  private static func renderProperty<A: Sendable>(_ sig: PropertySignature<A>) -> VariableDeclSyntax
+  {
+    var modifierList: [DeclModifierSyntax] = []
+    if let keyword = sig.accessLevel.keyword {
+      modifierList.append(DeclModifierSyntax(name: .keyword(keyword)))
     }
+    if sig.isStatic {
+      modifierList.append(DeclModifierSyntax(name: .keyword(.static)))
+    }
+    let modifiers = DeclModifierListSyntax(modifierList)
 
     let pattern = IdentifierPatternSyntax(identifier: .identifier(sig.name))
     let typeAnnotation = sig.type.map { TypeAnnotationSyntax(type: TypeSyntax(stringLiteral: $0)) }
@@ -150,13 +151,18 @@ extension Renderer {
     )
   }
 
-  private static func renderExtension<A: Sendable>(_ sig: ExtensionSignature<A>) -> ExtensionDeclSyntax {
-    let inheritanceClause: InheritanceClauseSyntax? = sig.conformances.isEmpty ? nil : {
-      let types = sig.conformances.map { conformance in
-        InheritedTypeSyntax(type: TypeSyntax(stringLiteral: conformance))
-      }
-      return InheritanceClauseSyntax(inheritedTypes: InheritedTypeListSyntax(types))
-    }()
+  private static func renderExtension<A: Sendable>(
+    _ sig: ExtensionSignature<A>
+  ) -> ExtensionDeclSyntax {
+    let inheritanceClause: InheritanceClauseSyntax? =
+      sig.conformances.isEmpty
+      ? nil
+      : {
+        let types = sig.conformances.map { conformance in
+          InheritedTypeSyntax(type: TypeSyntax(stringLiteral: conformance))
+        }
+        return InheritanceClauseSyntax(inheritedTypes: InheritedTypeListSyntax(types))
+      }()
 
     let members = MemberBlockItemListSyntax(
       sig.members.map { member in
@@ -172,12 +178,15 @@ extension Renderer {
   }
 
   private static func renderStruct<A: Sendable>(_ sig: StructSignature<A>) -> StructDeclSyntax {
-    let inheritanceClause: InheritanceClauseSyntax? = sig.conformances.isEmpty ? nil : {
-      let types = sig.conformances.map { conformance in
-        InheritedTypeSyntax(type: TypeSyntax(stringLiteral: conformance))
-      }
-      return InheritanceClauseSyntax(inheritedTypes: InheritedTypeListSyntax(types))
-    }()
+    let inheritanceClause: InheritanceClauseSyntax? =
+      sig.conformances.isEmpty
+      ? nil
+      : {
+        let types = sig.conformances.map { conformance in
+          InheritedTypeSyntax(type: TypeSyntax(stringLiteral: conformance))
+        }
+        return InheritanceClauseSyntax(inheritedTypes: InheritedTypeListSyntax(types))
+      }()
 
     let members = MemberBlockItemListSyntax(
       sig.members.map { member in
@@ -186,9 +195,74 @@ extension Renderer {
     )
 
     return StructDeclSyntax(
+      modifiers: renderModifiers(accessLevel: sig.accessLevel),
       name: .identifier(sig.name),
       inheritanceClause: inheritanceClause,
       memberBlock: MemberBlockSyntax(members: members)
     )
+  }
+
+  private static func renderInitializer<A: Sendable>(
+    _ sig: InitializerSignature<A>
+  ) -> InitializerDeclSyntax {
+    let params = renderParameterList(sig.parameters)
+
+    let parameterClause = FunctionParameterClauseSyntax(
+      parameters: FunctionParameterListSyntax(params)
+    )
+
+    let throwsClause: ThrowsClauseSyntax? =
+      sig.canThrow
+      ? ThrowsClauseSyntax(throwsSpecifier: .keyword(.throws))
+      : nil
+
+    let signature = FunctionSignatureSyntax(
+      parameterClause: parameterClause,
+      effectSpecifiers: throwsClause.map { clause in
+        FunctionEffectSpecifiersSyntax(throwsClause: clause)
+      }
+    )
+
+    let body = CodeBlockSyntax(statements: renderStatements(sig.body))
+
+    return InitializerDeclSyntax(
+      modifiers: renderModifiers(accessLevel: sig.accessLevel),
+      signature: signature,
+      body: body
+    )
+  }
+
+  // MARK: - Modifier Helpers
+
+  private static func renderModifiers(accessLevel: AccessLevel) -> DeclModifierListSyntax {
+    guard let keyword = accessLevel.keyword else {
+      return DeclModifierListSyntax([])
+    }
+    return DeclModifierListSyntax([
+      DeclModifierSyntax(name: .keyword(keyword))
+    ])
+  }
+
+  // MARK: - Parameter Helpers
+
+  private static func renderParameterList(
+    _ parameters: [ParameterSignature]
+  ) -> [FunctionParameterSyntax] {
+    parameters.map { param -> FunctionParameterSyntax in
+      let firstName = param.label.map { TokenSyntax.identifier($0) } ?? .identifier(param.name)
+      let secondName = param.label != nil ? TokenSyntax.identifier(param.name) : nil
+      let typeString = param.isInout ? "inout \(param.type)" : param.type
+
+      let defaultExpr: InitializerClauseSyntax? = param.defaultValue.map { value in
+        InitializerClauseSyntax(value: ExprSyntax(stringLiteral: value))
+      }
+
+      return FunctionParameterSyntax(
+        firstName: firstName,
+        secondName: secondName,
+        type: TypeSyntax(stringLiteral: typeString),
+        defaultValue: defaultExpr
+      )
+    }
   }
 }
