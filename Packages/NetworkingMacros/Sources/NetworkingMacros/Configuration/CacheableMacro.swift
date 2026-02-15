@@ -69,18 +69,23 @@ public struct CacheableMacro: PeerMacro {
       ]
     )
 
-    // Render Template to ExprSyntax
-    let cacheConfigExpr = Renderer.render(cacheConfigTemplate)
+    // Build computed property using ComputedPropertySignature
+    let computedProp = ComputedPropertySignature<Void>(
+      name: "cacheConfiguration",
+      type: "CacheConfiguration",
+      isStatic: true,
+      getter: [.returnStatement(cacheConfigTemplate)]
+    )
 
-    // Build extension using SwiftSyntax result builders
-    let extensionCode: DeclSyntax = """
-      extension \(raw: protocolName) {
-        static var cacheConfiguration: CacheConfiguration {
-          \(cacheConfigExpr)
-        }
-      }
-      """
+    // Build extension using Declaration.extensionDecl
+    let extensionDecl = Declaration<Void>.extensionDecl(
+      ExtensionSignature(
+        typeName: protocolName,
+        members: [.computedProperty(computedProp)]
+      )
+    )
 
-    return [extensionCode]
+    // Render to DeclSyntax
+    return [Renderer.render(extensionDecl)]
   }
 }
