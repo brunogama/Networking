@@ -717,4 +717,50 @@ struct ProgressTrackingTests {
     #expect(metadata.name == longName)
     #expect(metadata.fileExtension == "txt")
   }
+
+  // MARK: - Download Progress Bridge Tests
+
+  @Test("ProgressStreamManager bridgeDownloadProgress updates stream")
+  func testProgressStreamManagerBridgeDownloadProgress() async throws {
+    let streamManager = ProgressTracking.ProgressStreamManager()
+    let transferId = UUID()
+
+    // Create progress stream
+    let stream = await streamManager.createProgressStream(
+      for: transferId,
+      totalBytes: 1000
+    )
+
+    // Collect progress updates
+    var updates: [ProgressTracking.ProgressUpdate] = []
+    let collectTask = Task {
+      for try await update in stream {
+        updates.append(update)
+        if updates.count >= 3 { break }  // Initial + 2 progress updates
+      }
+    }
+
+    // Simulate download delegate callbacks
+    await streamManager.bridgeDownloadProgress(
+      for: transferId,
+      bytesWritten: 100,
+      totalBytesWritten: 100,
+      totalBytesExpected: 1000
+    )
+
+    await streamManager.bridgeDownloadProgress(
+      for: transferId,
+      bytesWritten: 200,
+      totalBytesWritten: 300,
+      totalBytesExpected: 1000
+    )
+
+    await collectTask.value
+
+    // Verify progress updates
+    #expect(updates.count == 3)  // Initial (0%) + 100 bytes + 300 bytes
+    #expect(updates[1].transferredBytes == 100)
+    #expect(updates[2].transferredBytes == 300)
+    #expect(updates[2].progress == 0.3)  // 300/1000 = 30%
+  }
 }
