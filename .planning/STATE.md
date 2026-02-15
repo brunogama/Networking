@@ -18,7 +18,7 @@
 | 2 | Developer Experience | Completed | 2026-02-14 | 2026-02-15 |
 | 3 | Batch Operations & Progress | Pending | — | — |
 | 4 | Observability | Pending | — | — |
-| 5 | WebSocket & GraphQL | Pending | — | — |
+| 5 | WebSocket & GraphQL | Deferred | — | — |
 | 6 | Testing & Documentation | Pending | — | — |
 | 7 | Extract WebSocket & GraphQL to Extension Packages | Completed | 2026-02-15 | 2026-02-15 |
 | 8 | Extract Core Networking Macros to Atomic Package | Completed | 2026-02-15 | 2026-02-15 |
@@ -69,6 +69,7 @@
 | 2026-02-15 | Plan 10-05 completed | HTTP phantom types and TypedHTTPTemplate - 3 tasks, 3 commits, 14 tests, compile-time body constraints via conditional extensions |
 | 2026-02-15 | Plan 10-06 completed | HTTPMacroTemplate shared helpers and MacroTemplateKit imports - 4 tasks (collapsed), 2 commits, Template algebra infrastructure ready |
 | 2026-02-15 | Plan 10-07 completed | Configuration macro Template integration - 4 macros (Cacheable, Measured, Timeout, DefaultHeaders) import MacroTemplateKit, pragmatic hybrid approach |
+| 2026-02-15 | Plan 10.1-01 completed | Shared infrastructure for HTTP macro DRY refactoring - HTTPMethodConfig and ArgumentExtractors created, 143 tests passing |
 
 ## Phase 0 Progress Summary
 
@@ -236,6 +237,9 @@ Packages/NetworkingMacros/ (standalone package)
 - Phase 8 added: Extract Core Networking Macros to Atomic Package (excludes WebSocket/GraphQL macros)
 - Phase 9 added: Update CI and Pre-commit Hooks for SPM Workspace Layout with Auto Changelog, LLMs-txt, and Documentation.docc Generation
 - Phase 10 added: Create MacroTemplateKit helper package (required dependency of NetworkingMacros)
+- Phase 10.1 added: Apply DRY to NetworkingMacros repeated code (decimal phase after Phase 10)
+- Phase 10.2 added: NetworkingMacros test coverage - restore stubbed tests and add macro expansion tests
+- Phase 5 deferred: WebSocket & GraphQL marked out of scope for current milestone (packages extracted, feature completion deferred)
 
 ## Decisions
 
@@ -322,7 +326,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 10-05 | 247 | 3 | 3 | 3 |
 | 10-06 | 227 | 4 | 6 | 2 |
 | 10-07 | 341 | 4 | 4 | 4 |
-| **Total** | **7675** | **83** | **319** | **66** |
+| 10.1-01 | 176 | 3 | 2 | 3 |
+| **Total** | **7851** | **86** | **321** | **69** |
 
 ## Blockers
 
@@ -341,8 +346,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 10-07-PLAN.md - Configuration macro Template integration (4 macros import MacroTemplateKit, 33 tests passing), pragmatic hybrid approach with string interpolation preserved
-- **Next Action**: Phase 10 IN PROGRESS. Continue with next plan (further Template algebra integration or phase completion)
+- **Stopped At**: Completed 10.1-01-PLAN.md - Shared infrastructure for HTTP macro DRY refactoring (HTTPMethodConfig + ArgumentExtractors, 143 tests passing)
+- **Next Action**: Phase 10.1 IN PROGRESS. Continue with plan 10.1-02 (migrate HTTP macros to use shared infrastructure)
 
 ---
 *Initialized: 2026-02-14*
