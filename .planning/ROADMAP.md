@@ -86,26 +86,29 @@ Plans:
 
 ---
 
-### Phase 3: Batch Operations & Progress
+### Phase 3: Batch Operations & Progress ✓
+
+**Status**: COMPLETE (2026-02-15)
 
 **Goal**: Enable parallel requests and progress tracking.
 
 **Requirements**: BATCH-01, BATCH-02, BATCH-03, BATCH-04, BATCH-05, PROG-01, PROG-02, PROG-03, PROG-04, PROG-05
 
 **Plans:** 3 plans in 2 waves
+**Verification**: .planning/phases/03-batch-operations-progress/03-VERIFICATION.md
 
 Plans:
-- [ ] 03-01-PLAN.md — Enforce concurrency limits with BatchConcurrencyLimiter actor (Wave 1)
-- [ ] 03-02-PLAN.md — Download progress bridge via URLSessionDownloadDelegate to AsyncStream (Wave 1)
-- [ ] 03-03-PLAN.md — Integration tests and verification (Wave 2)
+- [x] 03-01-PLAN.md — Enforce concurrency limits with BatchConcurrencyLimiter actor (Wave 1)
+- [x] 03-02-PLAN.md — Download progress bridge via URLSessionDownloadDelegate to AsyncStream (Wave 1)
+- [x] 03-03-PLAN.md — Integration tests and verification (Wave 2)
 
 **Success Criteria**:
-1. User can execute multiple requests in parallel with configurable limit
-2. Partial failures handled (some succeed, some fail)
-3. Results returned in original submission order
-4. User can track upload progress via AsyncSequence
-5. User can track download progress via AsyncSequence
-6. Downloads are resumable
+1. ✓ User can execute multiple requests in parallel with configurable limit
+2. ✓ Partial failures handled (some succeed, some fail)
+3. ✓ Results returned in original submission order
+4. ✓ User can track upload progress via AsyncSequence
+5. ✓ User can track download progress via AsyncSequence
+6. ✓ Downloads are resumable
 
 **Rationale**: Advanced networking patterns. Depends on Phase 1 for structured concurrency.
 
