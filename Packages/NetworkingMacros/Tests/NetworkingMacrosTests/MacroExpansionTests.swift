@@ -4,9 +4,6 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-#if canImport(NetworkingMacros)
-import NetworkingMacros
-#endif
 
 /// Macro expansion tests for all HTTP method and configuration macros.
 ///
