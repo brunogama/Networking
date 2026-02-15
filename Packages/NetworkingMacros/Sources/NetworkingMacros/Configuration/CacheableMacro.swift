@@ -46,30 +46,39 @@ public struct CacheableMacro: PeerMacro {
     let policy = MacroHelpers.extractMemberValue(labeled: "policy", from: node)
       ?? "standard"
     let protocolName = protocolDecl.name.text
-
-    // Convert duration string to integer for Template.literal()
     let durationValue = Int(durationString) ?? 300
 
-    // Build CacheConfiguration using Template algebra
-    let ttlTemplate: Template<Void> = .functionCall(
-      function: "ttl",
-      arguments: [(label: nil, value: .literal(.integer(durationValue)))]
+    // Build extension with cache configuration property
+    let extensionDecl = buildCacheConfigurationExtension(
+      protocolName: protocolName,
+      duration: durationValue,
+      policy: policy
     )
 
-    let policyTemplate: Template<Void> = .propertyAccess(
-      base: .literal(.nil),
-      property: policy
-    )
+    return [Renderer.render(extensionDecl)]
+  }
 
-    let cacheConfigTemplate: Template<Void> = .functionCall(
+  private static func buildCacheConfigurationExtension(
+    protocolName: String,
+    duration: Int,
+    policy: String
+  ) -> Declaration<Void> {
+    // Build CacheConfiguration call template
+    let cacheConfigTemplate = Template<Void>.functionCall(
       function: "CacheConfiguration",
       arguments: [
-        (label: "duration", value: ttlTemplate),
-        (label: "policy", value: policyTemplate)
+        (label: "duration", value: .functionCall(
+          function: "ttl",
+          arguments: [(label: nil, value: .literal(.integer(duration)))]
+        )),
+        (label: "policy", value: .propertyAccess(
+          base: .literal(.nil),
+          property: policy
+        ))
       ]
     )
 
-    // Build computed property using ComputedPropertySignature
+    // Build static computed property
     let computedProp = ComputedPropertySignature<Void>(
       name: "cacheConfiguration",
       type: "CacheConfiguration",
@@ -77,15 +86,12 @@ public struct CacheableMacro: PeerMacro {
       getter: [.returnStatement(cacheConfigTemplate)]
     )
 
-    // Build extension using Declaration.extensionDecl
-    let extensionDecl = Declaration<Void>.extensionDecl(
+    // Build extension declaration
+    return .extensionDecl(
       ExtensionSignature(
         typeName: protocolName,
         members: [.computedProperty(computedProp)]
       )
     )
-
-    // Render to DeclSyntax
-    return [Renderer.render(extensionDecl)]
   }
 }

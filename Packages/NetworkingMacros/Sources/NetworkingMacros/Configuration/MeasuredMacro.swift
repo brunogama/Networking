@@ -41,26 +41,87 @@ public struct MeasuredMacro: PeerMacro {
     }
 
     let funcName = funcDecl.name.text
-    let metricName =
+    _ =
       MacroHelpers.extractStringValue(labeled: "name", from: node) ?? funcName
     let signature = funcDecl.signature
-    let parameterList = buildParameterPassthrough(from: signature)
 
-    // Generate metric name literal using Template algebra
-    let metricNameTemplate: Template<Void> = .literal(.string(metricName))
-    let metricNameExpr = Renderer.render(metricNameTemplate)
+    // Extract parameters for FunctionSignature
+    let parameters = signature.parameterClause.parameters.map { param in
+      ParameterSignature(
+        label: param.firstName.text == "_" ? "_" : param.firstName.text,
+        name: param.secondName?.text ?? param.firstName.text,
+        type: param.type.description.trimmingCharacters(in: .whitespaces),
+        isInout: false
+      )
+    }
 
-    // Generate wrapper function using Template algebra for metric name
-    let wrapperCode: DeclSyntax = """
-      func \(raw: funcName)_measured\(raw: signature.description) {
-        let startTime = Date()
-        defer {
-          let duration = Date().timeIntervalSince(startTime)
-          Metrics.shared.record(duration: duration, operation: \(metricNameExpr))
-        }
-        return try await \(raw: funcName)(\(raw: parameterList))
-      }
-      """
+    // Extract function signature details
+    let isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
+    let canThrow = signature.effectSpecifiers?.throwsClause != nil
+    let returnType = signature.returnClause?.type.description.trimmingCharacters(in: .whitespaces)
+
+    // Build function call arguments
+    let callArguments: [(label: String?, value: Template<Void>)] = parameters.map { param in
+      let label = param.label == "_" ? nil : param.label
+      return (label: label, value: .variable(param.name, payload: ()))
+    }
+
+    // Create function body statements using Statement ADT
+    let bodyStatements: [Statement<Void>] = [
+      // let startTime = Date()
+      .letBinding(
+        name: "startTime",
+        type: nil,
+        initializer: .functionCall(function: "Date", arguments: [])
+      ),
+      // defer { ... }
+      .deferStatement([
+        // let duration = Date().timeIntervalSince(startTime)
+        .letBinding(
+          name: "duration",
+          type: nil,
+          initializer: .functionCall(
+            function: "timeIntervalSince",
+            arguments: [(
+              label: nil,
+              value: .variable("startTime", payload: ())
+            )]
+          )
+        ),
+        // Metrics.shared.record(duration: duration, operation: metricName)
+        .expression(
+          .propertyAccess(
+            base: .propertyAccess(
+              base: .variable("Metrics", payload: ()),
+              property: "shared"
+            ),
+            property: "record"
+          )
+        )
+      ]),
+      // return try await funcName(...)
+      .returnStatement(
+        .functionCall(
+          function: funcName,
+          arguments: callArguments
+        )
+      )
+    ]
+
+    // Create wrapper function declaration
+    let wrapperDeclaration = Declaration<Void>.function(
+      FunctionSignature<Void>(
+        name: "\(funcName)_measured",
+        parameters: parameters,
+        isAsync: isAsync,
+        canThrow: canThrow,
+        returnType: returnType,
+        body: bodyStatements
+      )
+    )
+
+    // Render to DeclSyntax
+    let wrapperCode = Renderer.render(wrapperDeclaration)
 
     return [wrapperCode]
   }
