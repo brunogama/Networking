@@ -4,7 +4,7 @@
 
 | Phases | Requirements | Depth |
 |--------|--------------|-------|
-| 7 | 55+ | Standard |
+| 8 | 55+ | Standard |
 
 ## Phase Structure
 
@@ -63,7 +63,7 @@ Plans:
 
 **Requirements**: DX-01, DX-02, DX-03, DX-04, DX-05, DX-06, DX-07, DX-08, DX-09
 
-**Plans**: 4 plans in 2 waves
+**Plans**: 5 plans in 2 waves
 
 **Success Criteria**:
 1. User can compose requests with `+` operator
@@ -75,10 +75,11 @@ Plans:
 **Rationale**: DX improvements make the library pleasant to use. Depends on Phase 1 for Sendable closures in builders.
 
 Plans:
-- [ ] 02-01-PLAN.md — Request composition operators + phantom type body constraints
-- [ ] 02-02-PLAN.md — Response processing chains (.decode().cache().retry())
-- [ ] 02-03-PLAN.md — @Cacheable and @Measured macros (TDD)
-- [ ] 02-04-PLAN.md — @Query and @Mutation GraphQL macros (TDD)
+- [x] 02-01-PLAN.md — Request composition operators + phantom type body constraints
+- [x] 02-02-PLAN.md — Response processing chains (.decode().cache().retry())
+- [x] 02-03-PLAN.md — @Cacheable and @Measured macros (TDD)
+- [x] 02-04-PLAN.md — @Query and @Mutation GraphQL macros (TDD)
+- [ ] 02-05-PLAN.md — Wire response chaining to actual interceptor execution (gap closure)
 
 ---
 
@@ -165,7 +166,8 @@ Plans:
 | 4 | OBS-01 to OBS-07 | 7 |
 | 5 | WS-01 to WS-07, GQL-01 to GQL-06 | 13 |
 | 6 | TEST-01 to TEST-07, DOC-01 to DOC-05 | 12 |
-| **Total** | | **64** |
+| 7 | PKG-01 to PKG-07 | 7 |
+| **Total** | | **71** |
 
 ## Dependencies
 
@@ -175,21 +177,34 @@ Phase 0 (Audit) ────────────────────┐
 Phase 1 (Concurrency) ──────────────┼───┐
                                     │   │
 Phase 2 (DX) ───────────────────────┤   ├───► Phase 4 (Observability)
-                                    │   │           │
-Phase 3 (Batch/Progress) ───────────┘   │           │
-                                        │           ▼
-                                        └─────► Phase 5 (WebSocket/GraphQL)
-                                                    │
+      │                             │   │           │
+      ▼                             │   │           │
+Phase 7 (Extract WS/GQL) ───────────┤   │           ▼
+                                    │   └─────► Phase 5 (WebSocket/GraphQL)
+Phase 3 (Batch/Progress) ───────────┘               │
                                                     ▼
                                               Phase 6 (Testing/Docs)
 ```
 
-**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phases 2-3 can parallelize after Phase 1. Phase 4 depends on 2-3. Phase 5 (WebSocket/GraphQL) can start after core features. Phase 6 is final.
+**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs before Phase 3. Phases 3-4 can parallelize. Phase 5 polishes WebSocket/GraphQL in their new packages. Phase 6 is final.
 
 ### Phase 7: Extract WebSocket and GraphQL to Separate Extension Packages
 
-**Goal:** [To be planned]
-**Depends on:** Phase 6
+**Goal:** Extract WebSocket and GraphQL code into separate extension packages that extend the core Networking library.
+
+**Depends on:** Phase 2 (Developer Experience)
+
+**Success Criteria**:
+1. NetworkingWebSocket package created with all WebSocket-related code
+2. NetworkingGraphQL package created with all GraphQL-related code
+3. Core Networking package has no WebSocket/GraphQL dependencies
+4. Extension packages import and extend core Networking
+5. All existing WebSocket tests pass in new package
+6. All existing GraphQL tests pass in new package
+7. Package.swift updated with multi-product structure
+
+**Rationale**: Modular architecture allows users to import only what they need. Reduces binary size for apps not using WebSocket/GraphQL. Enables independent versioning of extension packages.
+
 **Plans:** 0 plans
 
 Plans:
@@ -197,4 +212,4 @@ Plans:
 
 ---
 *Created: 2026-02-14*
-*Total: 7 phases, 64 requirements*
+*Total: 8 phases, 64 requirements*
