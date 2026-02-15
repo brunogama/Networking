@@ -89,15 +89,22 @@ public struct APIMacro: MemberMacro {
 
     // Default headers property (if any)
     if !defaultHeaders.isEmpty {
-      let headersDict = defaultHeaders.sorted(by: { $0.key < $1.key }).map { key, value in
-        "\"\(key)\": \"\(value)\""
-      }.joined(separator: ", ")
+      let headersExpr = DefaultHeadersMacro.generateHeadersExpression(from: defaultHeaders)
 
       members.append(
         DeclSyntax(
-          """
-          private let defaultHeaders: [String: String] = [\(raw: headersDict)]
-          """
+          VariableDeclSyntax(
+            modifiers: [DeclModifierSyntax(name: .keyword(.private))],
+            .let,
+            name: PatternSyntax(IdentifierPatternSyntax(identifier: .identifier("defaultHeaders"))),
+            type: TypeAnnotationSyntax(
+              type: DictionaryTypeSyntax(
+                key: IdentifierTypeSyntax(name: .identifier("String")),
+                value: IdentifierTypeSyntax(name: .identifier("String"))
+              )
+            ),
+            initializer: InitializerClauseSyntax(value: headersExpr)
+          )
         )
       )
     }
