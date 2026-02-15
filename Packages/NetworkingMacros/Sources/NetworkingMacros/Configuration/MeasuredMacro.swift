@@ -41,7 +41,7 @@ public struct MeasuredMacro: PeerMacro {
     }
 
     let funcName = funcDecl.name.text
-    _ =
+    let metricName =
       MacroHelpers.extractStringValue(labeled: "name", from: node) ?? funcName
     let signature = funcDecl.signature
 
@@ -80,22 +80,24 @@ public struct MeasuredMacro: PeerMacro {
         .letBinding(
           name: "duration",
           type: nil,
-          initializer: .functionCall(
-            function: "timeIntervalSince",
-            arguments: [(
-              label: nil,
-              value: .variable("startTime", payload: ())
-            )]
+          initializer: .methodCall(
+            base: .functionCall(function: "Date", arguments: []),
+            method: "timeIntervalSince",
+            arguments: [(label: nil, value: .variable("startTime", payload: ()))]
           )
         ),
         // Metrics.shared.record(duration: duration, operation: metricName)
         .expression(
-          .propertyAccess(
+          .methodCall(
             base: .propertyAccess(
               base: .variable("Metrics", payload: ()),
               property: "shared"
             ),
-            property: "record"
+            method: "record",
+            arguments: [
+              (label: "duration", value: .variable("duration", payload: ())),
+              (label: "operation", value: .literal(.string(metricName)))
+            ]
           )
         )
       ]),
@@ -124,16 +126,5 @@ public struct MeasuredMacro: PeerMacro {
     let wrapperCode = Renderer.render(wrapperDeclaration)
 
     return [wrapperCode]
-  }
-
-  /// Builds parameter pass-through for the wrapper function call
-  /// - Parameter signature: Function signature to extract parameters from
-  /// - Returns: Comma-separated parameter list for function call
-  private static func buildParameterPassthrough(from signature: FunctionSignatureSyntax) -> String {
-    signature.parameterClause.parameters.map { param in
-      let label = param.firstName.text
-      let name = param.secondName?.text ?? label
-      return label == "_" ? name : "\(label): \(name)"
-    }.joined(separator: ", ")
   }
 }

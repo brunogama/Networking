@@ -144,6 +144,8 @@ public struct Renderer {
     switch template {
     case .functionCall(let function, let arguments):
       return renderFunctionCall(function, arguments)
+    case .methodCall(let base, let method, let arguments):
+      return renderMethodCall(base, method, arguments)
     case .binaryOperation(let left, let op, let right):
       return renderBinaryOperation(left, op, right)
     case .propertyAccess(let base, let property):
@@ -160,6 +162,31 @@ public struct Renderer {
     ExprSyntax(
       FunctionCallExprSyntax(
         calledExpression: DeclReferenceExprSyntax(baseName: .identifier(function)),
+        leftParen: .leftParenToken(),
+        arguments: LabeledExprListSyntax {
+          for argument in arguments {
+            LabeledExprSyntax(
+              label: argument.label.map { .identifier($0) },
+              expression: render(argument.value)
+            )
+          }
+        },
+        rightParen: .rightParenToken()
+      )
+    )
+  }
+
+  private static func renderMethodCall<A>(
+    _ base: Template<A>,
+    _ method: String,
+    _ arguments: [(label: String?, value: Template<A>)]
+  ) -> ExprSyntax {
+    ExprSyntax(
+      FunctionCallExprSyntax(
+        calledExpression: MemberAccessExprSyntax(
+          base: render(base),
+          name: .identifier(method)
+        ),
         leftParen: .leftParenToken(),
         arguments: LabeledExprListSyntax {
           for argument in arguments {

@@ -38,6 +38,9 @@ extension Renderer {
     case .throwStatement(let expr):
       return renderThrow(expression: expr)
 
+    case .deferStatement(let body):
+      return renderDefer(body: body)
+
     case .expression(let expr):
       return CodeBlockItemSyntax(item: .expr(render(expr)))
     }
@@ -144,5 +147,12 @@ extension Renderer {
   private static func renderThrow<A: Sendable>(expression: Template<A>) -> CodeBlockItemSyntax {
     let throwStmt = ThrowStmtSyntax(expression: render(expression))
     return CodeBlockItemSyntax(item: .stmt(StmtSyntax(throwStmt)))
+  }
+
+  private static func renderDefer<A: Sendable>(body: [Statement<A>]) -> CodeBlockItemSyntax {
+    let deferStmt = DeferStmtSyntax(
+      body: CodeBlockSyntax(statements: renderStatements(body))
+    )
+    return CodeBlockItemSyntax(item: .stmt(StmtSyntax(deferStmt)))
   }
 }

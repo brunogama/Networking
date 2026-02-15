@@ -41,6 +41,11 @@ extension Template: Equatable where A: Equatable {
     case (.functionCall(let lhsFunc, let lhsArgs), .functionCall(let rhsFunc, let rhsArgs)):
       return equalFunctionCalls(lhsFunc, lhsArgs, rhsFunc, rhsArgs)
     case (
+      .methodCall(let lhsBase, let lhsMethod, let lhsArgs),
+      .methodCall(let rhsBase, let rhsMethod, let rhsArgs)
+    ):
+      return lhsBase == rhsBase && lhsMethod == rhsMethod && equalMethodArgs(lhsArgs, rhsArgs)
+    case (
       .binaryOperation(let lhsLeft, let lhsOp, let lhsRight),
       .binaryOperation(let rhsLeft, let rhsOp, let rhsRight)
     ):
@@ -59,6 +64,16 @@ extension Template: Equatable where A: Equatable {
     _ rhsArgs: [(label: String?, value: Template<A>)]
   ) -> Bool {
     guard lhsFunc == rhsFunc, lhsArgs.count == rhsArgs.count else { return false }
+    return zip(lhsArgs, rhsArgs).allSatisfy { lhsArg, rhsArg in
+      lhsArg.label == rhsArg.label && lhsArg.value == rhsArg.value
+    }
+  }
+
+  private static func equalMethodArgs(
+    _ lhsArgs: [(label: String?, value: Template<A>)],
+    _ rhsArgs: [(label: String?, value: Template<A>)]
+  ) -> Bool {
+    guard lhsArgs.count == rhsArgs.count else { return false }
     return zip(lhsArgs, rhsArgs).allSatisfy { lhsArg, rhsArg in
       lhsArg.label == rhsArg.label && lhsArg.value == rhsArg.value
     }
@@ -132,6 +147,12 @@ extension Template: Hashable where A: Hashable {
     case .functionCall(let function, let arguments):
       hasher.combine(4)
       hasher.combine(function)
+      hashFunctionArgs(arguments, &hasher)
+      return true
+    case .methodCall(let base, let method, let arguments):
+      hasher.combine(9)
+      hasher.combine(base)
+      hasher.combine(method)
       hashFunctionArgs(arguments, &hasher)
       return true
     case .binaryOperation(let left, let op, let right):
