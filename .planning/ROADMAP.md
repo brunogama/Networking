@@ -92,6 +92,13 @@ Plans:
 
 **Requirements**: BATCH-01, BATCH-02, BATCH-03, BATCH-04, BATCH-05, PROG-01, PROG-02, PROG-03, PROG-04, PROG-05
 
+**Plans:** 3 plans in 2 waves
+
+Plans:
+- [ ] 03-01-PLAN.md — Enforce concurrency limits with BatchConcurrencyLimiter actor (Wave 1)
+- [ ] 03-02-PLAN.md — Download progress bridge via URLSessionDownloadDelegate to AsyncStream (Wave 1)
+- [ ] 03-03-PLAN.md — Integration tests and verification (Wave 2)
+
 **Success Criteria**:
 1. User can execute multiple requests in parallel with configurable limit
 2. Partial failures handled (some succeed, some fail)
@@ -504,5 +511,5 @@ Plans:
 
 ---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 10.2.1 plans created)*
+*Updated: 2026-02-15 (Phase 03 plans created)*
 *Total: 13 phases, 97 requirements*
