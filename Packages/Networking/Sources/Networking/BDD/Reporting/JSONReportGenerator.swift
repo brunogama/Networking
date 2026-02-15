@@ -190,15 +190,16 @@ public struct JSONReportGenerator: Sendable {
             duration: scenario.duration,
             tags: scenario.tags,
             error: scenario.error,
-            steps: configuration.includeSteps ? scenario.steps.map { step in
-              JSONReport.Step(
-                keyword: step.keyword,
-                text: step.text,
-                status: step.status.rawValue,
-                duration: step.duration,
-                error: step.error
-              )
-            } : nil
+            steps: configuration.includeSteps
+              ? scenario.steps.map { step in
+                JSONReport.Step(
+                  keyword: step.keyword,
+                  text: step.text,
+                  status: step.status.rawValue,
+                  duration: step.duration,
+                  error: step.error
+                )
+              } : nil
           )
         }
       )
@@ -232,16 +233,22 @@ public struct JUnitReportGenerator: Sendable {
     var lines: [String] = []
 
     lines.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
-    lines.append("<testsuites name=\"\(escapeXML(data.title))\" tests=\"\(data.summary.totalScenarios)\" failures=\"\(data.summary.failedScenarios)\" errors=\"0\" time=\"\(data.summary.totalDuration)\">")
+    lines.append(
+      "<testsuites name=\"\(escapeXML(data.title))\" tests=\"\(data.summary.totalScenarios)\" failures=\"\(data.summary.failedScenarios)\" errors=\"0\" time=\"\(data.summary.totalDuration)\">"
+    )
 
     for feature in data.features {
       let featureTests = feature.scenarios.count
       let featureFailures = feature.failedCount
 
-      lines.append("  <testsuite name=\"\(escapeXML(feature.name))\" tests=\"\(featureTests)\" failures=\"\(featureFailures)\" errors=\"0\" time=\"\(feature.duration)\">")
+      lines.append(
+        "  <testsuite name=\"\(escapeXML(feature.name))\" tests=\"\(featureTests)\" failures=\"\(featureFailures)\" errors=\"0\" time=\"\(feature.duration)\">"
+      )
 
       for scenario in feature.scenarios {
-        lines.append("    <testcase name=\"\(escapeXML(scenario.scenarioName))\" classname=\"\(escapeXML(feature.name))\" time=\"\(scenario.duration)\">")
+        lines.append(
+          "    <testcase name=\"\(escapeXML(scenario.scenarioName))\" classname=\"\(escapeXML(feature.name))\" time=\"\(scenario.duration)\">"
+        )
 
         if scenario.status == .failed, let error = scenario.error {
           lines.append("      <failure message=\"\(escapeXML(error))\" type=\"AssertionError\">")

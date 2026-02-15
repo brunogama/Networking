@@ -110,11 +110,13 @@ public struct RequestBuilder {
     component ?? []
   }
 
-  public static func buildEither(first component: [any RequestComponent]) -> [any RequestComponent] {
+  public static func buildEither(first component: [any RequestComponent]) -> [any RequestComponent]
+  {
     component
   }
 
-  public static func buildEither(second component: [any RequestComponent]) -> [any RequestComponent] {
+  public static func buildEither(second component: [any RequestComponent]) -> [any RequestComponent]
+  {
     component
   }
   public static func buildArray(_ components: [[any RequestComponent]]) -> [any RequestComponent] {

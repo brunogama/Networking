@@ -96,10 +96,10 @@ public struct MeasuredMacro: PeerMacro {
             method: "record",
             arguments: [
               (label: "duration", value: .variable("duration", payload: ())),
-              (label: "operation", value: .literal(.string(metricName)))
+              (label: "operation", value: .literal(.string(metricName))),
             ]
           )
-        )
+        ),
       ]),
       // return try await funcName(...)
       .returnStatement(
@@ -107,7 +107,7 @@ public struct MeasuredMacro: PeerMacro {
           function: funcName,
           arguments: callArguments
         )
-      )
+      ),
     ]
 
     // Create wrapper function declaration

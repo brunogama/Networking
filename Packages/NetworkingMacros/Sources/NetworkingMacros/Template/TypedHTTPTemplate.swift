@@ -61,13 +61,18 @@ extension TypedHTTPTemplate {
 
   /// Adds a header to the request.
   public func withHeader(name: String, value: Template<Void>) -> TypedHTTPTemplate<Method> {
-    TypedHTTPTemplate(template: mergeTemplates(
-      template,
-      .functionCall(function: "header", arguments: [
-        (label: "name", value: .literal(.string(name))),
-        (label: "value", value: value)
-      ])
-    ))
+    TypedHTTPTemplate(
+      template: mergeTemplates(
+        template,
+        .functionCall(
+          function: "header",
+          arguments: [
+            (label: "name", value: .literal(.string(name))),
+            (label: "value", value: value),
+          ]
+        )
+      )
+    )
   }
 
   /// Adds a header with string value.
@@ -109,13 +114,18 @@ extension TypedHTTPTemplate where Method.Body: BodyAllowedProtocol {
 extension TypedHTTPTemplate {
   /// Adds a query parameter.
   public func withQuery(name: String, value: Template<Void>) -> TypedHTTPTemplate<Method> {
-    TypedHTTPTemplate(template: mergeTemplates(
-      template,
-      .functionCall(function: "query", arguments: [
-        (label: "name", value: .literal(.string(name))),
-        (label: "value", value: value)
-      ])
-    ))
+    TypedHTTPTemplate(
+      template: mergeTemplates(
+        template,
+        .functionCall(
+          function: "query",
+          arguments: [
+            (label: "name", value: .literal(.string(name))),
+            (label: "value", value: value),
+          ]
+        )
+      )
+    )
   }
 }
 

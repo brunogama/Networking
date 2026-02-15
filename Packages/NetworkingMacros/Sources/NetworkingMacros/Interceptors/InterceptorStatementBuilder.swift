@@ -25,12 +25,15 @@ enum InterceptorStatementBuilder {
       initializer: .functionCall(
         function: "HTTPRequest",
         arguments: [
-          (label: "method", value: .propertyAccess(
-            base: .literal(.nil),
-            property: method
-          )),
+          (
+            label: "method",
+            value: .propertyAccess(
+              base: .literal(.nil),
+              property: method
+            )
+          ),
           (label: "path", value: .variable("path", payload: ())),
-          (label: "baseURL", value: .variable("baseURL", payload: ()))
+          (label: "baseURL", value: .variable("baseURL", payload: ())),
         ]
       )
     )
@@ -64,14 +67,20 @@ enum InterceptorStatementBuilder {
       .functionCall(
         function: "JSONDecoder().decode",
         arguments: [
-          (label: nil, value: .propertyAccess(
-            base: .variable(returnType, payload: ()),
-            property: "self"
-          )),
-          (label: "from", value: .propertyAccess(
-            base: .variable("response", payload: ()),
-            property: "data"
-          ))
+          (
+            label: nil,
+            value: .propertyAccess(
+              base: .variable(returnType, payload: ()),
+              property: "self"
+            )
+          ),
+          (
+            label: "from",
+            value: .propertyAccess(
+              base: .variable("response", payload: ()),
+              property: "data"
+            )
+          ),
         ]
       )
     )

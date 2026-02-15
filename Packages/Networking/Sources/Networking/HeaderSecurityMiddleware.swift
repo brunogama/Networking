@@ -117,7 +117,8 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
 
       // Check if header is dangerous and should be removed
       if configuration.removeDangerousHeaders
-        && configuration.dangerousHeaders.contains(name.lowercased()) {
+        && configuration.dangerousHeaders.contains(name.lowercased())
+      {
         continue  // Skip dangerous header
       }
 
@@ -422,7 +423,8 @@ public struct HeaderSecurity {
 
         // Keep VCHAR, WSP, and obs-text
         if (code >= 0x21 && code <= 0x7E) || code == 0x20 || code == 0x09
-          || (code >= 0x80 && code <= 0xFF) {
+          || (code >= 0x80 && code <= 0xFF)
+        {
           return Character(char)
         }
 

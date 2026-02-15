@@ -297,7 +297,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
       guard let keyToEvict = await selectKeyForEviction() else { break }
       await remove(keyToEvict)
       evictionCount += 1
-        }
+    }
   }
 
   private func selectKeyForEviction() async -> String? {
@@ -852,7 +852,8 @@ public struct CacheMetrics: Sendable {
   public let evictionCount: Int64
   public let hitRatio: Double
 
-  public init(size: Int, hitCount: Int64, missCount: Int64, evictionCount: Int64, hitRatio: Double) {
+  public init(size: Int, hitCount: Int64, missCount: Int64, evictionCount: Int64, hitRatio: Double)
+  {
     self.size = size
     self.hitCount = hitCount
     self.missCount = missCount

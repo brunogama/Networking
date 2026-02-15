@@ -114,7 +114,8 @@ public struct TimeoutMacro: MemberMacro {
       if attrName == "Timeout" {
         // Extract timeout from this attribute
         if let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
-          let firstArg = arguments.first {
+          let firstArg = arguments.first
+        {
           // Try to extract numeric literal
           if let intLiteral = firstArg.expression.as(IntegerLiteralExprSyntax.self) {
             return Double(intLiteral.literal.text)

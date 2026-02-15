@@ -20,6 +20,11 @@ let package = Package(
   dependencies: [
     // Local dependency on NetworkingMacros package
     .package(path: "../NetworkingMacros"),
+    // OpenTelemetry for observability
+    .package(
+      url: "https://github.com/open-telemetry/opentelemetry-swift.git",
+      from: "1.10.1"
+    ),
     // Test dependencies
     .package(url: "https://github.com/typelift/SwiftCheck.git", from: "0.12.0"),
     .package(url: "https://github.com/Quick/Quick.git", from: "7.4.0"),
@@ -31,6 +36,8 @@ let package = Package(
       name: "Networking",
       dependencies: [
         .product(name: "NetworkingMacros", package: "NetworkingMacros"),
+        .product(name: "OpenTelemetryProtocolExporterHTTP", package: "opentelemetry-swift"),
+        .product(name: "OpenTelemetrySdk", package: "opentelemetry-swift"),
       ],
       exclude: [
         // Exclude BDD module - incomplete integration code that depends on Quick/Nimble

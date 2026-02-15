@@ -273,13 +273,15 @@ public struct ScenarioOutlineDefinition: Sendable, Identifiable, Equatable {
           .map { "\($0): \($1)" }
           .joined(separator: ", ")
 
-        expanded.append(ScenarioDefinition(
-          name: "\(name) [\(exampleName)]",
-          description: description,
-          tags: tags + table.tags,
-          steps: substitutedSteps,
-          location: location
-        ))
+        expanded.append(
+          ScenarioDefinition(
+            name: "\(name) [\(exampleName)]",
+            description: description,
+            tags: tags + table.tags,
+            steps: substitutedSteps,
+            location: location
+          )
+        )
       }
     }
 

@@ -630,7 +630,8 @@ public struct TransferControls: Sendable {
     ) -> (allowed: Bool, suggestedDelay: TimeInterval) {
       // Check transfer-specific limit
       if let limit = transferLimits[transferId],
-        let usage = transferUsage[transferId] {
+        let usage = transferUsage[transferId]
+      {
         // Skip if direction doesn't match
         if limit.direction != .both && limit.direction != direction {
           return (true, 0)

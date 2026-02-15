@@ -282,7 +282,9 @@ private struct TagExpressionParser {
         // Read tag name
         var tag = "@"
         i += 1
-        while i < chars.count && (chars[i].isLetter || chars[i].isNumber || chars[i] == "-" || chars[i] == "_") {
+        while i < chars.count
+          && (chars[i].isLetter || chars[i].isNumber || chars[i] == "-" || chars[i] == "_")
+        {
           tag.append(chars[i])
           i += 1
         }

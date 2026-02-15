@@ -219,7 +219,8 @@ enum SyntaxFactory {
     // Handle string literal
     if let stringLiteral = arg.expression.as(StringLiteralExprSyntax.self),
       let segment = stringLiteral.segments.first,
-      case .stringSegment(let stringSegment) = segment {
+      case .stringSegment(let stringSegment) = segment
+    {
       return stringSegment.content.text
     }
 

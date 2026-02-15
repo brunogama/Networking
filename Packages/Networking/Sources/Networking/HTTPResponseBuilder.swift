@@ -30,7 +30,8 @@ public struct HTTPResponseBuilder {
     components
   }
 
-  public static func buildOptional(_ component: [any ResponseComponent]?) -> [any ResponseComponent] {
+  public static func buildOptional(_ component: [any ResponseComponent]?) -> [any ResponseComponent]
+  {
     component ?? []
   }
 
@@ -46,7 +47,8 @@ public struct HTTPResponseBuilder {
     component
   }
 
-  public static func buildArray(_ components: [[any ResponseComponent]]) -> [any ResponseComponent] {
+  public static func buildArray(_ components: [[any ResponseComponent]]) -> [any ResponseComponent]
+  {
     components.flatMap { $0 }
   }
 

@@ -153,7 +153,8 @@ public struct MarkdownReportGenerator: Sendable {
     return "![Pass Rate](https://img.shields.io/badge/pass%20rate-\(percentage)%25-\(color))"
   }
 
-  private func generateFeatureSection(_ feature: ReportCollector.ReportData.FeatureReport) -> String {
+  private func generateFeatureSection(_ feature: ReportCollector.ReportData.FeatureReport) -> String
+  {
     var lines: [String] = []
 
     let featureIcon = feature.failedCount > 0 ? "X" : "V"

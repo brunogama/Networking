@@ -14,9 +14,6 @@ let package = Package(
   ],
   products: [],
   dependencies: [
-    // MacroTemplateKit (template DSL for macro code generation)
-    .package(path: "Packages/MacroTemplateKit"),
-
     // NetworkingMacros (Swift compiler plugin: @GET, @POST, etc.)
     .package(path: "Packages/NetworkingMacros"),
 

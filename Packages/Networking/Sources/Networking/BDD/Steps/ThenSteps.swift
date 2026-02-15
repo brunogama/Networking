@@ -146,7 +146,8 @@ public struct ThenBodyContains: ThenStep, DescribableStep {
     }
 
     guard let bodyString = String(data: body, encoding: .utf8),
-          bodyString.contains(expectedContent) else {
+      bodyString.contains(expectedContent)
+    else {
       throw BDDError.bodyDoesNotContain(expectedContent)
     }
   }
@@ -256,7 +257,8 @@ public struct ThenError: ThenStep, DescribableStep {
     }
 
     if let expectedCategory = expectedCategory,
-       let httpError = error as? HTTPError {
+      let httpError = error as? HTTPError
+    {
       guard httpError.category == expectedCategory else {
         throw BDDError.wrongErrorCategory(
           expected: expectedCategory,
@@ -398,7 +400,8 @@ public func thenBodyContains(_ content: String) -> ThenBodyContains {
 }
 
 /// Creates a body equals assertion step.
-public func thenBodyEquals<T: Decodable & Equatable & Sendable>(_ expected: T) -> ThenBodyEquals<T> {
+public func thenBodyEquals<T: Decodable & Equatable & Sendable>(_ expected: T) -> ThenBodyEquals<T>
+{
   ThenBodyEquals(expected)
 }
 

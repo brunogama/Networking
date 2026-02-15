@@ -204,7 +204,8 @@ public enum BDDError: Error, LocalizedError, Sendable {
       return "No Feature declaration found in file."
 
     case .duplicateBackground(let location):
-      return "Duplicate Background at \(location.description). Only one Background per Feature is allowed."
+      return
+        "Duplicate Background at \(location.description). Only one Background per Feature is allowed."
 
     case .invalidExamples(let reason, let location):
       return "Invalid Examples at \(location.description): \(reason)."

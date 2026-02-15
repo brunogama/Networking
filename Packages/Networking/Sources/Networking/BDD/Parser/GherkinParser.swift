@@ -135,12 +135,14 @@ public final class GherkinParser: Sendable {
       }
 
       if trimmed.hasPrefix("\"\"\"") || trimmed.hasPrefix("```") {
-        tokens.append(Token(
-          type: .docStringDelimiter,
-          text: trimmed,
-          line: lineNumber,
-          column: 1
-        ))
+        tokens.append(
+          Token(
+            type: .docStringDelimiter,
+            text: trimmed,
+            line: lineNumber,
+            column: 1
+          )
+        )
         continue
       }
 
@@ -176,8 +178,12 @@ public final class GherkinParser: Sendable {
     for (keyword, type) in keywords {
       if line.hasPrefix(keyword) {
         let text = String(line.dropFirst(keyword.count))
-        return Token(type: type, text: text.trimmingCharacters(in: .whitespaces),
-                     line: lineNumber, column: 1)
+        return Token(
+          type: type,
+          text: text.trimmingCharacters(in: .whitespaces),
+          line: lineNumber,
+          column: 1
+        )
       }
     }
 
@@ -240,7 +246,8 @@ public final class GherkinParser: Sendable {
       }
 
       if let nextToken = tokens.first,
-         [.background, .scenario, .scenarioOutline, .tag].contains(nextToken.type) {
+        [.background, .scenario, .scenarioOutline, .tag].contains(nextToken.type)
+      {
         break
       }
     }
@@ -332,9 +339,11 @@ public final class GherkinParser: Sendable {
 
     let steps = try parseSteps(tokens: &tokens)
 
-    return GherkinBackground(name: bgToken.text.isEmpty ? nil : bgToken.text,
-                             steps: steps,
-                             location: location)
+    return GherkinBackground(
+      name: bgToken.text.isEmpty ? nil : bgToken.text,
+      steps: steps,
+      location: location
+    )
   }
 
   private func parseScenario(
@@ -443,13 +452,15 @@ public final class GherkinParser: Sendable {
         dataTable = try parseDataTable(tokens: &tokens)
       }
 
-      steps.append(GherkinStep(
-        keyword: keyword,
-        text: token.text,
-        dataTable: dataTable,
-        docString: docString,
-        location: stepLocation
-      ))
+      steps.append(
+        GherkinStep(
+          keyword: keyword,
+          text: token.text,
+          dataTable: dataTable,
+          docString: docString,
+          location: stepLocation
+        )
+      )
     }
 
     return steps
@@ -485,8 +496,9 @@ public final class GherkinParser: Sendable {
       lines.append(token.text)
     }
 
-    if tokens.isEmpty && lines.last?.contains("\"\"\"") != true &&
-       lines.last?.contains("```") != true {
+    if tokens.isEmpty && lines.last?.contains("\"\"\"") != true
+      && lines.last?.contains("```") != true
+    {
       throw BDDError.unterminatedDocString(location: location)
     }
 
@@ -568,13 +580,15 @@ public final class GherkinParser: Sendable {
       let headers = rows[0]
       let dataRows = Array(rows.dropFirst())
 
-      examples.append(ExamplesTable(
-        name: examplesToken.text.isEmpty ? nil : examplesToken.text,
-        tags: exampleTags,
-        headers: headers,
-        rows: dataRows,
-        location: location
-      ))
+      examples.append(
+        ExamplesTable(
+          name: examplesToken.text.isEmpty ? nil : examplesToken.text,
+          tags: exampleTags,
+          headers: headers,
+          rows: dataRows,
+          location: location
+        )
+      )
     }
 
     return examples
@@ -596,7 +610,7 @@ public final class GherkinParser: Sendable {
     case .asterisk:
       return .asterisk
     case .feature, .background, .scenario, .scenarioOutline, .examples,
-         .tag, .docStringDelimiter, .tableRow, .text, .blank, .comment:
+      .tag, .docStringDelimiter, .tableRow, .text, .blank, .comment:
       return nil
     }
   }

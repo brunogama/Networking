@@ -113,7 +113,9 @@ public struct GivenMockResponse: GivenStep, DescribableStep {
         .custom(statusCode: statusCode, data: responseData, headers: responseHeaders, delay: delay)
       )
     } else {
-      _ = expectation.andReturn(.success(statusCode: statusCode, data: responseData, headers: responseHeaders))
+      _ = expectation.andReturn(
+        .success(statusCode: statusCode, data: responseData, headers: responseHeaders)
+      )
     }
   }
 }
