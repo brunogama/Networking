@@ -4,9 +4,6 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-#if canImport(NetworkingMacros)
-import NetworkingMacros
-#endif
 
 /// Comprehensive tests for macro-generated code validation and API client generation correctness.
 ///
