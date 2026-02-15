@@ -16,10 +16,13 @@ let package = Package(
   dependencies: [
     // CRITICAL: List packages in dependency order (leaf nodes first)
 
-    // NetworkingMacros FIRST (no dependencies on other packages)
+    // MacroTemplateKit FIRST (no dependencies on other packages)
+    .package(path: "Packages/MacroTemplateKit"),
+
+    // NetworkingMacros SECOND (depends on MacroTemplateKit)
     .package(path: "Packages/NetworkingMacros"),
 
-    // Core Networking SECOND (depends on NetworkingMacros)
+    // Core Networking THIRD (depends on NetworkingMacros)
     .package(path: "Packages/Networking"),
 
     // Extensions LAST (depend on Core Networking)
