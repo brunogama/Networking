@@ -192,7 +192,8 @@ public func haveBodyContaining(_ expectedContent: String) -> Matcher<HTTPRespons
     }
 
     guard let body = response.body,
-          let bodyString = String(data: body, encoding: .utf8) else {
+      let bodyString = String(data: body, encoding: .utf8)
+    else {
       return MatcherResult(
         status: .fail,
         message: .expectedCustomValueTo(

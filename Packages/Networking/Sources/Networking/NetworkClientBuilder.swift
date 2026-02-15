@@ -1,7 +1,7 @@
 import Foundation
 
 #if canImport(FoundationNetworking)
-  import FoundationNetworking
+import FoundationNetworking
 #endif
 
 /// Configuration builder for NetworkClient using result builders.
@@ -284,9 +284,9 @@ public struct SessionConfiguration: Sendable {
     config.timeoutIntervalForRequest = timeout
     config.allowsCellularAccess = allowsCellularAccess
     #if !os(Linux)
-      config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
-      config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
-      config.waitsForConnectivity = waitsForConnectivity
+    config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
+    config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
+    config.waitsForConnectivity = waitsForConnectivity
     #endif
     config.httpMaximumConnectionsPerHost = httpMaximumConnectionsPerHost
     config.requestCachePolicy = requestCachePolicy
@@ -306,9 +306,9 @@ public struct SessionConfiguration: Sendable {
     config.timeoutIntervalForRequest = timeout
     config.allowsCellularAccess = allowsCellularAccess
     #if !os(Linux)
-      config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
-      config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
-      config.waitsForConnectivity = waitsForConnectivity
+    config.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
+    config.allowsConstrainedNetworkAccess = allowsConstrainedNetworkAccess
+    config.waitsForConnectivity = waitsForConnectivity
     #endif
     config.httpMaximumConnectionsPerHost = httpMaximumConnectionsPerHost
     config.requestCachePolicy = requestCachePolicy
@@ -318,15 +318,15 @@ public struct SessionConfiguration: Sendable {
     }
 
     #if canImport(Security)
-      // Create session with security delegate if security configuration is provided
-      if let securityConfig = securityConfiguration {
-        let sslValidator = SSLPinningValidator(securityConfiguration: securityConfig)
-        return URLSession(
-          configuration: config,
-          delegate: sslValidator,
-          delegateQueue: nil
-        )
-      }
+    // Create session with security delegate if security configuration is provided
+    if let securityConfig = securityConfiguration {
+      let sslValidator = SSLPinningValidator(securityConfiguration: securityConfig)
+      return URLSession(
+        configuration: config,
+        delegate: sslValidator,
+        delegateQueue: nil
+      )
+    }
     #endif
 
     return URLSession(configuration: config)

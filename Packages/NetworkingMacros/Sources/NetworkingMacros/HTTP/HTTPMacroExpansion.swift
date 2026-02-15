@@ -67,11 +67,13 @@ extension HTTPMacroExpansion {
     try MacroHelpers.validateAsyncThrows(function: function, context: context)
 
     // Step 3: Extract and validate path
-    guard let path = ArgumentExtractors.extractPath(
-      from: node,
-      method: config.method,
-      context: context
-    ) else {
+    guard
+      let path = ArgumentExtractors.extractPath(
+        from: node,
+        method: config.method,
+        context: context
+      )
+    else {
       return []
     }
     try MacroHelpers.validatePathTemplate(path, context: context)

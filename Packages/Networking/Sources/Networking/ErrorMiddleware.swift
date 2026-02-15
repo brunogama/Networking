@@ -84,7 +84,8 @@ public struct ErrorMiddleware: Sendable {
   public struct TimestampEnrichmentRule: EnrichmentRule {
     public init() {}
 
-    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError {
+    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError
+    {
       // For this implementation, we'd ideally extend HTTPError to support metadata
       // For now, we'll return the error as-is since HTTPError is immutable
       // In a real implementation, you might want to create an EnrichedHTTPError type
@@ -96,7 +97,8 @@ public struct ErrorMiddleware: Sendable {
   public struct RequestDetailsEnrichmentRule: EnrichmentRule {
     public init() {}
 
-    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError {
+    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError
+    {
       // Add request-specific information to error context
       error
     }
@@ -106,7 +108,8 @@ public struct ErrorMiddleware: Sendable {
   public struct NetworkConditionEnrichmentRule: EnrichmentRule {
     public init() {}
 
-    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError {
+    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError
+    {
       // In a real implementation, this would check network reachability,
       // connection quality, etc.
       error
@@ -117,7 +120,8 @@ public struct ErrorMiddleware: Sendable {
   public struct UserContextEnrichmentRule: EnrichmentRule {
     public init() {}
 
-    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError {
+    public func enrich(_ error: HTTPError, request: HTTPRequest, context: ErrorContext) -> HTTPError
+    {
       // Add user session, device, app version, etc.
       error
     }

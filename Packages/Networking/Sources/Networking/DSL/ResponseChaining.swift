@@ -301,10 +301,11 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
       }
     }
 
-    throw lastError ?? HTTPError(
-      category: .network(.serverUnreachable),
-      request: request
-    )
+    throw lastError
+      ?? HTTPError(
+        category: .network(.serverUnreachable),
+        request: request
+      )
   }
 
   private func shouldRetry(error: HTTPError) -> Bool {

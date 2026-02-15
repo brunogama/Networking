@@ -57,21 +57,25 @@ extension HTTPMacroExpansion {
     }
 
     // Step 10: Extract return type and generate implementation
-    guard let returnType = extractAndNormalizeReturnType(
-      function: function,
-      context: context
-    ) else {
+    guard
+      let returnType = extractAndNormalizeReturnType(
+        function: function,
+        context: context
+      )
+    else {
       return []
     }
 
-    return [generateImplementation(
-      function: function,
-      path: path,
-      bodyParameter: bodyParam,
-      queryParameters: queryParams,
-      headers: headers,
-      returnType: returnType
-    )]
+    return [
+      generateImplementation(
+        function: function,
+        path: path,
+        bodyParameter: bodyParam,
+        queryParameters: queryParams,
+        headers: headers,
+        returnType: returnType
+      )
+    ]
   }
 
   // MARK: - Private Helpers
@@ -199,8 +203,8 @@ extension HTTPMacroExpansion {
 
   private static func generateBodyCode(_ bodyParameter: String?) -> String {
     guard let body = bodyParameter else { return "" }
-    return "\n  request.setBody(try JSONEncoder().encode(\(body)))" +
-      "\n  request.addHeader(name: \"Content-Type\", value: \"application/json\")"
+    return "\n  request.setBody(try JSONEncoder().encode(\(body)))"
+      + "\n  request.addHeader(name: \"Content-Type\", value: \"application/json\")"
   }
 
   private static func generateHeaderCode(

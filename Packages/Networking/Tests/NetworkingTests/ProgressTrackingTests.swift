@@ -731,12 +731,23 @@ struct ProgressTrackingTests {
       totalBytes: 1000
     )
 
-    // Collect progress updates
-    var updates: [ProgressTracking.ProgressUpdate] = []
+    // Use actor-isolated collector for Swift 6 Sendable compliance
+    actor UpdateCollector {
+      var updates: [ProgressTracking.ProgressUpdate] = []
+      var count: Int { updates.count }
+      func append(_ update: ProgressTracking.ProgressUpdate) {
+        updates.append(update)
+      }
+      func getUpdates() -> [ProgressTracking.ProgressUpdate] {
+        updates
+      }
+    }
+
+    let collector = UpdateCollector()
     let collectTask = Task {
       for try await update in stream {
-        updates.append(update)
-        if updates.count >= 3 { break }  // Initial + 2 progress updates
+        await collector.append(update)
+        if await collector.count >= 3 { break }  // Initial + 2 progress updates
       }
     }
 
@@ -755,9 +766,10 @@ struct ProgressTrackingTests {
       totalBytesExpected: 1000
     )
 
-    await collectTask.value
+    try await collectTask.value
 
     // Verify progress updates
+    let updates = await collector.getUpdates()
     #expect(updates.count == 3)  // Initial (0%) + 100 bytes + 300 bytes
     #expect(updates[1].transferredBytes == 100)
     #expect(updates[2].transferredBytes == 300)

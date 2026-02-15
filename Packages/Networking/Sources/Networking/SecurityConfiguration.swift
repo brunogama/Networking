@@ -1,15 +1,15 @@
 import Foundation
 
 #if canImport(FoundationNetworking)
-  import FoundationNetworking
+import FoundationNetworking
 #endif
 
 #if canImport(Security)
-  import Security
+import Security
 #endif
 
 #if canImport(CommonCrypto)
-  import CommonCrypto
+import CommonCrypto
 #endif
 
 /// Configuration for security-related networking features.
@@ -145,25 +145,25 @@ public struct TLSConfiguration: Sendable {
 
 #if canImport(Security)
 
-  /// SSL Pinning Validator that handles certificate and public key validation.
-  public final class SSLPinningValidator: NSObject, URLSessionDelegate {
-    private let securityConfiguration: SecurityConfiguration
+/// SSL Pinning Validator that handles certificate and public key validation.
+public final class SSLPinningValidator: NSObject, URLSessionDelegate {
+  private let securityConfiguration: SecurityConfiguration
 
-    public init(securityConfiguration: SecurityConfiguration) {
-      self.securityConfiguration = securityConfiguration
-      super.init()
-    }
+  public init(securityConfiguration: SecurityConfiguration) {
+    self.securityConfiguration = securityConfiguration
+    super.init()
+  }
 
-    // MARK: - URLSessionDelegate
+  // MARK: - URLSessionDelegate
 
-    public func urlSession(
-      _ session: URLSession,
-      didReceive challenge: URLAuthenticationChallenge,
-      completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-    ) {
-      // Only handle server trust challenges
-      guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust
-      else {
+  public func urlSession(
+    _ session: URLSession,
+    didReceive challenge: URLAuthenticationChallenge,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) {
+    // Only handle server trust challenges
+    guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust
+    else {
       completionHandler(.performDefaultHandling, nil)
       return
     }
@@ -177,7 +177,8 @@ public struct TLSConfiguration: Sendable {
 
     // Perform certificate pinning validation if configured
     if let certPinningConfig = securityConfiguration.certificatePinning,
-      certPinningConfig.domains.contains(host) {
+      certPinningConfig.domains.contains(host)
+    {
       if validateCertificatePinning(serverTrust: serverTrust, configuration: certPinningConfig) {
         completionHandler(.useCredential, URLCredential(trust: serverTrust))
         return
@@ -192,7 +193,8 @@ public struct TLSConfiguration: Sendable {
 
     // Perform public key pinning validation if configured
     if let pkPinningConfig = securityConfiguration.publicKeyPinning,
-      pkPinningConfig.domains.contains(host) {
+      pkPinningConfig.domains.contains(host)
+    {
       if validatePublicKeyPinning(serverTrust: serverTrust, configuration: pkPinningConfig) {
         completionHandler(.useCredential, URLCredential(trust: serverTrust))
         return
@@ -337,7 +339,8 @@ public struct TLSConfiguration: Sendable {
       for i in 0..<count {
         let certificate = CFArrayGetValueAtIndex(certificateChain, i)
         if let cert = Unmanaged<SecCertificate>.fromOpaque(certificate!).takeUnretainedValue()
-          as SecCertificate? {
+          as SecCertificate?
+        {
           certificates.append(cert)
         }
       }

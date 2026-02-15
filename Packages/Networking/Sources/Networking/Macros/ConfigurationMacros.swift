@@ -258,7 +258,7 @@ public final class Metrics: @unchecked Sendable {
     // LIFECYCLE: Fire-and-forget metrics recording
     // In production, this would send to observability system
     #if DEBUG
-      print("[\(operation)] Duration: \(duration)s")
+    print("[\(operation)] Duration: \(duration)s")
     #endif
   }
 }

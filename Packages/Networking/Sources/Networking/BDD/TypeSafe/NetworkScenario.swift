@@ -234,20 +234,24 @@ extension NetworkScenario where Phase == ScenarioPhase.Complete {
           keyword: .given,
           text: (step as? DescribableStep)?.stepDescription ?? "Given step"
         )
-        stepResults.append(StepResultEntry(
-          step: gherkinStep,
-          result: .passed(duration: duration)
-        ))
+        stepResults.append(
+          StepResultEntry(
+            step: gherkinStep,
+            result: .passed(duration: duration)
+          )
+        )
       } catch {
         let duration = Date().timeIntervalSince(stepStart)
         let gherkinStep = GherkinStep(
           keyword: .given,
           text: (step as? DescribableStep)?.stepDescription ?? "Given step"
         )
-        stepResults.append(StepResultEntry(
-          step: gherkinStep,
-          result: .failed(error: error, duration: duration)
-        ))
+        stepResults.append(
+          StepResultEntry(
+            step: gherkinStep,
+            result: .failed(error: error, duration: duration)
+          )
+        )
         throw error
       }
     }
@@ -262,20 +266,24 @@ extension NetworkScenario where Phase == ScenarioPhase.Complete {
           keyword: .when,
           text: (step as? DescribableStep)?.stepDescription ?? "When step"
         )
-        stepResults.append(StepResultEntry(
-          step: gherkinStep,
-          result: .passed(duration: duration)
-        ))
+        stepResults.append(
+          StepResultEntry(
+            step: gherkinStep,
+            result: .passed(duration: duration)
+          )
+        )
       } catch {
         let duration = Date().timeIntervalSince(stepStart)
         let gherkinStep = GherkinStep(
           keyword: .when,
           text: (step as? DescribableStep)?.stepDescription ?? "When step"
         )
-        stepResults.append(StepResultEntry(
-          step: gherkinStep,
-          result: .failed(error: error, duration: duration)
-        ))
+        stepResults.append(
+          StepResultEntry(
+            step: gherkinStep,
+            result: .failed(error: error, duration: duration)
+          )
+        )
         // Record error in context but don't rethrow - let Then steps verify it
         context.lastError = error
       }
@@ -291,20 +299,24 @@ extension NetworkScenario where Phase == ScenarioPhase.Complete {
           keyword: .then,
           text: (step as? DescribableStep)?.stepDescription ?? "Then step"
         )
-        stepResults.append(StepResultEntry(
-          step: gherkinStep,
-          result: .passed(duration: duration)
-        ))
+        stepResults.append(
+          StepResultEntry(
+            step: gherkinStep,
+            result: .passed(duration: duration)
+          )
+        )
       } catch {
         let duration = Date().timeIntervalSince(stepStart)
         let gherkinStep = GherkinStep(
           keyword: .then,
           text: (step as? DescribableStep)?.stepDescription ?? "Then step"
         )
-        stepResults.append(StepResultEntry(
-          step: gherkinStep,
-          result: .failed(error: error, duration: duration)
-        ))
+        stepResults.append(
+          StepResultEntry(
+            step: gherkinStep,
+            result: .failed(error: error, duration: duration)
+          )
+        )
         throw error
       }
     }

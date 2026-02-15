@@ -98,7 +98,8 @@ public struct HeadersMacro: PeerMacro {
     let closure: ClosureExprSyntax?
 
     if case .argumentList(let arguments) = node.arguments,
-       let closureArg = arguments.first {
+      let closureArg = arguments.first
+    {
       closure = closureArg.expression.as(ClosureExprSyntax.self)
     } else {
       // No closure found

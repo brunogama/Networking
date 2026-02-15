@@ -149,7 +149,8 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     }
 
     /// Default predicate for determining if a response should be cached
-    public static func defaultShouldCache(_ request: HTTPRequest, _ response: HTTPResponse) -> Bool {
+    public static func defaultShouldCache(_ request: HTTPRequest, _ response: HTTPResponse) -> Bool
+    {
       // Only cache GET requests
       guard request.method == .get else { return false }
 

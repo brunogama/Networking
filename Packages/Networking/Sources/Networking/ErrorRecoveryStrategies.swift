@@ -223,7 +223,8 @@ public struct ErrorRecoveryStrategies: Sendable {
       case .open:
         // Check if we should transition to half-open
         if let lastFailure = lastFailureTime,
-          now.timeIntervalSince(lastFailure) >= recoveryTimeout {
+          now.timeIntervalSince(lastFailure) >= recoveryTimeout
+        {
           state = .halfOpen
           return .halfOpen
         } else {
@@ -313,7 +314,8 @@ public struct ErrorRecoveryStrategies: Sendable {
     public init(
       maxRecoveryAttempts: Int = 1,
       canRecover: @escaping @Sendable (HTTPError) -> Bool,
-      recovery: @escaping @Sendable (HTTPError, HTTPRequest, any HTTPClient) async throws ->
+      recovery:
+        @escaping @Sendable (HTTPError, HTTPRequest, any HTTPClient) async throws ->
         HTTPResponse
     ) {
       self.maxRecoveryAttempts = maxRecoveryAttempts

@@ -166,7 +166,9 @@ public final class BDDTestRunner: @unchecked Sendable {
       let featureResults = try await runFeature(at: fileURL)
       allResults.append(contentsOf: featureResults)
 
-      if configuration.stopOnFirstFailure && featureResults.contains(where: { $0.status == .failed }) {
+      if configuration.stopOnFirstFailure
+        && featureResults.contains(where: { $0.status == .failed })
+      {
         break
       }
     }

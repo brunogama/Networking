@@ -1,7 +1,7 @@
 import Foundation
 
 #if canImport(FoundationNetworking)
-  import FoundationNetworking
+import FoundationNetworking
 #endif
 
 /// Advanced URLProtocol-based mock for comprehensive request/response simulation in tests
@@ -289,43 +289,50 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
       // Find and consume stub atomically to prevent race conditions
       guard let stub = await Self.mockState.findAndConsumeStub(for: capturedRequest) else {
-        wrapper.client?.urlProtocol(wrapper.protocolInstance, didFailWithError: URLError(.fileDoesNotExist))
+        wrapper.client?.urlProtocol(
+          wrapper.protocolInstance,
+          didFailWithError: URLError(.fileDoesNotExist)
+        )
         return
       }
 
       // Execute request capture callback
       stub.requestCapture?(capturedRequest)
-      
+
       // Apply delay if specified
       let delay = stub.response.delay
       if delay > 0 {
         try? await Task.sleep(for: .seconds(delay))
       }
-      
+
       // Handle response based on type
       if let error = stub.response.error {
         wrapper.client?.urlProtocol(wrapper.protocolInstance, didFailWithError: error)
         return
       }
-      
+
       // Create successful response
       guard let url = capturedRequest.url else {
         wrapper.client?.urlProtocol(wrapper.protocolInstance, didFailWithError: URLError(.badURL))
         return
       }
-      
+
       let httpResponse = HTTPURLResponse(
         url: url,
         statusCode: stub.response.statusCode,
         httpVersion: "HTTP/1.1",
         headerFields: stub.response.headers
       )!
-      
-      wrapper.client?.urlProtocol(wrapper.protocolInstance, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
-      
+
+      wrapper.client?.urlProtocol(
+        wrapper.protocolInstance,
+        didReceive: httpResponse,
+        cacheStoragePolicy: .notAllowed
+      )
+
       // Always call didLoad, even for empty data to match original behavior
       wrapper.client?.urlProtocol(wrapper.protocolInstance, didLoad: stub.response.data)
-      
+
       wrapper.client?.urlProtocolDidFinishLoading(wrapper.protocolInstance)
     }
   }

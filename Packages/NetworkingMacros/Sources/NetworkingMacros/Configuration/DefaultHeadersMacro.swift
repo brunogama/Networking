@@ -86,7 +86,8 @@ public struct DefaultHeadersMacro: MemberMacro {
       if let keyString = element.key.as(StringLiteralExprSyntax.self),
         let keySegment = keyString.segments.first?.as(StringSegmentSyntax.self),
         let valueString = element.value.as(StringLiteralExprSyntax.self),
-        let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self) {
+        let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self)
+      {
         headers[keySegment.content.text] = valueSegment.content.text
       }
     }
@@ -112,14 +113,16 @@ public struct DefaultHeadersMacro: MemberMacro {
         // Extract headers from this attribute
         if let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
           let firstArg = arguments.first,
-          let dictExpr = firstArg.expression.as(DictionaryExprSyntax.self) {
+          let dictExpr = firstArg.expression.as(DictionaryExprSyntax.self)
+        {
           var headers: [String: String] = [:]
 
           for element in dictExpr.content.as(DictionaryElementListSyntax.self) ?? [] {
             if let keyString = element.key.as(StringLiteralExprSyntax.self),
               let keySegment = keyString.segments.first?.as(StringSegmentSyntax.self),
               let valueString = element.value.as(StringLiteralExprSyntax.self),
-              let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self) {
+              let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self)
+            {
               headers[keySegment.content.text] = valueSegment.content.text
             }
           }

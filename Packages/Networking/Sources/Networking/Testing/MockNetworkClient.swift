@@ -1,7 +1,7 @@
 import Foundation
 
 #if canImport(FoundationNetworking)
-  import FoundationNetworking
+import FoundationNetworking
 #endif
 
 /// Expectation-based mock network client for comprehensive testing
@@ -254,7 +254,8 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
     internal var expectationDescription: String {
       let matcherDescriptions = matchers.map(\.description).joined(separator: ", ")
-      return "Expected request matching [\(matcherDescriptions)] to be called \(expectedCallCount.description), but was called \(actualCallCount) time(s)"
+      return
+        "Expected request matching [\(matcherDescriptions)] to be called \(expectedCallCount.description), but was called \(actualCallCount) time(s)"
     }
 
     internal var mockResponse: MockResponse {
@@ -699,19 +700,19 @@ extension MockNetworkClient {
 
   private func getCurrentMemoryUsage() -> Int {
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
-      var info = mach_task_basic_info()
-      var count = mach_msg_type_number_t(
-        MemoryLayout.size(ofValue: info) / MemoryLayout<integer_t>.size
-      )
-      let result = withUnsafeMutablePointer(to: &info) {
-        $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-          task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
-        }
+    var info = mach_task_basic_info()
+    var count = mach_msg_type_number_t(
+      MemoryLayout.size(ofValue: info) / MemoryLayout<integer_t>.size
+    )
+    let result = withUnsafeMutablePointer(to: &info) {
+      $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+        task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
       }
-      return result == KERN_SUCCESS ? Int(info.resident_size) : 0
+    }
+    return result == KERN_SUCCESS ? Int(info.resident_size) : 0
     #else
-      // On Linux, memory tracking is not available via this method
-      return 0
+    // On Linux, memory tracking is not available via this method
+    return 0
     #endif
   }
 }

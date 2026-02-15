@@ -27,11 +27,14 @@ enum InterceptorCodeGenerator {
         function: "InterceptorContext",
         arguments: [
           (label: "path", value: .variable(path, payload: ())),
-          (label: "method", value: .propertyAccess(
-            base: .literal(.nil),
-            property: method
-          )),
-          (label: "attemptCount", value: .literal(.integer(0)))
+          (
+            label: "method",
+            value: .propertyAccess(
+              base: .literal(.nil),
+              property: method
+            )
+          ),
+          (label: "attemptCount", value: .literal(.integer(0))),
         ]
       )
     )
@@ -53,7 +56,7 @@ enum InterceptorCodeGenerator {
   ) -> [Statement<Void>] {
     [
       buildRequestResultBinding(requestVar: requestVar),
-      buildRequestGuard(returnType: returnType)
+      buildRequestGuard(returnType: returnType),
     ]
   }
 
@@ -78,7 +81,7 @@ enum InterceptorCodeGenerator {
   ) -> [Statement<Void>] {
     [
       buildResponseResultBinding(responseVar: responseVar),
-      buildResponseGuard()
+      buildResponseGuard(),
     ]
   }
 
@@ -96,9 +99,10 @@ enum InterceptorCodeGenerator {
     config: InterceptorMethodBuilder.MethodConfig,
     hasInterceptors: Bool
   ) -> DeclSyntax {
-    let body = hasInterceptors ?
-      InterceptorMethodBuilder.buildMethodBodyWithInterceptors(config: config) :
-      InterceptorMethodBuilder.buildMethodBodyWithoutInterceptors(config: config)
+    let body =
+      hasInterceptors
+      ? InterceptorMethodBuilder.buildMethodBodyWithInterceptors(config: config)
+      : InterceptorMethodBuilder.buildMethodBodyWithoutInterceptors(config: config)
 
     return InterceptorMethodBuilder.buildFunctionDeclaration(config: config, body: body)
   }
@@ -134,11 +138,14 @@ enum InterceptorCodeGenerator {
       initializer: .functionCall(
         function: "interceptors.executeRequestInterceptors",
         arguments: [
-          (label: "request", value: .functionCall(
-            function: "&",
-            arguments: [(label: nil, value: .variable(requestVar, payload: ()))]
-          )),
-          (label: "context", value: .variable("context", payload: ()))
+          (
+            label: "request",
+            value: .functionCall(
+              function: "&",
+              arguments: [(label: nil, value: .variable(requestVar, payload: ()))]
+            )
+          ),
+          (label: "context", value: .variable("context", payload: ())),
         ]
       )
     )
@@ -153,7 +160,7 @@ enum InterceptorCodeGenerator {
       ),
       elseBody: [
         buildShortCircuitIf(returnType: returnType),
-        buildInvalidResultThrow(reason: "Unexpected interceptor result")
+        buildInvalidResultThrow(reason: "Unexpected interceptor result"),
       ]
     )
   }
@@ -173,14 +180,20 @@ enum InterceptorCodeGenerator {
           .functionCall(
             function: "JSONDecoder().decode",
             arguments: [
-              (label: nil, value: .propertyAccess(
-                base: .variable(returnType, payload: ()),
-                property: "self"
-              )),
-              (label: "from", value: .propertyAccess(
-                base: .variable("cachedResponse", payload: ()),
-                property: "data"
-              ))
+              (
+                label: nil,
+                value: .propertyAccess(
+                  base: .variable(returnType, payload: ()),
+                  property: "self"
+                )
+              ),
+              (
+                label: "from",
+                value: .propertyAccess(
+                  base: .variable("cachedResponse", payload: ()),
+                  property: "data"
+                )
+              ),
             ]
           )
         )
@@ -208,7 +221,7 @@ enum InterceptorCodeGenerator {
         function: "interceptors.executeResponseInterceptors",
         arguments: [
           (label: "response", value: .variable(responseVar, payload: ())),
-          (label: "context", value: .variable("context", payload: ()))
+          (label: "context", value: .variable("context", payload: ())),
         ]
       )
     )

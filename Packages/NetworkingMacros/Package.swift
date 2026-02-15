@@ -19,8 +19,11 @@ let package = Package(
     )
   ],
   dependencies: [
-    // MacroTemplateKit helper library (local)
-    .package(path: "../MacroTemplateKit"),
+    // MacroTemplateKit - Type-safe templating for macro code generation
+    .package(
+      url: "https://github.com/brunogama/MacroTemplateKit.git",
+      from: "0.0.1"
+    ),
 
     // Swift Syntax for macro implementations
     .package(

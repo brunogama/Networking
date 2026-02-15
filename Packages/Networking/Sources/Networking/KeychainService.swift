@@ -1,17 +1,17 @@
 import Foundation
 
 #if canImport(Security)
-  import Security
+import Security
 #endif
 
 // MARK: - Platform-specific Keychain Implementation
 
 #if canImport(Security)
 
-  /// Secure storage service using iOS/macOS Keychain for sensitive data like authentication tokens.
-  ///
-  /// This is implemented as an actor to ensure thread-safe access to keychain operations.
-  /// All keychain operations are serialized through actor isolation.
+/// Secure storage service using iOS/macOS Keychain for sensitive data like authentication tokens.
+///
+/// This is implemented as an actor to ensure thread-safe access to keychain operations.
+/// All keychain operations are serialized through actor isolation.
 public actor KeychainService {
   // MARK: - Configuration
 

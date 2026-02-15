@@ -41,9 +41,11 @@ public struct CacheableMacro: PeerMacro {
     }
 
     // Extract arguments using shared helpers
-    let durationString = MacroHelpers.extractIntegerValue(labeled: "duration", from: node)
+    let durationString =
+      MacroHelpers.extractIntegerValue(labeled: "duration", from: node)
       ?? "300"
-    let policy = MacroHelpers.extractMemberValue(labeled: "policy", from: node)
+    let policy =
+      MacroHelpers.extractMemberValue(labeled: "policy", from: node)
       ?? "standard"
     let protocolName = protocolDecl.name.text
     let durationValue = Int(durationString) ?? 300
@@ -67,14 +69,20 @@ public struct CacheableMacro: PeerMacro {
     let cacheConfigTemplate = Template<Void>.functionCall(
       function: "CacheConfiguration",
       arguments: [
-        (label: "duration", value: .functionCall(
-          function: "ttl",
-          arguments: [(label: nil, value: .literal(.integer(duration)))]
-        )),
-        (label: "policy", value: .propertyAccess(
-          base: .literal(.nil),
-          property: policy
-        ))
+        (
+          label: "duration",
+          value: .functionCall(
+            function: "ttl",
+            arguments: [(label: nil, value: .literal(.integer(duration)))]
+          )
+        ),
+        (
+          label: "policy",
+          value: .propertyAccess(
+            base: .literal(.nil),
+            property: policy
+          )
+        ),
       ]
     )
 

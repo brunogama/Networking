@@ -47,7 +47,7 @@ public enum HTTPMacroTemplate {
       function: "HTTPRequest",
       arguments: [
         (label: "method", value: .literal(.string(method))),
-        (label: "url", value: url)
+        (label: "url", value: url),
       ]
     )
   }
@@ -68,7 +68,7 @@ public enum HTTPMacroTemplate {
       function: "addHeader",
       arguments: [
         (label: "name", value: .literal(.string(name))),
-        (label: "value", value: value)
+        (label: "value", value: value),
       ]
     )
   }
@@ -89,7 +89,7 @@ public enum HTTPMacroTemplate {
       function: "addQueryParameter",
       arguments: [
         (label: "name", value: .literal(.string(name))),
-        (label: "value", value: value)
+        (label: "value", value: value),
       ]
     )
   }
@@ -124,11 +124,14 @@ public enum HTTPMacroTemplate {
     .functionCall(
       function: "decode",
       arguments: [
-        (label: nil, value: .propertyAccess(
-          base: .variable(typeName, payload: ()),
-          property: "self"
-        )),
-        (label: "from", value: data)
+        (
+          label: nil,
+          value: .propertyAccess(
+            base: .variable(typeName, payload: ()),
+            property: "self"
+          )
+        ),
+        (label: "from", value: data),
       ]
     )
   }
