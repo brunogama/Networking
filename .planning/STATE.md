@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Current Phase | 7 |
-| Current Plan | Complete |
-| Phase Status | Completed |
+| Current Phase | 8 |
+| Current Plan | 01 |
+| Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
 ## Phase Progress
@@ -21,7 +21,8 @@
 | 5 | WebSocket & GraphQL | Pending | — | — |
 | 6 | Testing & Documentation | Pending | — | — |
 | 7 | Extract WebSocket & GraphQL to Extension Packages | Completed | 2026-02-15 | 2026-02-15 |
-| 8 | Extract Core Networking Macros to Atomic Package | Pending | — | — |
+| 8 | Extract Core Networking Macros to Atomic Package | In Progress | 2026-02-15 | — |
+| 9 | Update CI and Pre-commit Hooks for SPM Workspace Layout | Pending | — | — |
 
 ## Recent Activity
 
@@ -54,6 +55,7 @@
 | 2026-02-15 | Plan 07-02 completed | NetworkingWebSocket package extracted - WebSocket files moved, builds independently |
 | 2026-02-15 | Plan 07-04 completed | Root workspace Package.swift manifest created - all packages build independently |
 | 2026-02-15 | Phase 7 complete | Monorepo workspace with 3 packages (Networking, NetworkingWebSocket, NetworkingGraphQL) - all verified |
+| 2026-02-15 | Plan 08-01 completed | NetworkingMacros package structure created - Package.swift with .macro() target, swift-syntax dependencies, zero coupling to Core Networking |
 
 ## Phase 0 Progress Summary
 
@@ -170,6 +172,42 @@ ModernNetworking (root workspace)
         └── Tests/NetworkingGraphQLTests/ (3 files)
 ```
 
+## Phase 8 Progress Summary
+
+### Plans Completed (1/3)
+1. **Plan 08-01**: NetworkingMacros package structure created - Package.swift with .macro() target, swift-syntax dependencies
+
+### Phase 8 In Progress Status
+- **Packages Created**: 1 (NetworkingMacros package scaffold)
+- **Files Created**: 2 (Package.swift, Placeholder.swift)
+- **Directories Created**: 7 (Sources/NetworkingMacros with API/, HTTP/, Configuration/, Interceptors/, Shared/ subdirectories)
+- **Dependencies Added**: swift-syntax (600.0.1), swift-macro-testing (0.6.4)
+- **Build**: Package resolves dependencies successfully (build will succeed after source migration)
+- **Tests**: N/A (tests will be migrated in Plan 08-02)
+- **Commits**: 1
+- **Duration**: 70 seconds (~1.2 minutes)
+- **Status**: In Progress (1/3 plans complete) - Ready for Plan 08-02 (source file migration)
+
+### NetworkingMacros Package Structure
+```
+Packages/NetworkingMacros/ (standalone package)
+├── Package.swift (.macro() target with swift-syntax dependencies)
+├── Sources/NetworkingMacros/
+│   ├── API/ (for APIMacro)
+│   ├── HTTP/ (for GET, POST, PUT, PATCH, DELETE macros)
+│   ├── Configuration/ (for Cacheable, Measured, DefaultHeaders, Timeout macros)
+│   ├── Interceptors/ (for InterceptorsMacro, InterceptorCodeGenerator)
+│   ├── Shared/ (for PathTemplateParser, SyntaxFactory, MacroHelpers)
+│   └── Placeholder.swift (temporary - will be deleted after source migration)
+└── Tests/NetworkingMacrosTests/
+    └── Macros/ (for macro expansion tests)
+```
+
+### Key Architecture Decisions (Plan 08-01)
+1. **Swift 6.0 .macro() Target Type**: Native compiler plugin support (better integration than executable target)
+2. **Zero Dependency on Core Networking**: Macros only depend on swift-syntax for AST manipulation
+3. **Directory Structure Mirrors Existing Organization**: Maintains logical grouping during migration (API/, HTTP/, Configuration/, Interceptors/, Shared/)
+
 ## Accumulated Context
 
 ### Roadmap Evolution
@@ -177,6 +215,7 @@ ModernNetworking (root workspace)
 - Phase 0 added: Audit URLSession and Apple APIs for Async/Await Modernization
 - Phase 7 added: Extract WebSocket and GraphQL to Separate Extension Packages (depends on Phase 2, executes before Phase 3)
 - Phase 8 added: Extract Core Networking Macros to Atomic Package (excludes WebSocket/GraphQL macros)
+- Phase 9 added: Update CI and Pre-commit Hooks for SPM Workspace Layout with Auto Changelog, LLMs-txt, and Documentation.docc Generation
 
 ## Decisions
 
@@ -197,6 +236,9 @@ ModernNetworking (root workspace)
 | 2026-02-15 | 02 | Use actor-based test clients for Swift 6 concurrency safety | NSLock unavailable in async contexts; actors provide thread-safe state management |
 | 2026-02-14 | 08 | Swift Package workspace for macro extraction | Monorepo architecture with workspace feature keeps all packages together while maintaining clean separation |
 | 2026-02-14 | 08 | Core Networking has no macro dependency | One-way dependency: consumers can import macros optionally, core remains lightweight |
+| 2026-02-15 | 08 | Use .macro() target type instead of .executableTarget | Swift 6.0 native macro support provides better compiler integration |
+| 2026-02-15 | 08 | NetworkingMacros has zero dependency on Packages/Networking | Macros only manipulate AST, don't need runtime Networking types |
+| 2026-02-15 | 08 | Mirror existing directory structure during migration | Maintains logical grouping (API/, HTTP/, Configuration/, Interceptors/, Shared/) for easier code review |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 - [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
@@ -231,7 +273,8 @@ ModernNetworking (root workspace)
 | 07-02 | 251 | 3 | 3 | 2 |
 | 07-03 | 231 | 4 | 11 | 4 |
 | 07-04 | 197 | 3 | 1 | 1 |
-| **Total** | **3897** | **43** | **246** | **38** |
+| 08-01 | 70 | 3 | 2 | 1 |
+| **Total** | **3967** | **46** | **248** | **39** |
 
 ## Blockers
 
@@ -250,8 +293,8 @@ ModernNetworking (root workspace)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 07-04-PLAN.md - Phase 7 complete: monorepo workspace verified
-- **Next Action**: Ready for Phase 08 (Extract Core Networking Macros) or Phase 3 (Batch Operations & Progress)
+- **Stopped At**: Completed 08-01-PLAN.md - NetworkingMacros package structure created
+- **Next Action**: Ready for Plan 08-02 (Move macro source files from Packages/Networking to Packages/NetworkingMacros)
 
 ---
 *Initialized: 2026-02-14*
