@@ -1,0 +1,66 @@
+name: Generate LLMs.txt
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'Packages/**/Sources/**/*.swift'
+  workflow_dispatch:
+
+concurrency:
+  group: llms-txt-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-llms-txt:
+    name: Generate LLMs.txt
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.0'
+
+      - name: Install jq
+        run: brew install jq
+
+      - name: Generate llms.txt
+        run: |
+          chmod +x scripts/generate-llms-txt.sh
+          ./scripts/generate-llms-txt.sh llms.txt
+
+      - name: Show preview
+        run: |
+          echo "## LLMs.txt Preview" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          head -80 llms.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          total=$(grep -c "^- \`" llms.txt || echo "0")
+          echo "**Total public symbols:** $total" >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add llms.txt
+          if git diff --staged --quiet; then
+            echo "No changes to llms.txt"
+          else
+            git commit -m "docs: auto-generate llms.txt from public API"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llms-txt
+          path: llms.txt
+          retention-days: 30
