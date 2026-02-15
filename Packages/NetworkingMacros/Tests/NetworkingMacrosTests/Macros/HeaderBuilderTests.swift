@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Networking
+@testable import NetworkingMacros
 
 /// Tests for HeaderBuilder result builder and HeaderComponent
 final class HeaderBuilderTests: XCTestCase {
