@@ -2,7 +2,6 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
-import CompilerPluginSupport
 
 let package = Package(
   name: "Networking",
@@ -19,8 +18,9 @@ let package = Package(
     )
   ],
   dependencies: [
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/pointfreeco/swift-macro-testing.git", from: "0.5.2"),
+    // Local dependency on NetworkingMacros package
+    .package(path: "../NetworkingMacros"),
+    // Test dependencies
     .package(url: "https://github.com/typelift/SwiftCheck.git", from: "0.12.0"),
     .package(url: "https://github.com/Quick/Quick.git", from: "7.4.0"),
     .package(url: "https://github.com/Quick/Nimble.git", from: "13.0.0"),
@@ -29,7 +29,9 @@ let package = Package(
     // Main library target
     .target(
       name: "Networking",
-      dependencies: ["NetworkingMacros"],
+      dependencies: [
+        .product(name: "NetworkingMacros", package: "NetworkingMacros"),
+      ],
       exclude: [
         // Exclude BDD module - incomplete integration code that depends on Quick/Nimble
         "BDD",
@@ -39,24 +41,11 @@ let package = Package(
       ]
     ),
 
-    // Macro implementations
-    .macro(
-      name: "NetworkingMacros",
-      dependencies: [
-        .product(name: "SwiftSyntax", package: "swift-syntax"),
-        .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
-        .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-        .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
-      ]
-    ),
-
     // Test target
     .testTarget(
       name: "NetworkingTests",
       dependencies: [
         "Networking",
-        "NetworkingMacros",
-        .product(name: "MacroTesting", package: "swift-macro-testing"),
         .product(name: "SwiftCheck", package: "SwiftCheck"),
         .product(name: "Quick", package: "Quick"),
         .product(name: "Nimble", package: "Nimble"),
