@@ -46,14 +46,17 @@ public struct MeasuredMacro: PeerMacro {
     let signature = funcDecl.signature
     let parameterList = buildParameterPassthrough(from: signature)
 
-    // Generate wrapper function using string interpolation
-    // Note: Template algebra infrastructure available via MacroTemplateKit for future enhancement
+    // Generate metric name literal using Template algebra
+    let metricNameTemplate: Template<Void> = .literal(.string(metricName))
+    let metricNameExpr = Renderer.render(metricNameTemplate)
+
+    // Generate wrapper function using Template algebra for metric name
     let wrapperCode: DeclSyntax = """
       func \(raw: funcName)_measured\(raw: signature.description) {
         let startTime = Date()
         defer {
           let duration = Date().timeIntervalSince(startTime)
-          Metrics.shared.record(duration: duration, operation: "\(raw: metricName)")
+          Metrics.shared.record(duration: duration, operation: \(metricNameExpr))
         }
         return try await \(raw: funcName)(\(raw: parameterList))
       }
