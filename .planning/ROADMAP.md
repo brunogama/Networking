@@ -82,25 +82,7 @@ Plans:
 
 ---
 
-### Phase 3: WebSocket & GraphQL
-
-**Goal**: Complete real-time and GraphQL capabilities.
-
-**Requirements**: WS-01, WS-02, WS-03, WS-04, WS-05, WS-06, WS-07, GQL-01, GQL-02, GQL-03, GQL-04, GQL-05, GQL-06
-
-**Success Criteria**:
-1. User can connect to WebSocket and receive messages via AsyncSequence
-2. User can send WebSocket messages
-3. WebSocket reconnects automatically on disconnect
-4. User can execute GraphQL query with type-safe response
-5. User can execute GraphQL mutation with type-safe response
-6. `@Query` and `@Mutation` macros generate boilerplate
-
-**Rationale**: Completes the transport layer options. WebSocket exists in progress, needs polish. GraphQL exists in progress, needs completion.
-
----
-
-### Phase 4: Batch Operations & Progress
+### Phase 3: Batch Operations & Progress
 
 **Goal**: Enable parallel requests and progress tracking.
 
@@ -118,7 +100,7 @@ Plans:
 
 ---
 
-### Phase 5: Observability
+### Phase 4: Observability
 
 **Goal**: Enable production monitoring with distributed tracing and metrics.
 
@@ -132,7 +114,25 @@ Plans:
 5. Success/failure rates tracked
 6. Structured logging captures request/response details
 
-**Rationale**: Production observability. Depends on all transport features to instrument them.
+**Rationale**: Production observability. Depends on core transport features to instrument them.
+
+---
+
+### Phase 5: WebSocket & GraphQL
+
+**Goal**: Complete real-time and GraphQL capabilities.
+
+**Requirements**: WS-01, WS-02, WS-03, WS-04, WS-05, WS-06, WS-07, GQL-01, GQL-02, GQL-03, GQL-04, GQL-05, GQL-06
+
+**Success Criteria**:
+1. User can connect to WebSocket and receive messages via AsyncSequence
+2. User can send WebSocket messages
+3. WebSocket reconnects automatically on disconnect
+4. User can execute GraphQL query with type-safe response
+5. User can execute GraphQL mutation with type-safe response
+6. `@Query` and `@Mutation` macros generate boilerplate
+
+**Rationale**: Completes the transport layer options. WebSocket exists in progress, needs polish. GraphQL exists in progress, needs completion.
 
 ---
 
@@ -161,9 +161,9 @@ Plans:
 | 0 | AUDIT-01 to AUDIT-03 | 3 |
 | 1 | CONC-01 to CONC-10 | 10 |
 | 2 | DX-01 to DX-09 | 9 |
-| 3 | WS-01 to WS-07, GQL-01 to GQL-06 | 13 |
-| 4 | BATCH-01 to BATCH-05, PROG-01 to PROG-05 | 10 |
-| 5 | OBS-01 to OBS-07 | 7 |
+| 3 | BATCH-01 to BATCH-05, PROG-01 to PROG-05 | 10 |
+| 4 | OBS-01 to OBS-07 | 7 |
+| 5 | WS-01 to WS-07, GQL-01 to GQL-06 | 13 |
 | 6 | TEST-01 to TEST-07, DOC-01 to DOC-05 | 12 |
 | **Total** | | **64** |
 
@@ -174,14 +174,26 @@ Phase 0 (Audit) ────────────────────┐
                                     │
 Phase 1 (Concurrency) ──────────────┼───┐
                                     │   │
-Phase 2 (DX) ───────────────────────┤   ├───► Phase 5 (Observability)
+Phase 2 (DX) ───────────────────────┤   ├───► Phase 4 (Observability)
                                     │   │           │
-Phase 3 (WebSocket/GraphQL) ────────┤   │           │
-                                    │   │           ▼
-Phase 4 (Batch/Progress) ───────────┘   └─────► Phase 6 (Testing/Docs)
+Phase 3 (Batch/Progress) ───────────┘   │           │
+                                        │           ▼
+                                        └─────► Phase 5 (WebSocket/GraphQL)
+                                                    │
+                                                    ▼
+                                              Phase 6 (Testing/Docs)
 ```
 
-**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phases 2-4 can parallelize after Phase 1. Phase 5 depends on 2-4. Phase 6 is final.
+**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phases 2-3 can parallelize after Phase 1. Phase 4 depends on 2-3. Phase 5 (WebSocket/GraphQL) can start after core features. Phase 6 is final.
+
+### Phase 7: Extract WebSocket and GraphQL to Separate Extension Packages
+
+**Goal:** [To be planned]
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 7 to break down)
 
 ---
 *Created: 2026-02-14*

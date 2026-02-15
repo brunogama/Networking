@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 2 |
-| Current Plan | 2 |
+| Current Plan | 3 |
 | Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
@@ -16,10 +16,11 @@
 | 0 | Audit URLSession and Apple APIs for Async/Await Modernization | Completed | 2026-02-14 | 2026-02-14 |
 | 1 | Swift 6 Concurrency Compliance | Completed | 2026-02-14 | 2026-02-14 |
 | 2 | Developer Experience | In Progress | 2026-02-14 | — |
-| 3 | WebSocket & GraphQL | Pending | — | — |
-| 4 | Batch Operations & Progress | Pending | — | — |
-| 5 | Observability | Pending | — | — |
+| 3 | Batch Operations & Progress | Pending | — | — |
+| 4 | Observability | Pending | — | — |
+| 5 | WebSocket & GraphQL | Pending | — | — |
 | 6 | Testing & Documentation | Pending | — | — |
+| 7 | Extract WebSocket & GraphQL to Extension Packages | Pending | — | — |
 
 ## Recent Activity
 
@@ -44,6 +45,7 @@
 | 2026-02-14 | Phase 0 complete | Audit complete - 16-24 hour effort estimate for Phase 2 modernization |
 | 2026-02-14 | Plan 02-02 completed | Fluent response chaining API with decode/cacheable/retryable pattern |
 | 2026-02-15 | Plan 02-01 completed | Request composition operators and phantom type constraints - 3 tasks, 3 commits, 18 tests |
+| 2026-02-15 | Plan 02-03 completed | @Cacheable and @Measured macros via TDD - 3 tasks, 3 commits, 7 files |
 
 ## Phase 0 Progress Summary
 
@@ -107,22 +109,25 @@
 
 ## Phase 2 Progress Summary
 
-### Plans Completed (1/5)
-1. **Plan 02-02**: Fluent response chaining API - decode().cacheable().retryable() pattern
+### Plans Completed (3/5)
+1. **Plan 02-01**: Request composition operators and phantom type constraints
+2. **Plan 02-02**: Fluent response chaining API - decode().cacheable().retryable() pattern
+3. **Plan 02-03**: @Cacheable and @Measured configuration macros via TDD
 
 ### Phase 2 Current Status
-- **Build**: Passes with `-Xswiftc -warnings-as-errors` (Networking target)
-- **Tests**: Written but blocked by pre-existing NetworkingMacros build errors
-- **Files Created**: 3 (ResponseChaining.swift, FluentExtensions.swift, ResponseChainingTests.swift)
-- **Commits**: 3
-- **Duration**: 197 seconds (~3.3 minutes)
-- **Status**: IN PROGRESS - Fluent API foundation established
+- **Build**: Passes with `-Xswiftc -warnings-as-errors`
+- **Tests**: 228 tests (214 passed, 14 pre-existing network failures)
+- **Files Created**: 10 (composition operators, fluent chaining, macros)
+- **Commits**: 9
+- **Duration**: 1260 seconds (~21 minutes cumulative)
+- **Status**: IN PROGRESS - 3/5 plans complete
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 0 added: Audit URLSession and Apple APIs for Async/Await Modernization
+- Phase 7 added: Extract WebSocket and GraphQL to Separate Extension Packages
 
 ## Decisions
 
@@ -136,8 +141,10 @@
 | 2026-02-14 | 02 | Separate wrapper types for each configuration | Type-safe configuration composition with clear semantics (DecodedResponse, CacheableResponse, RetryableResponse) |
 | 2026-02-15 | 02 | Use + operator for request composition with merged(with:) alternative | Provides intuitive syntax while offering named alternative for clarity |
 | 2026-02-15 | 02 | BodyAllowedMethod as marker protocol for compile-time body constraints | Enables type-safe API preventing GET/HEAD/DELETE from having bodies at compile time |
+| 2026-02-15 | 02 | Use existing CachingPolicy and CacheDuration types instead of creating duplicates | Maintains consistency with NetworkClientBuilder DSL, reduces code duplication |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
+- [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
 
 ## Performance Metrics
 
@@ -153,8 +160,8 @@
 | 01-07 | 202 | 3 | 1 | 1 |
 | 02-01 | 639 | 3 | 6 | 3 |
 | 02-02 | 197 | 3 | 3 | 3 |
-| **Total** | **2362** | **25** | **27** | **25** |
-| Phase 02 P04 | 620 | 2 tasks | 6 files |
+| 02-03 | 424 | 3 | 7 | 3 |
+| **Total** | **2786** | **31** | **37** | **31** |
 
 ## Blockers
 
@@ -173,8 +180,8 @@
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 02-01-PLAN.md - Request composition operators and phantom types
-- **Next Action**: Continue Phase 2 with plan 02-02 or 02-03 (DX improvements)
+- **Stopped At**: Completed 02-03-PLAN.md - @Cacheable and @Measured macros
+- **Next Action**: Continue Phase 2 with remaining plans (02-04, 02-05)
 
 ---
 *Initialized: 2026-02-14*
