@@ -1,8 +1,9 @@
+import MacroTemplateKit
+import Foundation
+import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
-import SwiftDiagnostics
-import Foundation
 
 /// Macro implementation for @Timeout.
 ///
@@ -54,6 +55,7 @@ public struct TimeoutMacro: MemberMacro {
     // Note: The actual timeout application is handled by APIMacro and HTTP method macros
     // This macro just validates the syntax and makes the information available
     // to other macros via the attribute syntax
+    // Template algebra infrastructure available via MacroTemplateKit for future enhancement
 
     return []
   }
