@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 10 |
-| Current Plan | 01 |
+| Current Plan | 02 |
 | Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
@@ -63,6 +63,7 @@
 | 2026-02-15 | Plan 08-05 completed | Macro test configuration fixed - 19/19 tests passing, zero SwiftCompilerPlugin errors, MACRO-08 gap closed |
 | 2026-02-15 | Phase 8 complete | All 9 success criteria verified - NetworkingMacros package extraction complete, tests compile and pass |
 | 2026-02-15 | Plan 10-01 completed | MacroTemplateKit package created - Template ADT with 9 cases, Functor map, Renderer transformation to SwiftSyntax |
+| 2026-02-15 | Plan 10-02 completed | MacroTemplateKit dependency wired to NetworkingMacros - workspace dependency order updated, all packages build successfully |
 
 ## Phase 0 Progress Summary
 
@@ -262,6 +263,7 @@ Packages/NetworkingMacros/ (standalone package)
 | 2026-02-15 | 10 | Use indirect enum for Template<A> instead of @frozen | Recursive enum requires indirection; @frozen conflicts with indirect |
 | 2026-02-15 | 10 | Split Template conformances into separate file | Meet 200-line file length limit while maintaining cohesion (Template.swift 187 lines, Template+Conformances.swift 182 lines) |
 | 2026-02-15 | 10 | Refactor map/===/hash into helper functions | Avoid cyclomatic complexity violations (9-case switch exceeds limit of 4, split into partial matchers) |
+| 2026-02-15 | 10 | List MacroTemplateKit FIRST in workspace dependencies | SPM resolves dependencies in order; leaf nodes (no dependencies) must come before consumers |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 - [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
@@ -303,7 +305,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 08-04 | 161 | 1 | 1 | 1 |
 | 08-05 | 657 | 7 | 20 | 4 |
 | 10-01 | 568 | 3 | 5 | 3 |
-| **Total** | **5969** | **63** | **299** | **50** |
+| 10-02 | 92 | 3 | 2 | 2 |
+| **Total** | **6061** | **66** | **301** | **52** |
 
 ## Blockers
 
@@ -322,8 +325,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 10-01-PLAN.md - MacroTemplateKit package created (Template ADT with 9 cases, Functor map, Renderer transformation)
-- **Next Action**: Phase 10 IN PROGRESS. Continue with 10-02 (Refactor macro implementations to use Template algebra)
+- **Stopped At**: Completed 10-02-PLAN.md - MacroTemplateKit dependency wired to NetworkingMacros, workspace dependency order updated
+- **Next Action**: Phase 10 IN PROGRESS. Continue with next plan (Refactor macro implementations to use Template algebra)
 
 ---
 *Initialized: 2026-02-14*
