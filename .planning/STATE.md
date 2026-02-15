@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 09 |
-| Current Plan | 04 |
-| Phase Status | In Progress |
+| Current Plan | 05 |
+| Phase Status | Completed |
 | Last Updated | 2026-02-15 |
 
 ## Phase Progress
@@ -22,7 +22,7 @@
 | 6 | Testing & Documentation | Pending | — | — |
 | 7 | Extract WebSocket & GraphQL to Extension Packages | Completed | 2026-02-15 | 2026-02-15 |
 | 8 | Extract Core Networking Macros to Atomic Package | Completed | 2026-02-15 | 2026-02-15 |
-| 9 | Update CI and Pre-commit Hooks for SPM Workspace Layout | In Progress | 2026-02-15 | — |
+| 9 | Update CI and Pre-commit Hooks for SPM Workspace Layout | Completed | 2026-02-15 | 2026-02-15 |
 | 10 | Refactor NetworkingMacros to Functional Template Render API | Completed | 2026-02-15 | 2026-02-15 |
 | 10.1 | Apply DRY to NetworkingMacros Repeated Code | Completed | 2026-02-15 | 2026-02-15 |
 | 10.2 | NetworkingMacros Test Coverage | Completed | 2026-02-15 | 2026-02-15 |
@@ -90,6 +90,8 @@
 | 2026-02-15 | Plan 09-01 completed | Multi-package CI workflow and docs-sync updates - 3 tasks, 2 commits, 2 files, matrix strategy for 5 packages |
 | 2026-02-15 | Plan 09-03 completed | Automated changelog generation with git-cliff - 3 tasks, 2 commits, 2 files, conventional commits parsing |
 | 2026-02-15 | Plan 09-04 completed | LLMs.txt generation from symbol graphs - 3 tasks, 3 commits, 1445 public symbols across 5 packages |
+| 2026-02-15 | Plan 09-05 completed | Documentation.docc automation with GitHub Pages - 3 tasks, 2 commits, multi-package DocC builds |
+| 2026-02-15 | Phase 9 complete | CI/hooks workspace automation - all 5 requirements met (CI-04 through CI-08) |
 | 2026-02-15 | Phase 10.2.1 complete | NetworkingMacros test coverage complete - 131 tests (79→131, +65.8%), 125 assertMacro calls, 13/13 macros (100%), all criteria verified |
 
 ## Phase 0 Progress Summary
@@ -282,6 +284,40 @@ Packages/NetworkingMacros/ (standalone package)
 - MacroTesting record mode captures actual expansion output
 - Start with highest-impact macros (HTTP methods and configuration) before advanced features
 
+## Phase 9 Progress Summary
+
+### Plans Completed (5/5)
+1. **Plan 09-01**: Multi-package CI workflow and docs-sync updates
+2. **Plan 09-02**: Pre-commit hooks for workspace validation (inherited from prior work)
+3. **Plan 09-03**: Automated changelog generation with git-cliff
+4. **Plan 09-04**: LLMs.txt generation from symbol graphs (1445 symbols)
+5. **Plan 09-05**: Documentation.docc automation with GitHub Pages deployment
+
+### Phase 9 Completion Status ✅
+- **Workflows Created**: 4 (ci.yml updates, changelog.yml, llms-txt.yml, docs.yml)
+- **Scripts Created**: 3 (generate-changelog.sh, generate-llms-txt.sh, generate-doc-stubs.sh)
+- **Commits**: 10 (2 CI updates + 2 changelog + 3 llms-txt + 2 docs + 1 hooks)
+- **Duration**: ~10 minutes cumulative (595 seconds total)
+- **Build**: All 5 packages build successfully
+- **Tests**: Not applicable (CI/automation changes)
+- **Status**: COMPLETE - All 5 CI requirements verified (CI-04 through CI-08)
+
+### Key Deliverables
+1. **Multi-package CI**: Parallel matrix builds for 5 packages with fail-fast strategy
+2. **API Tracking**: Symbol graph extraction with automated PR creation for API changes
+3. **Changelog**: git-cliff conventional commits parsing with auto-updates
+4. **LLMs.txt**: 1445 public symbols across workspace with package attribution
+5. **Documentation**: Multi-package DocC builds with GitHub Pages deployment and stub generation
+
+### CI Requirements Verification
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| CI-04: Multi-package builds | ✅ PASS | ci.yml matrix strategy for 5 packages |
+| CI-05: API symbol tracking | ✅ PASS | docs-sync.yml symbol extraction + PRs |
+| CI-06: Automated changelog | ✅ PASS | changelog.yml + git-cliff |
+| CI-07: LLMs.txt updates | ✅ PASS | llms-txt.yml from symbol graphs |
+| CI-08: Documentation.docc | ✅ PASS | docs.yml multi-package builds + GitHub Pages |
+
 ## Accumulated Context
 
 ### Roadmap Evolution
@@ -361,6 +397,10 @@ Packages/NetworkingMacros/ (standalone package)
 | 2026-02-15 | 09 | Use fail-fast: true to stop all jobs on first failure | Faster feedback to developers, saves CI minutes, encourages immediate fixes |
 | 2026-02-15 | 09 | Consolidate all package symbols into unified baseline with package field | Single source of truth for API changes across workspace, easier to track evolution |
 | 2026-02-15 | 09 | Preserve existing docs-sync.yml issue creation logic | Battle-tested workflow - only update symbol extraction, minimize risk |
+| 2026-02-15 | 09 | Use swift-docc-plugin for multi-package documentation builds | Native SPM integration, automatic dependency resolution, generates symbol graphs |
+| 2026-02-15 | 09 | Combined index page for GitHub Pages deployment | Single landing page improves UX, easier package discovery |
+| 2026-02-15 | 09 | Symbol graph extraction for new type detection | Compiler-generated JSON provides accurate type information, avoids regex parsing |
+| 2026-02-15 | 09 | Automated PRs for doc stubs instead of direct commits | Allows human review and enhancement, prevents overwrites, maintains audit trail |
 
 ## Performance Metrics
 
@@ -410,7 +450,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 09-01 | 101 | 3 | 2 | 2 |
 | 09-03 | 129 | 3 | 2 | 2 |
 | 09-04 | 365 | 3 | 3 | 3 |
-| **Total** | **10733** | **134** | **355** | **97** |
+| 09-05 | 130 | 3 | 2 | 2 |
+| **Total** | **10863** | **137** | **357** | **99** |
 
 ## Blockers
 
@@ -429,8 +470,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed Phase 09 Plan 04 - LLMs.txt generation from symbol graphs (3 tasks, 3 commits, 1445 public symbols)
-- **Next Action**: Phase 09 Plan 04 COMPLETE. Continue with Phase 09 Plan 05 (automated Documentation.docc generation workflow).
+- **Stopped At**: Completed Phase 09 Plan 05 - Documentation.docc automation with GitHub Pages (3 tasks, 2 commits, 2 files)
+- **Next Action**: Phase 09 COMPLETE. All 5 CI/automation requirements verified (CI-04 through CI-08). Ready to continue with Phase 3 (Batch Operations), Phase 4 (Observability), or Phase 6 (Testing & Documentation).
 
 ---
 *Initialized: 2026-02-14*
