@@ -1,3 +1,4 @@
+import MacroTemplateKit
 import SwiftCompilerPlugin
 import SwiftSyntax
 import SwiftSyntaxBuilder
