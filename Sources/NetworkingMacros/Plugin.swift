@@ -19,6 +19,8 @@ struct NetworkingPlugin: CompilerPlugin {
     InterceptorsMacro.self,
     BodyMacro.self,
     HeadersMacro.self,
+    CacheableMacro.self,
+    MeasuredMacro.self,
   ]
 }
 
