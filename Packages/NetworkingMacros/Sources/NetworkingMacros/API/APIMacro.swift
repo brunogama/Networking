@@ -4,6 +4,7 @@ import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 import Foundation
+import MacroTemplateKit
 
 /// Macro implementation for @API attached to protocols.
 ///
@@ -66,44 +67,50 @@ public struct APIMacro: MemberMacro {
     let interceptorExprs = InterceptorsMacro.extractInterceptorExpressions(from: protocolDecl)
     let hasInterceptors = !interceptorExprs.isEmpty
 
-    // Build member declarations for the implementation struct
-    var members: [DeclSyntax] = []
+    // Build member declarations using MacroTemplateKit
+    var members: [Declaration<Void>] = []
 
     // NetworkClient property
     members.append(
-      DeclSyntax(
-        """
-        private let client: NetworkClient
-        """
+      .property(
+        PropertySignature(
+          accessLevel: .private,
+          name: "client",
+          type: "NetworkClient",
+          isStatic: false,
+          isLet: true,
+          initializer: nil
+        )
       )
     )
 
     // Base URL property
     members.append(
-      DeclSyntax(
-        """
-        private let baseURL: String = "\(raw: baseURL)"
-        """
+      .property(
+        PropertySignature(
+          accessLevel: .private,
+          name: "baseURL",
+          type: "String",
+          isStatic: false,
+          isLet: true,
+          initializer: .literal(.string(baseURL))
+        )
       )
     )
 
     // Default headers property (if any)
+    // Note: The actual initializer expression will be substituted after rendering
+    // since dictionary literals require complex ExprSyntax handling
     if !defaultHeaders.isEmpty {
-      let headersExpr = DefaultHeadersMacro.generateHeadersExpression(from: defaultHeaders)
-
       members.append(
-        DeclSyntax(
-          VariableDeclSyntax(
-            modifiers: [DeclModifierSyntax(name: .keyword(.private))],
-            .let,
-            name: PatternSyntax(IdentifierPatternSyntax(identifier: .identifier("defaultHeaders"))),
-            type: TypeAnnotationSyntax(
-              type: DictionaryTypeSyntax(
-                key: IdentifierTypeSyntax(name: .identifier("String")),
-                value: IdentifierTypeSyntax(name: .identifier("String"))
-              )
-            ),
-            initializer: InitializerClauseSyntax(value: headersExpr)
+        .property(
+          PropertySignature(
+            accessLevel: .private,
+            name: "defaultHeaders",
+            type: "[String: String]",
+            isStatic: false,
+            isLet: true,
+            initializer: nil  // Placeholder - replaced in replaceHeadersProperty
           )
         )
       )
@@ -112,10 +119,15 @@ public struct APIMacro: MemberMacro {
     // Default timeout property (if any)
     if let timeout = defaultTimeout {
       members.append(
-        DeclSyntax(
-          """
-          private let defaultTimeout: Double = \(raw: String(timeout))
-          """
+        .property(
+          PropertySignature(
+            accessLevel: .private,
+            name: "defaultTimeout",
+            type: "Double",
+            isStatic: false,
+            isLet: true,
+            initializer: .literal(.double(timeout))
+          )
         )
       )
     }
@@ -123,65 +135,160 @@ public struct APIMacro: MemberMacro {
     // Interceptor chain property (if any)
     if hasInterceptors {
       members.append(
-        DeclSyntax(
-          """
-          private let interceptors: InterceptorChain
-          """
+        .property(
+          PropertySignature(
+            accessLevel: .private,
+            name: "interceptors",
+            type: "InterceptorChain",
+            isStatic: false,
+            isLet: true,
+            initializer: nil
+          )
         )
       )
     }
 
     // Initializer
-    if hasInterceptors {
-      // Generate interceptor chain initialization
-      let requestInterceptorsList = interceptorExprs.map { "\($0)" }.joined(separator: ", ")
-      let responseInterceptorsList = interceptorExprs.map { "\($0)" }.joined(separator: ", ")
+    let initBody: [Statement<Void>] = buildInitializerBody(
+      hasInterceptors: hasInterceptors,
+      interceptorExprs: interceptorExprs
+    )
 
-      members.append(
-        DeclSyntax(
-          """
-          public init(client: NetworkClient = .shared) {
-            self.client = client
-            self.interceptors = InterceptorChain(
-              requestInterceptors: [\(raw: requestInterceptorsList)],
-              responseInterceptors: [\(raw: responseInterceptorsList)]
+    members.append(
+      .initDecl(
+        InitializerSignature(
+          accessLevel: .public,
+          parameters: [
+            ParameterSignature(
+              name: "client",
+              type: "NetworkClient",
+              defaultValue: ".shared"
             )
-          }
-          """
-        )
-      )
-    } else {
-      // No interceptors - keep original simple initializer
-      members.append(
-        DeclSyntax(
-          """
-          public init(client: NetworkClient = .shared) {
-            self.client = client
-          }
-          """
-        )
-      )
-    }
-
-    // Create the implementation struct
-    let structDecl = StructDeclSyntax(
-      modifiers: [DeclModifierSyntax(name: .keyword(.public))],
-      name: .identifier("\(protocolName)Implementation"),
-      inheritanceClause: InheritanceClauseSyntax {
-        InheritedTypeSyntax(type: IdentifierTypeSyntax(name: .identifier(protocolName)))
-        InheritedTypeSyntax(type: IdentifierTypeSyntax(name: .identifier("Sendable")))
-      },
-      memberBlock: MemberBlockSyntax(
-        members: MemberBlockItemListSyntax(
-          members.map { MemberBlockItemSyntax(decl: $0) }
+          ],
+          canThrow: false,
+          body: initBody
         )
       )
     )
 
-    return [DeclSyntax(structDecl)]
+    // Create the implementation struct using Declaration ADT
+    let structDecl = Declaration<Void>.structDecl(
+      StructSignature(
+        accessLevel: .public,
+        name: "\(protocolName)Implementation",
+        conformances: [protocolName, "Sendable"],
+        members: members
+      )
+    )
+
+    // Render to DeclSyntax
+    var resultDecl = Renderer.render(structDecl)
+
+    // For defaultHeaders, we need to replace the placeholder property with the actual one
+    // that has the complex initializer expression
+    if !defaultHeaders.isEmpty {
+      let headersExpr = DefaultHeadersMacro.generateHeadersExpression(from: defaultHeaders)
+      resultDecl = replaceHeadersProperty(in: resultDecl, with: headersExpr)
+    }
+
+    return [resultDecl]
   }
 
   // MARK: - Helper Methods
+
+  /// Builds the initializer body statements.
+  private static func buildInitializerBody(
+    hasInterceptors: Bool,
+    interceptorExprs: [ExprSyntax]
+  ) -> [Statement<Void>] {
+    var body: [Statement<Void>] = []
+
+    // self.client = client
+    body.append(
+      .expression(
+        .binaryOperation(
+          left: .propertyAccess(
+            base: .variable("self", payload: ()),
+            property: "client"
+          ),
+          operator: "=",
+          right: .variable("client", payload: ())
+        )
+      )
+    )
+
+    if hasInterceptors {
+      // Generate interceptor chain initialization
+      // For complex expressions like InterceptorChain(...), we use a string-based approach
+      // since the Template ADT doesn't support complex object construction directly
+      let requestList = interceptorExprs.map { "\($0)" }.joined(separator: ", ")
+      let responseList = interceptorExprs.map { "\($0)" }.joined(separator: ", ")
+
+      // self.interceptors = InterceptorChain(requestInterceptors: [...], responseInterceptors: [...])
+      body.append(
+        .expression(
+          .binaryOperation(
+            left: .propertyAccess(
+              base: .variable("self", payload: ()),
+              property: "interceptors"
+            ),
+            operator: "=",
+            right: .functionCall(
+              function: "InterceptorChain",
+              arguments: [
+                (label: "requestInterceptors", value: .variable("[\(requestList)]", payload: ())),
+                (label: "responseInterceptors", value: .variable("[\(responseList)]", payload: ())),
+              ]
+            )
+          )
+        )
+      )
+    }
+
+    return body
+  }
+
+  /// Replaces the placeholder defaultHeaders property with one that has the actual initializer.
+  private static func replaceHeadersProperty(
+    in decl: DeclSyntax,
+    with headersExpr: ExprSyntax
+  ) -> DeclSyntax {
+    guard let structDecl = decl.as(StructDeclSyntax.self) else {
+      return decl
+    }
+
+    var newMembers: [MemberBlockItemSyntax] = []
+    for member in structDecl.memberBlock.members {
+      if let varDecl = member.decl.as(VariableDeclSyntax.self),
+        let binding = varDecl.bindings.first,
+        let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+        pattern.identifier.text == "defaultHeaders"
+      {
+        // Replace with the actual headers declaration
+        let newDecl = VariableDeclSyntax(
+          modifiers: [DeclModifierSyntax(name: .keyword(.private))],
+          .let,
+          name: PatternSyntax(IdentifierPatternSyntax(identifier: .identifier("defaultHeaders"))),
+          type: TypeAnnotationSyntax(
+            type: DictionaryTypeSyntax(
+              key: IdentifierTypeSyntax(name: .identifier("String")),
+              value: IdentifierTypeSyntax(name: .identifier("String"))
+            )
+          ),
+          initializer: InitializerClauseSyntax(value: headersExpr)
+        )
+        newMembers.append(MemberBlockItemSyntax(decl: DeclSyntax(newDecl)))
+      } else {
+        newMembers.append(member)
+      }
+    }
+
+    let newStruct = structDecl.with(
+      \.memberBlock,
+      MemberBlockSyntax(members: MemberBlockItemListSyntax(newMembers))
+    )
+    return DeclSyntax(newStruct)
+  }
 
   /// Extracts the base URL string from the macro attribute.
   private static func extractBaseURL(
