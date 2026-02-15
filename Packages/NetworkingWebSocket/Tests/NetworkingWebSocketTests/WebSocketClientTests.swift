@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Networking
+@testable import NetworkingWebSocket
 
 @Suite("WebSocket Tests")
 struct WebSocketClientTests {
