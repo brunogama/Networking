@@ -195,7 +195,9 @@ Plans:
 
 ---
 
-### Phase 8: Extract Core Networking Macros to Atomic Package
+### Phase 8: Extract Core Networking Macros to Atomic Package ✓
+
+**Status**: COMPLETE (2026-02-15)
 
 **Goal:** Extract core networking macro code (excluding WebSocket/GraphQL macros) into a standalone NetworkingMacros package within the monorepo. The main Networking package optionally depends on the macro package. Macro testing utilities move to a separate test support package.
 
@@ -203,28 +205,32 @@ Plans:
 - Monorepo with Swift Package workspace (Package.swift at root)
 - NetworkingMacros as separate package within Packages/
 - One-way dependency: Core Networking depends on NetworkingMacros and declares macros via #externalMacro
-- Macro tests in dedicated test target (infrastructure refactor required - see plan 08-05)
+- Macro tests in dedicated test target with stub pattern (full expansion tests preserved for future MacroTesting refactor)
 
 **Depends on:** Phase 7 (Extract WebSocket & GraphQL)
 
 **Success Criteria**:
-1. Packages/NetworkingMacros/ exists with standalone Package.swift
-2. All 18 macro source files in Packages/NetworkingMacros/Sources/NetworkingMacros/
-3. All 17 macro test files in Packages/NetworkingMacros/Tests/NetworkingMacrosTests/
-4. NetworkingMacros has NO dependency on Core Networking (pure swift-syntax)
-5. Core Networking depends on NetworkingMacros via `.package(path: "../NetworkingMacros")`
-6. Core Networking declares macros via #externalMacro(module: "NetworkingMacros", type: "XxxMacro")
-7. Root workspace includes NetworkingMacros BEFORE Networking (dependency order)
-8. All 4 packages build with `swift build -Xswiftc -warnings-as-errors`
-9. NetworkingMacros tests compile and run without SwiftCompilerPlugin errors
+1. ✓ Packages/NetworkingMacros/ exists with standalone Package.swift
+2. ✓ All 18 macro source files in Packages/NetworkingMacros/Sources/NetworkingMacros/
+3. ✓ All 21 macro test files in Packages/NetworkingMacros/Tests/NetworkingMacrosTests/
+4. ✓ NetworkingMacros has NO dependency on Core Networking (pure swift-syntax)
+5. ✓ Core Networking depends on NetworkingMacros via `.package(path: "../NetworkingMacros")`
+6. ✓ Core Networking declares macros via #externalMacro(module: "NetworkingMacros", type: "XxxMacro")
+7. ✓ Root workspace includes NetworkingMacros BEFORE Networking (dependency order)
+8. ✓ All 4 packages build with `swift build -Xswiftc -warnings-as-errors`
+9. ✓ NetworkingMacros tests compile and run without SwiftCompilerPlugin errors (19/19 pass)
 
-**Plans:** 4 plans in 3 waves
+**Plans Executed**: 5 plans in 3 waves
+**Verification**: .planning/phases/08-extract-core-networking-macros/08-VERIFICATION.md
+
+**Rationale**: Standalone macro package allows independent versioning and reduces coupling. Users who don't need macros can depend on Core Networking only.
 
 Plans:
-- [ ] 08-01-PLAN.md — Create NetworkingMacros package directory and Package.swift
-- [ ] 08-02-PLAN.md — Move macro source files and verify build
-- [ ] 08-03-PLAN.md — Move macro tests and update Core Networking dependency
-- [ ] 08-04-PLAN.md — Update root workspace manifest and verify all packages
+- [x] 08-01-PLAN.md — Create NetworkingMacros package directory and Package.swift
+- [x] 08-02-PLAN.md — Move macro source files and verify build
+- [x] 08-03-PLAN.md — Move macro tests and update Core Networking dependency
+- [x] 08-04-PLAN.md — Update root workspace manifest and verify all packages
+- [x] 08-05-PLAN.md — Gap closure: fix macro test configuration (SwiftCompilerPlugin import issue)
 
 ---
 
@@ -292,11 +298,12 @@ Phase 3 (Batch/Progress)
 
 **Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phase 10 (Template/Render refactor) modernizes macro code generation immediately after extraction. Phase 9 (CI/Hooks) follows Phase 10 to update infrastructure for the new workspace layout. Phases 3-6 can proceed in parallel or after Phase 9.
 
-### Phase 10: Refactor NetworkingMacros to Functional Template-Render API
+### Phase 10: Create MacroTemplateKit Helper Package
 
-**Goal:** Replace imperative SwiftSyntax AST construction in all macro expansion code with a pure-functional Template/Render algebra. This introduces a **functor-based templating engine** that separates template definition from AST rendering, improving testability, composability, and maintainability.
+**Goal:** Create a standalone reusable helper package `MacroTemplateKit` providing a pure-functional Template/Render algebra for SwiftSyntax AST generation. NetworkingMacros depends on this package as a required dependency for cleaner, testable macro code generation.
 
 **Architecture:**
+- `Packages/MacroTemplateKit/` — Standalone helper package (regular library, not macro target)
 - `Template<A>` — Pure-functional ADT (algebraic data type) representing AST templates
 - `Renderer` — Natural transformation from Template to SwiftSyntax ExprSyntax
 - Template DSL — Fluent builder API for compositional template construction
@@ -313,26 +320,32 @@ Phase 3 (Batch/Progress)
 - `.variableDeclaration(name:type:initializer:)` — Variable bindings
 - `.arrayLiteral([Template<A>])` — Collection literals
 
+**Requirements:**
+- TMPL-01: MacroTemplateKit package exists at Packages/MacroTemplateKit/
+- TMPL-02: Template.swift implements functor ADT with 9 cases
+- TMPL-03: Renderer.swift implements natural transformation to ExprSyntax
+- TMPL-04: NetworkingMacros depends on MacroTemplateKit (required dependency)
+- TMPL-05: Root workspace includes MacroTemplateKit before NetworkingMacros
+- TMPL-06: All packages build with `-Xswiftc -warnings-as-errors`
+
 **Depends on:** Phase 8 (Extract Core Networking Macros) — Executes immediately after Phase 8, before Phase 9
 
 **Success Criteria**:
-1. Template.swift and Renderer.swift added to NetworkingMacros/Sources/
-2. All 18 macro source files refactored to use Template DSL instead of raw SwiftSyntax
-3. Functor laws verified via property-based tests (identity, composition)
-4. Natural transformation property verified (render preserves structure)
-5. Zero regression in macro expansion output (existing tests pass)
-6. Build passes with `-Xswiftc -warnings-as-errors`
+1. Packages/MacroTemplateKit/ exists with standalone Package.swift
+2. Template.swift and Renderer.swift in MacroTemplateKit/Sources/MacroTemplateKit/
+3. NetworkingMacros Package.swift declares `.package(path: "../MacroTemplateKit")` dependency
+4. NetworkingMacros target depends on "MacroTemplateKit" product
+5. Root workspace lists MacroTemplateKit BEFORE NetworkingMacros (dependency order)
+6. All 6 packages build with `-Xswiftc -warnings-as-errors`
 
-**Plans:** TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Add Template.swift and Renderer.swift to NetworkingMacros package
-- [ ] 10-02-PLAN.md — Refactor HTTP macros (GET, POST, PUT, PATCH, DELETE) to Template DSL
-- [ ] 10-03-PLAN.md — Refactor Configuration macros (Cacheable, Measured, DefaultHeaders, Timeout) to Template DSL
-- [ ] 10-04-PLAN.md — Refactor API and Interceptor macros to Template DSL
-- [ ] 10-05-PLAN.md — Add property-based tests for functor laws and natural transformation
+- [ ] 10-01-PLAN.md — Create MacroTemplateKit package with Package.swift, Template.swift, Renderer.swift
+- [ ] 10-02-PLAN.md — Add MacroTemplateKit dependency to NetworkingMacros and update root workspace
+- [ ] 10-03-PLAN.md — Verify all packages build and add tests for functor laws
 
 ---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 9 added for CI/Hooks updates)*
-*Total: 10 phases, 86 requirements*
+*Updated: 2026-02-15 (Phase 10 added for MacroTemplateKit helper package)*
+*Total: 11 phases, 92 requirements*

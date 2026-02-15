@@ -227,7 +227,7 @@ Packages/NetworkingMacros/ (standalone package)
 - Phase 7 added: Extract WebSocket and GraphQL to Separate Extension Packages (depends on Phase 2, executes before Phase 3)
 - Phase 8 added: Extract Core Networking Macros to Atomic Package (excludes WebSocket/GraphQL macros)
 - Phase 9 added: Update CI and Pre-commit Hooks for SPM Workspace Layout with Auto Changelog, LLMs-txt, and Documentation.docc Generation
-- Phase 10 added: Refactor NetworkingMacros to Functional Template-Render API
+- Phase 10 added: Create MacroTemplateKit helper package (required dependency of NetworkingMacros)
 
 ## Decisions
 
@@ -255,6 +255,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 2026-02-15 | 08 | Macro tests require MacroTesting framework refactor | Tests cannot import .macro() targets. Documented blocker for future refactor (8-12 hours estimated). |
 | 2026-02-15 | 08 | Stub macro tests to achieve MACRO-08 (tests compile/pass) | Primary goal is zero SwiftCompilerPlugin errors. Full test restoration is future work. Tests preserved in git history at 3bdc72f. |
 | 2026-02-15 | 08 | #externalMacro is correct pattern for macro declarations | Swift macros are compile-time constructs. @_exported import is for runtime types only. Corrected ROADMAP.md documentation. |
+| 2026-02-15 | 10 | MacroTemplateKit is required dependency of NetworkingMacros | Provides pure-functional Template/Render algebra for AST generation. Separates template definition from SwiftSyntax rendering. |
+| 2026-02-15 | 10 | MacroTemplateKit is regular library, not macro target | Can be imported by .macro() targets since it's a standard Swift library with SwiftSyntax dependency. |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 - [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
