@@ -247,109 +247,24 @@ public struct DELETEMacro: PeerMacro {
       findParentProtocol(function)
       .map { InterceptorsMacro.hasInterceptors(from: $0) } ?? false
 
-    // Build the function signature
-    let signature: String
+    // Normalize return type (nil or "Void" becomes "Void")
+    let normalizedReturnType: String
     if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
-      signature = "func \(functionName)(\(paramList)) async throws -> \(returnType)"
+      normalizedReturnType = returnType
     } else {
-      signature = "func \(functionName)(\(paramList)) async throws"
+      normalizedReturnType = "Void"
     }
 
-    // Generate implementation with or without interceptors
-    if hasInterceptors {
-      return generateWithInterceptors(
-        signature: signature,
-        pathCode: pathCode,
-        additionalRequestCode: additionalRequestCode,
-        returnType: returnType
-      )
-    } else {
-      return generateWithoutInterceptors(
-        signature: signature,
-        pathCode: pathCode,
-        additionalRequestCode: additionalRequestCode,
-        returnType: returnType
-      )
-    }
-  }
-
-  /// Generates DELETE implementation with interceptors.
-  private static func generateWithInterceptors(
-    signature: String,
-    pathCode: String,
-    additionalRequestCode: String,
-    returnType: String?
-  ) -> DeclSyntax {
-    let contextCreation = InterceptorCodeGenerator.generateContextCreation(
-      path: "path",
-      method: ".DELETE"
+    // Generate implementation using InterceptorCodeGenerator
+    return InterceptorCodeGenerator.generateMethodImplementation(
+      functionName: functionName,
+      parameters: paramList,
+      returnType: normalizedReturnType,
+      pathCode: pathCode,
+      method: "DELETE",
+      additionalRequestCode: additionalRequestCode,
+      hasInterceptors: hasInterceptors
     )
-    let requestHook: String
-    let responseHook = InterceptorCodeGenerator.generateResponseInterceptorHook()
-
-    if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
-      requestHook = InterceptorCodeGenerator.generateRequestInterceptorHook(returnType: returnType)
-
-      return DeclSyntax(stringLiteral: """
-        \(signature) {
-          let path = \(pathCode)
-          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
-          \(contextCreation)
-
-          \(requestHook)
-
-          let response = try await client.execute(request)
-
-          \(responseHook)
-
-          return try JSONDecoder().decode(\(returnType).self, from: response.data)
-        }
-        """)
-    } else {
-      // Void return type with interceptors
-      return DeclSyntax(stringLiteral: """
-        \(signature) {
-          let path = \(pathCode)
-          var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
-          \(contextCreation)
-
-          let requestResult = try await interceptors.executeRequestInterceptors(
-            request: &request, context: context
-          )
-          guard case .proceed = requestResult else {
-            throw InterceptorError.invalidResult(reason: "DELETE with Void return cannot short-circuit")
-          }
-
-          let _ = try await client.execute(request)
-        }
-        """)
-    }
-  }
-
-  /// Generates DELETE implementation without interceptors.
-  private static func generateWithoutInterceptors(
-    signature: String,
-    pathCode: String,
-    additionalRequestCode: String,
-    returnType: String?
-  ) -> DeclSyntax {
-    let returnStatement: String
-    if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
-      returnStatement = """
-        let response = try await client.execute(request)
-        return try JSONDecoder().decode(\(returnType).self, from: response.data)
-        """
-    } else {
-      returnStatement = "let _ = try await client.execute(request)"
-    }
-
-    return DeclSyntax(stringLiteral: """
-      \(signature) {
-        let path = \(pathCode)
-        var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
-        \(returnStatement)
-      }
-      """)
   }
 
   /// Finds the parent protocol declaration of a function.
