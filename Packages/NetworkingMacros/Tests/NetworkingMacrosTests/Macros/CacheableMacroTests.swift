@@ -1,13 +1,211 @@
+import MacroTesting
 import XCTest
+@testable import NetworkingMacrosPlugin
 
-/// Macro tests temporarily disabled - requires macro testing infrastructure refactor.
+/// Macro expansion tests for @Cacheable using MacroTesting framework.
 ///
-/// Original tests preserved in git history at commit 3bdc72f.
-/// See: .planning/phases/08-extract-core-networking-macros/08-VERIFICATION.md
-final class CacheableMacroTestsDisabled: XCTestCase {
-  func testRequiresInfrastructure() {
-    // Placeholder: ensures test target compiles without SwiftCompilerPlugin errors.
-    // Primary goal (MACRO-08) achieved ✓
-    XCTAssertTrue(true, "Macro tests require testing infrastructure refactor")
+/// Tests validate that CacheableMacro generates correct cache configuration
+/// properties with proper duration and policy handling.
+final class CacheableMacroTests: XCTestCase {
+  override func invokeTest() {
+    withMacroTesting(macros: [CacheableMacro.self]) {
+      super.invokeTest()
+    }
+  }
+
+  // MARK: - Basic Expansion Tests
+
+  func testCacheableBasicExpansion() {
+    assertMacro {
+      """
+      @Cacheable
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+
+      extension UserAPI {
+        static var cacheConfiguration: CacheConfiguration {
+          get {
+            return CacheConfiguration(duration ttl(300), policy nil .standard)
+          }
+        }
+      }
+      """
+    }
+  }
+
+  func testCacheableWithDuration() {
+    assertMacro {
+      """
+      @Cacheable(duration: 600)
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+
+      extension UserAPI {
+        static var cacheConfiguration: CacheConfiguration {
+          get {
+            return CacheConfiguration(duration ttl(600), policy nil .standard)
+          }
+        }
+      }
+      """
+    }
+  }
+
+  func testCacheableWithPolicy() {
+    assertMacro {
+      """
+      @Cacheable(duration: 300, policy: .aggressive)
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+
+      extension UserAPI {
+        static var cacheConfiguration: CacheConfiguration {
+          get {
+            return CacheConfiguration(duration ttl(300), policy nil .aggressive)
+          }
+        }
+      }
+      """
+    }
+  }
+
+  func testCacheableWithCustomDuration() {
+    assertMacro {
+      """
+      @Cacheable(duration: 1800, policy: .standard)
+      protocol PostAPI {
+        func getPosts() async throws -> [Post]
+      }
+      """
+    } expansion: {
+      """
+      protocol PostAPI {
+        func getPosts() async throws -> [Post]
+      }
+
+      extension PostAPI {
+        static var cacheConfiguration: CacheConfiguration {
+          get {
+            return CacheConfiguration(duration ttl(1800), policy nil .standard)
+          }
+        }
+      }
+      """
+    }
+  }
+
+  // MARK: - Diagnostic Tests
+
+  func testCacheableRequiresProtocol() {
+    assertMacro {
+      """
+      @Cacheable
+      struct UserService {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } diagnostics: {
+      """
+      @Cacheable
+      ┬─────────
+      ╰─ 🛑 @Cacheable can only be applied to protocols
+      struct UserService {
+        func getUsers() async throws -> [User]
+      }
+      """
+    }
+  }
+
+  func testCacheableOnClass() {
+    assertMacro {
+      """
+      @Cacheable
+      class UserManager {
+        func getUsers() async throws -> [User] { [] }
+      }
+      """
+    } diagnostics: {
+      """
+      @Cacheable
+      ┬─────────
+      ╰─ 🛑 @Cacheable can only be applied to protocols
+      class UserManager {
+        func getUsers() async throws -> [User] { [] }
+      }
+      """
+    }
+  }
+
+  // MARK: - Edge Cases
+
+  func testCacheableWithZeroDuration() {
+    assertMacro {
+      """
+      @Cacheable(duration: 0)
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+
+      extension UserAPI {
+        static var cacheConfiguration: CacheConfiguration {
+          get {
+            return CacheConfiguration(duration ttl(0), policy nil .standard)
+          }
+        }
+      }
+      """
+    }
+  }
+
+  func testCacheableWithLargeDuration() {
+    assertMacro {
+      """
+      @Cacheable(duration: 86400)
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+
+      extension UserAPI {
+        static var cacheConfiguration: CacheConfiguration {
+          get {
+            return CacheConfiguration(duration ttl(86400), policy nil .standard)
+          }
+        }
+      }
+      """
+    }
   }
 }
