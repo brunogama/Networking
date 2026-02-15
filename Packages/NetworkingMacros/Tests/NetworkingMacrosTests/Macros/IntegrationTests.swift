@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Networking
+@testable import NetworkingMacros
 
 /// End-to-end functionality tests validating complete request/response cycles
 @Suite("Integration Tests")

@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 import Testing
 import XCTest
 
-@testable import Networking
+@testable import NetworkingMacros
 
 // Import macro types via conditional compilation to avoid module load errors
 #if canImport(NetworkingMacros)

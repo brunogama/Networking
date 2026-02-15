@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 import Testing
 import XCTest
 
-@testable import Networking
+@testable import NetworkingMacros
 
 #if canImport(NetworkingMacros)
   import NetworkingMacros

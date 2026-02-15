@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import Networking
+@testable import NetworkingMacros
 
 @Suite("Request Operators Tests")
 struct RequestOperatorsTests {
