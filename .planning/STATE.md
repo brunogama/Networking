@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 10.1 |
-| Current Plan | 03 |
+| Current Plan | 04 |
 | Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
@@ -72,6 +72,7 @@
 | 2026-02-15 | Plan 10.1-01 completed | Shared infrastructure for HTTP macro DRY refactoring - HTTPMethodConfig and ArgumentExtractors created, 143 tests passing |
 | 2026-02-15 | Plan 10.1-02 completed | HTTPMacroExpansion protocol with shared expansion logic - protocol extension provides 10-step workflow, 143 tests passing |
 | 2026-02-15 | Plan 10.1-03 completed | DELETEMacro and GETMacro DRY refactoring - 634 lines reduced to 50 lines (92% reduction), 143 tests passing, 2 commits |
+| 2026-02-15 | Plan 10.1-04 completed | POSTMacro, PUTMacro, PATCHMacro DRY refactoring - 1,118 lines reduced to 78 lines (93% reduction), 143 tests passing, 2 commits |
 
 ## Phase 0 Progress Summary
 
@@ -297,6 +298,7 @@ Packages/NetworkingMacros/ (standalone package)
 - [Phase 10]: Use pragmatic hybrid approach (string interpolation + MacroTemplateKit imports) for configuration macros
 - [Phase 10.1]: HTTPMacroExpansion protocol uses Swift's protocol extension pattern for default implementation with single config requirement
 - [Phase 10.1]: Start DRY refactoring with simplest macros (GET/DELETE without body requirement) to validate shared expansion pattern before tackling POST/PUT/PATCH
+- [Phase 10.1]: Body parameter handling centralized in HTTPMacroExpansion+Helpers.extractBodyIfRequired, reads config.requiresBody for POST/PUT/PATCH
 
 ## Performance Metrics
 
@@ -333,7 +335,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 10.1-01 | 176 | 3 | 2 | 3 |
 | 10.1-02 | 142 | 4 | 3 | 1 |
 | 10.1-03 | 107 | 3 | 2 | 2 |
-| **Total** | **8100** | **93** | **326** | **72** |
+| 10.1-04 | 117 | 3 | 3 | 2 |
+| **Total** | **8217** | **96** | **329** | **74** |
 
 ## Blockers
 
@@ -352,8 +355,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 10.1-03-PLAN.md - DELETEMacro and GETMacro DRY refactoring (92% code reduction, 143 tests passing)
-- **Next Action**: Phase 10.1 IN PROGRESS. Continue with plan 10.1-04 (migrate POST/PUT/PATCH macros to HTTPMacroExpansion protocol)
+- **Stopped At**: Completed 10.1-04-PLAN.md - POSTMacro, PUTMacro, PATCHMacro DRY refactoring (93% reduction, 143 tests passing)
+- **Next Action**: Phase 10.1 COMPLETE (all 5 HTTP macros refactored, 69% overall reduction). Continue to Phase 10.2 or Phase 9.
 
 ---
 *Initialized: 2026-02-14*
