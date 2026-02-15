@@ -19,6 +19,9 @@ let package = Package(
     )
   ],
   dependencies: [
+    // MacroTemplateKit helper library (local)
+    .package(path: "../MacroTemplateKit"),
+
     // Swift Syntax for macro implementations
     .package(
       url: "https://github.com/swiftlang/swift-syntax.git",
@@ -35,6 +38,7 @@ let package = Package(
     .macro(
       name: "NetworkingMacros",
       dependencies: [
+        .product(name: "MacroTemplateKit", package: "MacroTemplateKit"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
