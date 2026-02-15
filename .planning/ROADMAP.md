@@ -4,7 +4,7 @@
 
 | Phases | Requirements | Depth |
 |--------|--------------|-------|
-| 8 | 55+ | Standard |
+| 10 | 86 | Standard |
 
 ## Phase Structure
 
@@ -228,6 +228,26 @@ Plans:
 
 ---
 
+### Phase 9: Update CI and Pre-commit Hooks for SPM Workspace Layout
+
+**Goal:** Modernize CI/CD pipeline and pre-commit hooks for the new monorepo workspace structure. Add automated changelog generation, LLMs.txt generation for AI assistants, and Documentation.docc catalog updates.
+
+**Depends on:** Phase 8 (Extract Core Networking Macros)
+
+**Success Criteria**:
+1. CI workflows updated to build/test all 4 packages (Networking, NetworkingMacros, NetworkingWebSocket, NetworkingGraphQL)
+2. Pre-commit hooks validate all packages in workspace
+3. Auto-changelog generation on version tags/releases
+4. Auto LLMs.txt generation from public API surface
+5. Auto Documentation.docc catalog updates on source changes
+
+**Plans:** TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 9 to break down)
+
+---
+
 ## Requirement Mapping
 
 | Phase | Requirements | Count |
@@ -240,7 +260,9 @@ Plans:
 | 5 | WS-01 to WS-07, GQL-01 to GQL-06 | 13 |
 | 6 | TEST-01 to TEST-07, DOC-01 to DOC-05 | 12 |
 | 7 | PKG-01 to PKG-08 | 8 |
-| **Total** | | **72** |
+| 8 | MACRO-01 to MACRO-09 | 9 |
+| 9 | CI-01 to CI-05 | 5 |
+| **Total** | | **86** |
 
 ## Dependencies
 
@@ -256,13 +278,17 @@ Phase 7 (Extract WS/GQL) ───────────┤   │           �
       │                             │   └─────► Phase 5 (WebSocket/GraphQL)
       ▼                             │               │
 Phase 8 (Extract Macros) ───────────┘               │
-                                                    ▼
-Phase 3 (Batch/Progress) ─────────────────────► Phase 6 (Testing/Docs)
+      │                                             ▼
+      ▼                                       Phase 6 (Testing/Docs)
+Phase 9 (CI/Hooks) ◄──────────────────────────────┘
+      │
+      ▼
+Phase 3 (Batch/Progress)
 ```
 
-**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phases 3-4 can parallelize. Phase 5 polishes WebSocket/GraphQL in their new packages. Phase 6 is final.
+**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phase 9 (CI/Hooks) follows Phase 8 to update infrastructure for the new workspace layout. Phases 3-6 can proceed in parallel or after Phase 9.
 
 ---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 8 planned with 4 plans in 3 waves)*
-*Total: 8 phases, 72 requirements*
+*Updated: 2026-02-15 (Phase 9 added for CI/Hooks updates)*
+*Total: 10 phases, 86 requirements*
