@@ -23,7 +23,7 @@ struct CacheableMacroTests {
         func getUser(id: String) async throws -> User
       }
       """
-    } expansion: {
+      } expansion: {
       """
       protocol UserAPI {
         func getUser(id: String) async throws -> User
@@ -50,7 +50,7 @@ struct CacheableMacroTests {
       @Cacheable(duration: 600, policy: .aggressive)
       protocol DataAPI {}
       """
-    } expansion: {
+      } expansion: {
       """
       protocol DataAPI {}
 
@@ -75,7 +75,7 @@ struct CacheableMacroTests {
       @Cacheable(duration: 300)
       struct NotAProtocol {}
       """
-    } diagnostics: {
+      } diagnostics: {
       """
       @Cacheable(duration: 300)
       ┬─────────
