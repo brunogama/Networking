@@ -106,27 +106,33 @@ public struct InterceptorsMacro: MemberMacro {
   ) -> [ExprSyntax] {
     for attribute in declaration.attributes {
       guard case .attribute(let attr) = attribute else { continue }
-      let attrName = attr.attributeName.description
-        .trimmingCharacters(in: CharacterSet.whitespaces)
 
-      if attrName == "Interceptors" {
-        // Extract interceptors from this attribute
-        if let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
-          let firstArg = arguments.first,
-          let arrayExpr = firstArg.expression.as(ArrayExprSyntax.self)
-        {
-          var interceptors: [ExprSyntax] = []
-
-          for element in arrayExpr.elements {
-            interceptors.append(element.expression)
-          }
-
-          return interceptors
+      if isInterceptorsAttribute(attr) {
+        if let expressions = extractExpressionsFromAttribute(attr) {
+          return expressions
         }
       }
     }
 
     return []
+  }
+
+  // MARK: - Private Helpers
+
+  private static func isInterceptorsAttribute(_ attr: AttributeSyntax) -> Bool {
+    let attrName = attr.attributeName.description.trimmingCharacters(in: .whitespaces)
+    return attrName == "Interceptors"
+  }
+
+  private static func extractExpressionsFromAttribute(_ attr: AttributeSyntax) -> [ExprSyntax]? {
+    guard let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
+      let firstArg = arguments.first,
+      let arrayExpr = firstArg.expression.as(ArrayExprSyntax.self)
+    else {
+      return nil
+    }
+
+    return arrayExpr.elements.map { $0.expression }
   }
 
   /// Checks if the protocol has @Interceptors attribute.
