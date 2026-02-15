@@ -1,13 +1,119 @@
+import MacroTesting
 import XCTest
+@testable import NetworkingMacrosPlugin
 
-/// Macro tests temporarily disabled - requires macro testing infrastructure refactor.
+/// Macro expansion tests for @API using MacroTesting framework.
 ///
-/// Original tests preserved in git history at commit 3bdc72f.
-/// See: .planning/phases/08-extract-core-networking-macros/08-VERIFICATION.md
-final class APIMacroTestsDisabled: XCTestCase {
-  func testRequiresInfrastructure() {
-    // Placeholder: ensures test target compiles without SwiftCompilerPlugin errors.
-    // Primary goal (MACRO-08) achieved ✓
-    XCTAssertTrue(true, "Macro tests require testing infrastructure refactor")
+/// Tests validate that APIMacro generates correct struct implementations
+/// with proper client initialization, base URL handling, and protocol conformance.
+final class APIMacroTests: XCTestCase {
+  override func invokeTest() {
+    withMacroTesting(macros: [APIMacro.self]) {
+      super.invokeTest()
+    }
+  }
+
+  // MARK: - Basic Expansion Tests
+
+  func testAPIBasicExpansion() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol UserAPI {
+      }
+      """
+    } expansion: {
+      """
+      protocol UserAPI {
+
+          public struct UserAPIImplementation: UserAPI {
+              private let client: NetworkClient
+              private let baseURL: String = "https://api.example.com"
+              public init(client: NetworkClient = .shared) {
+                  self.client = client
+              }
+          }
+      }
+      """
+    }
+  }
+
+  func testAPIWithComplexProtocolName() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      protocol MyComplexAPIServiceProtocol {
+      }
+      """
+    } expansion: {
+      """
+      protocol MyComplexAPIServiceProtocol {
+
+          public struct MyComplexAPIServiceProtocolImplementation: MyComplexAPIServiceProtocol {
+              private let client: NetworkClient
+              private let baseURL: String = "https://api.example.com"
+              public init(client: NetworkClient = .shared) {
+                  self.client = client
+              }
+          }
+      }
+      """
+    }
+  }
+
+  // MARK: - Diagnostic Tests
+
+  func testAPIRequiresProtocol() {
+    assertMacro {
+      """
+      @API(baseURL: "https://api.example.com")
+      struct UserAPI {
+      }
+      """
+    } diagnostics: {
+      """
+      @API(baseURL: "https://api.example.com")
+      ┬───────────────────────────────────────
+      ╰─ 🛑 @API can only be applied to protocols
+      struct UserAPI {
+      }
+      """
+    }
+  }
+
+  func testAPIRequiresBaseURL() {
+    assertMacro {
+      """
+      @API
+      protocol UserAPI {
+      }
+      """
+    } diagnostics: {
+      """
+      @API
+      ┬───
+      ╰─ 🛑 @API requires a baseURL argument
+      protocol UserAPI {
+      }
+      """
+    }
+  }
+
+  func testAPIEmptyBaseURL() {
+    assertMacro {
+      """
+      @API(baseURL: "")
+      protocol UserAPI {
+      }
+      """
+    } diagnostics: {
+      """
+      @API(baseURL: "")
+      ┬────────────────
+      ╰─ 🛑 Base URL cannot be empty
+      protocol UserAPI {
+      }
+      """
+    }
   }
 }
