@@ -202,14 +202,29 @@ Plans:
 **Architecture:**
 - Monorepo with Swift Package workspace (Package.swift at root)
 - NetworkingMacros as separate package within Packages/
-- One-way dependency: consumers import macros, core Networking has optional macro dependency
+- One-way dependency: Core Networking depends on NetworkingMacros and re-exports via @_exported import
 - Macro tests in dedicated test target with MacroTesting support
 
 **Depends on:** Phase 7 (Extract WebSocket & GraphQL)
-**Plans:** 0 plans
+
+**Success Criteria**:
+1. Packages/NetworkingMacros/ exists with standalone Package.swift
+2. All 18 macro source files in Packages/NetworkingMacros/Sources/NetworkingMacros/
+3. All 17 macro test files in Packages/NetworkingMacros/Tests/NetworkingMacrosTests/
+4. NetworkingMacros has NO dependency on Core Networking (pure swift-syntax)
+5. Core Networking depends on NetworkingMacros via `.package(path: "../NetworkingMacros")`
+6. Core Networking re-exports macros via `@_exported import NetworkingMacros`
+7. Root workspace includes NetworkingMacros BEFORE Networking (dependency order)
+8. All 4 packages build with `swift build -Xswiftc -warnings-as-errors`
+9. All 4 packages test independently with `swift test`
+
+**Plans:** 4 plans in 3 waves
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 8 to break down)
+- [ ] 08-01-PLAN.md — Create NetworkingMacros package directory and Package.swift
+- [ ] 08-02-PLAN.md — Move macro source files and verify build
+- [ ] 08-03-PLAN.md — Move macro tests and update Core Networking dependency
+- [ ] 08-04-PLAN.md — Update root workspace manifest and verify all packages
 
 ---
 
@@ -249,5 +264,5 @@ Phase 3 (Batch/Progress) ──────────────────�
 
 ---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 7 replanned with monorepo workspace architecture)*
+*Updated: 2026-02-15 (Phase 8 planned with 4 plans in 3 waves)*
 *Total: 8 phases, 72 requirements*
