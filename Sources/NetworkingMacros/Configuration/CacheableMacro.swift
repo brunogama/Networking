@@ -1,7 +1,5 @@
-import SwiftCompilerPlugin
 import SwiftDiagnostics
 import SwiftSyntax
-import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 /// Generates a static cacheConfiguration property for API protocols.
@@ -35,15 +33,17 @@ public struct CacheableMacro: PeerMacro {
     guard let protocolDecl = declaration.as(ProtocolDeclSyntax.self) else {
       let diagnostic = Diagnostic(
         node: Syntax(node),
-        message: MacroDiagnostic.cacheableRequiresProtocol
+        message: ConfigurationMacroDiagnostic.cacheableRequiresProtocol
       )
       context.diagnose(diagnostic)
       return []
     }
 
-    // Extract arguments
-    let duration = extractDuration(from: node) ?? "300"
-    let policy = extractPolicy(from: node) ?? "standard"
+    // Extract arguments using shared helpers
+    let duration = MacroHelpers.extractIntegerValue(labeled: "duration", from: node)
+      ?? "300"
+    let policy = MacroHelpers.extractMemberValue(labeled: "policy", from: node)
+      ?? "standard"
     let protocolName = protocolDecl.name.text
 
     // Generate extension with cacheConfiguration
@@ -60,56 +60,4 @@ public struct CacheableMacro: PeerMacro {
 
     return [extensionCode]
   }
-
-  private static func extractDuration(from node: AttributeSyntax) -> String? {
-    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
-      return nil
-    }
-
-    for argument in arguments {
-      if argument.label?.text == "duration",
-        let intLiteral = argument.expression.as(IntegerLiteralExprSyntax.self)
-      {
-        return intLiteral.literal.text
-      }
-    }
-    return nil
-  }
-
-  private static func extractPolicy(from node: AttributeSyntax) -> String? {
-    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
-      return nil
-    }
-
-    for argument in arguments {
-      if argument.label?.text == "policy",
-        let memberAccess = argument.expression.as(MemberAccessExprSyntax.self)
-      {
-        return memberAccess.declName.baseName.text
-      }
-    }
-    return nil
-  }
-}
-
-// MARK: - Diagnostics
-
-enum MacroDiagnostic: String, DiagnosticMessage {
-  case cacheableRequiresProtocol
-  case measuredRequiresFunction
-
-  var message: String {
-    switch self {
-    case .cacheableRequiresProtocol:
-      return "@Cacheable can only be applied to protocols"
-    case .measuredRequiresFunction:
-      return "@Measured can only be applied to functions"
-    }
-  }
-
-  var diagnosticID: MessageID {
-    MessageID(domain: "NetworkingMacros", id: rawValue)
-  }
-
-  var severity: DiagnosticSeverity { .error }
 }

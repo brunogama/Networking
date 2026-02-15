@@ -265,6 +265,78 @@ enum MacroHelpers {
       )
     )
   }
+
+  // MARK: - Macro Argument Extraction
+
+  /// Extracts a labeled argument from macro attribute syntax
+  /// - Parameters:
+  ///   - label: The argument label to extract
+  ///   - node: The attribute syntax containing arguments
+  /// - Returns: The labeled argument expression, or nil if not found
+  static func extractArgument(
+    labeled label: String,
+    from node: AttributeSyntax
+  ) -> LabeledExprSyntax? {
+    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
+      return nil
+    }
+
+    return arguments.first { argument in
+      argument.label?.text == label
+    }
+  }
+
+  /// Extracts an integer literal value from a labeled argument
+  /// - Parameters:
+  ///   - label: The argument label to extract
+  ///   - node: The attribute syntax containing arguments
+  /// - Returns: String representation of the integer, or nil if not found
+  static func extractIntegerValue(
+    labeled label: String,
+    from node: AttributeSyntax
+  ) -> String? {
+    guard let argument = extractArgument(labeled: label, from: node),
+      let intLiteral = argument.expression.as(IntegerLiteralExprSyntax.self)
+    else {
+      return nil
+    }
+    return intLiteral.literal.text
+  }
+
+  /// Extracts a member access value (e.g., .standard) from a labeled argument
+  /// - Parameters:
+  ///   - label: The argument label to extract
+  ///   - node: The attribute syntax containing arguments
+  /// - Returns: The member name text, or nil if not found
+  static func extractMemberValue(
+    labeled label: String,
+    from node: AttributeSyntax
+  ) -> String? {
+    guard let argument = extractArgument(labeled: label, from: node),
+      let memberAccess = argument.expression.as(MemberAccessExprSyntax.self)
+    else {
+      return nil
+    }
+    return memberAccess.declName.baseName.text
+  }
+
+  /// Extracts a string literal value from a labeled argument
+  /// - Parameters:
+  ///   - label: The argument label to extract
+  ///   - node: The attribute syntax containing arguments
+  /// - Returns: The string content, or nil if not found
+  static func extractStringValue(
+    labeled label: String,
+    from node: AttributeSyntax
+  ) -> String? {
+    guard let argument = extractArgument(labeled: label, from: node),
+      let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
+      let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+    else {
+      return nil
+    }
+    return segment.content.text
+  }
 }
 
 // MARK: - Diagnostic Message
@@ -279,6 +351,27 @@ internal struct SimpleDiagnosticMessage: DiagnosticMessage {
 }
 
 // MARK: - MacroExpansionError Extension
+
+/// Diagnostic messages for configuration macros
+enum ConfigurationMacroDiagnostic: String, DiagnosticMessage {
+  case cacheableRequiresProtocol
+  case measuredRequiresFunction
+
+  var message: String {
+    switch self {
+    case .cacheableRequiresProtocol:
+      return "@Cacheable can only be applied to protocols"
+    case .measuredRequiresFunction:
+      return "@Measured can only be applied to functions"
+    }
+  }
+
+  var diagnosticID: MessageID {
+    MessageID(domain: "NetworkingMacros.Configuration", id: rawValue)
+  }
+
+  var severity: DiagnosticSeverity { .error }
+}
 
 /// Errors that can occur during macro expansion.
 public enum MacroExpansionError: Error, CustomStringConvertible {
