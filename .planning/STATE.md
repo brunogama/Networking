@@ -32,6 +32,7 @@
 
 | Date | Action | Details |
 |------|--------|---------|
+| 2026-02-15 | Plan 03-02 completed | Resumable download progress bridge - URLSessionDownloadDelegate→ProgressStreamManager, Task.detached pattern, 2 tests, PROG-01/03/04 closed |
 | 2026-02-15 | Plan 03-01 completed | Batch concurrency limiting - BatchConcurrencyLimiter actor, 5 tests, BATCH-02 closed |
 | 2026-02-14 | Project initialized | Created PROJECT.md, config.json |
 | 2026-02-14 | Research completed | STACK.md, FEATURES.md, PITFALLS.md, SUMMARY.md |
@@ -550,8 +551,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 03-01-PLAN.md (Batch concurrency limiting)
-- **Next Action**: Phase 03 Plan 01 COMPLETE. Ready for Phase 03 Plan 02 or subsequent plans in Batch Operations & Progress.
+- **Stopped At**: Completed 03-02-PLAN.md (Resumable download progress bridge)
+- **Next Action**: Phase 03 Plan 02 COMPLETE. Ready for Phase 03 continuation or other phases.
 
 ---
 *Initialized: 2026-02-14*
