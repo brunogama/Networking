@@ -256,6 +256,7 @@ Packages/NetworkingMacros/ (standalone package)
 - [Phase 07]: Root workspace Package.swift uses minimal manifest pattern (no products/targets)
 - [Phase 07]: Consumers import packages directly from Packages/ subdirectories
 - [Phase 07]: All packages maintain complete independence with own Package.swift manifest
+- [Phase 08]: List NetworkingMacros FIRST in workspace dependencies for correct SPM resolution
 
 ## Performance Metrics
 
@@ -279,7 +280,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 07-04 | 197 | 3 | 1 | 1 |
 | 08-01 | 70 | 3 | 2 | 1 |
 | 08-02 | 107 | 3 | 18 | 1 |
-| **Total** | **4074** | **49** | **266** | **40** |
+| 08-04 | 161 | 1 | 1 | 1 |
+| **Total** | **4235** | **50** | **267** | **41** |
 
 ## Blockers
 
@@ -298,8 +300,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 08-02-PLAN.md - Macro source file migration (18 files moved, package builds successfully)
-- **Next Action**: Ready for Plan 08-03 (Update Core Networking Package.swift to remove macro target and add external dependency)
+- **Stopped At**: Plan 08-04 partially complete (1/3 tasks) - root workspace manifest updated, awaiting Plan 08-03 to complete Core Networking update before final verification
+- **Next Action**: Re-run Plan 08-04 Tasks 2-3 after Plan 08-03 completes
 
 ---
 *Initialized: 2026-02-14*
