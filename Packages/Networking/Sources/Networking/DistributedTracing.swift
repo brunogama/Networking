@@ -323,9 +323,24 @@ public final class TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddlew
     let context = TraceContext()
     let span = TraceSpan(name: "\(request.method.rawValue) \(request.url.path)", context: context)
 
-    await span.setAttribute("http.method", request.method.rawValue)
-    await span.setAttribute("http.url", request.url.absoluteString)
-    await span.setAttribute("http.host", request.url.host ?? "unknown")
+    // HTTP semantic convention attributes
+    await span.setAttribute(HTTPSemanticAttributes.httpMethod, request.method.rawValue)
+    await span.setAttribute(HTTPSemanticAttributes.httpUrl, request.url.absoluteString)
+    await span.setAttribute(HTTPSemanticAttributes.httpHost, request.url.host ?? "unknown")
+    await span.setAttribute(HTTPSemanticAttributes.httpPath, request.url.path)
+    await span.setAttribute(HTTPSemanticAttributes.httpScheme, request.url.scheme ?? "https")
+
+    if let port = request.url.port {
+      await span.setAttribute(HTTPSemanticAttributes.httpPort, String(port))
+    }
+
+    if let bodySize = request.body?.count {
+      await span.setAttribute(HTTPSemanticAttributes.httpRequestBodySize, String(bodySize))
+    }
+
+    if let userAgent = request.headers["User-Agent"] {
+      await span.setAttribute(HTTPSemanticAttributes.userAgentOriginal, userAgent)
+    }
 
     // Store span for later retrieval in response processing
     await spanStorage.store(span, for: request.id)
@@ -361,7 +376,12 @@ public final class TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddlew
     for request: HTTPRequest
   ) async throws -> HTTPResponse {
     if let span = await spanStorage.retrieve(for: request.id) {
-      await span.setAttribute("http.status_code", "\(response.status.rawValue)")
+      // HTTP semantic convention attributes for response
+      await span.setAttribute(HTTPSemanticAttributes.httpStatusCode, "\(response.status.rawValue)")
+
+      if let bodySize = response.body?.count {
+        await span.setAttribute(HTTPSemanticAttributes.httpResponseBodySize, String(bodySize))
+      }
 
       if response.status.isSuccess {
         await span.end(status: .ok)
