@@ -21,9 +21,17 @@ mkdir -p "$BUILD_DIR"
 
 for pkg in "${packages[@]}"; do
   echo "  Building $pkg..."
-  swift build --package-path "Packages/$pkg" \
-    -Xswiftc -emit-symbol-graph \
-    -Xswiftc -emit-symbol-graph-dir -Xswiftc "$BUILD_DIR/$pkg" 2>/dev/null || true
+  # Build in package directory, then copy symbol graphs to root build dir
+  (cd "Packages/$pkg" && \
+   swift build \
+     -Xswiftc -emit-symbol-graph \
+     -Xswiftc -emit-symbol-graph-dir -Xswiftc .build/symbol-graphs 2>/dev/null || true)
+
+  # Copy package-specific symbol graphs to workspace build dir
+  if [ -d "Packages/$pkg/.build/symbol-graphs" ]; then
+    mkdir -p "$BUILD_DIR/$pkg"
+    cp "Packages/$pkg/.build/symbol-graphs/$pkg.symbols.json" "$BUILD_DIR/$pkg/" 2>/dev/null || true
+  fi
 done
 
 # Start llms.txt output
