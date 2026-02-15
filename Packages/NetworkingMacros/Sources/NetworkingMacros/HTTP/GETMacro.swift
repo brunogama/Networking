@@ -121,7 +121,7 @@ public struct GETMacro: PeerMacro {
       returnType: returnType
     )
 
-    return [DeclSyntax(stringLiteral: implementation)]
+    return [implementation]
   }
 
   // MARK: - Helper Methods
@@ -238,7 +238,7 @@ public struct GETMacro: PeerMacro {
     queryParameters: [String],
     headers: [(name: String, value: String, isParameter: Bool)],
     returnType: String
-  ) -> String {
+  ) -> DeclSyntax {
     let functionName = function.name.text
     let parameters = MacroHelpers.extractParameters(from: function)
 
