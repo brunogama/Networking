@@ -18,10 +18,12 @@ public enum ArgumentExtractors {
   ///
   /// - Parameters:
   ///   - node: The attribute syntax node
+  ///   - method: The HTTP method name for error messages (e.g., "GET", "POST")
   ///   - context: The macro expansion context for diagnostics
   /// - Returns: The path string, or nil if not found (emits error)
   public static func extractPath(
     from node: AttributeSyntax,
+    method: String,
     context: some MacroExpansionContext
   ) -> String? {
     guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
@@ -30,7 +32,7 @@ public enum ArgumentExtractors {
       let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
     else {
       MacroHelpers.emitError(
-        "Macro requires a path argument",
+        "@\(method) requires a path argument",
         node: node,
         context: context
       )
