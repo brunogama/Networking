@@ -63,6 +63,8 @@ Plans:
 
 **Requirements**: DX-01, DX-02, DX-03, DX-04, DX-05, DX-06, DX-07, DX-08, DX-09
 
+**Plans**: 4 plans in 2 waves
+
 **Success Criteria**:
 1. User can compose requests with `+` operator
 2. User can chain response processing (`.decode().cache().retry()`)
@@ -71,6 +73,12 @@ Plans:
 5. Phantom types catch HTTP method mismatches at compile time
 
 **Rationale**: DX improvements make the library pleasant to use. Depends on Phase 1 for Sendable closures in builders.
+
+Plans:
+- [ ] 02-01-PLAN.md — Request composition operators + phantom type body constraints
+- [ ] 02-02-PLAN.md — Response processing chains (.decode().cache().retry())
+- [ ] 02-03-PLAN.md — @Cacheable and @Measured macros (TDD)
+- [ ] 02-04-PLAN.md — @Query and @Mutation GraphQL macros (TDD)
 
 ---
 
