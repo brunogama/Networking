@@ -26,6 +26,7 @@
 | 10 | Refactor NetworkingMacros to Functional Template Render API | Completed | 2026-02-15 | 2026-02-15 |
 | 10.1 | Apply DRY to NetworkingMacros Repeated Code | Completed | 2026-02-15 | 2026-02-15 |
 | 10.2 | NetworkingMacros Test Coverage | Completed | 2026-02-15 | 2026-02-15 |
+| 10.2.1 | Complete NetworkingMacros Test Coverage | In Progress | 2026-02-15 | — |
 
 ## Recent Activity
 
@@ -82,6 +83,7 @@
 | 2026-02-15 | Plan 10.2-03 partially completed | Configuration macro tests restored - 24 tests for @Cacheable, @Measured, @Timeout, @DefaultHeaders (3/7 tasks complete) |
 | 2026-02-15 | Plan 10.2-04 completed | Phase 10.2 verification complete - 79 tests (65 assertMacro), 8/13 macros tested, all packages build |
 | 2026-02-15 | Phase 10.2 complete | NetworkingMacros test coverage - 139.4% test increase (33→79), 61.5% macro coverage, all criteria verified |
+| 2026-02-15 | Plan 10.2.1-01 completed | @API and @Body macro tests restored - 12 assertMacro tests (5 API + 7 Body), 90/90 tests passing |
 
 ## Phase 0 Progress Summary
 
@@ -388,7 +390,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 10.2-02 | 334 | 5 | 4 | 3 |
 | 10.2-03 | 252 | 3 | 3 | 3 |
 | 10.2-04 | 200 | 6 | 2 | 2 |
-| **Total** | **9351** | **116** | **341** | **84** |
+| 10.2.1-01 | 167 | 3 | 2 | 2 |
+| **Total** | **9518** | **119** | **343** | **86** |
 
 ## Blockers
 
@@ -407,9 +410,9 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 10.2-04-PLAN.md - Phase 10.2 verification complete
-- **Next Action**: Phase 10.2 PARTIAL COMPLETE. Ready for Phase 9 (CI/hooks) or Phase 3 (batch operations). Remaining 9 macro test files can be addressed in future decimal phase (10.2.1) or as technical debt cleanup.
+- **Stopped At**: Completed 10.2.1-01-PLAN.md - @API and @Body macro tests restored
+- **Next Action**: Phase 10.2.1 IN PROGRESS (1/4 plans complete). Continue with Plan 02 (@Headers tests), Plan 03 (@Interceptors tests), or Plan 04 (integration tests). Alternatively, proceed to Phase 9 (CI/hooks) or Phase 3 (batch operations).
 
 ---
 *Initialized: 2026-02-14*
-*Last Updated: 2026-02-15 (Phase 8 Complete)*
+*Last Updated: 2026-02-15 (Phase 10.2.1 Plan 01 Complete)*
