@@ -157,7 +157,7 @@ public struct PATCHMacro: PeerMacro {
       returnType: returnType
     )
 
-    return [DeclSyntax(stringLiteral: implementation)]
+    return [implementation]
   }
 
   // MARK: - Argument Extraction
@@ -284,7 +284,7 @@ public struct PATCHMacro: PeerMacro {
     queryParameters: [String],
     headers: [(name: String, value: String, isParameter: Bool)],
     returnType: String
-  ) -> String {
+  ) -> DeclSyntax {
     let functionName = function.name.text
     let parameters = MacroHelpers.extractParameters(from: function)
     let paramList = parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ")

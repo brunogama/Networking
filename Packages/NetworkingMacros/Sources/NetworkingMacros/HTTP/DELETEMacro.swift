@@ -125,7 +125,7 @@ public struct DELETEMacro: PeerMacro {
       returnType: returnType
     )
 
-    return [DeclSyntax(stringLiteral: implementation)]
+    return [implementation]
   }
 
   // MARK: - Argument Extraction
@@ -224,7 +224,7 @@ public struct DELETEMacro: PeerMacro {
     queryParameters: [String],
     headers: [(name: String, value: String, isParameter: Bool)],
     returnType: String?
-  ) -> String {
+  ) -> DeclSyntax {
     let functionName = function.name.text
     let parameters = MacroHelpers.extractParameters(from: function)
     let paramList = parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
@@ -279,7 +279,7 @@ public struct DELETEMacro: PeerMacro {
     pathCode: String,
     additionalRequestCode: String,
     returnType: String?
-  ) -> String {
+  ) -> DeclSyntax {
     let contextCreation = InterceptorCodeGenerator.generateContextCreation(
       path: "path",
       method: ".DELETE"
@@ -290,7 +290,7 @@ public struct DELETEMacro: PeerMacro {
     if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
       requestHook = InterceptorCodeGenerator.generateRequestInterceptorHook(returnType: returnType)
 
-      return """
+      return DeclSyntax(stringLiteral: """
         \(signature) {
           let path = \(pathCode)
           var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
@@ -304,10 +304,10 @@ public struct DELETEMacro: PeerMacro {
 
           return try JSONDecoder().decode(\(returnType).self, from: response.data)
         }
-        """
+        """)
     } else {
       // Void return type with interceptors
-      return """
+      return DeclSyntax(stringLiteral: """
         \(signature) {
           let path = \(pathCode)
           var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
@@ -322,7 +322,7 @@ public struct DELETEMacro: PeerMacro {
 
           let _ = try await client.execute(request)
         }
-        """
+        """)
     }
   }
 
@@ -332,7 +332,7 @@ public struct DELETEMacro: PeerMacro {
     pathCode: String,
     additionalRequestCode: String,
     returnType: String?
-  ) -> String {
+  ) -> DeclSyntax {
     let returnStatement: String
     if let returnType = returnType, returnType != "Void" && !returnType.isEmpty {
       returnStatement = """
@@ -343,13 +343,13 @@ public struct DELETEMacro: PeerMacro {
       returnStatement = "let _ = try await client.execute(request)"
     }
 
-    return """
+    return DeclSyntax(stringLiteral: """
       \(signature) {
         let path = \(pathCode)
         var request = HTTPRequest(method: .DELETE, path: path, baseURL: baseURL)\(additionalRequestCode)
         \(returnStatement)
       }
-      """
+      """)
   }
 
   /// Finds the parent protocol declaration of a function.

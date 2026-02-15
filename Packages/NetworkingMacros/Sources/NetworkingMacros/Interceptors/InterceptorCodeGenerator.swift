@@ -1,12 +1,17 @@
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import Foundation
+import MacroTemplateKit
 
 /// Code generation utilities for interceptor integration in HTTP method macros.
 ///
 /// This generator creates the boilerplate code needed to integrate interceptors
 /// into macro-generated API methods, including context creation, interceptor
 /// chain execution, and short-circuit handling.
+///
+/// **Note**: Currently uses string interpolation for code generation. Full migration to
+/// MacroTemplateKit's Template algebra requires statement/declaration support beyond
+/// the current expression-only algebra.
 enum InterceptorCodeGenerator {
   // MARK: - Context Creation
 
@@ -31,7 +36,9 @@ enum InterceptorCodeGenerator {
 
   /// Generates code to execute request interceptors and handle short-circuit.
   ///
-  /// - Parameter requestVar: The request variable name (default: "request")
+  /// - Parameters:
+  ///   - requestVar: The request variable name (default: "request")
+  ///   - returnType: Return type for short-circuit decoding
   /// - Returns: Swift code string for request interceptor execution
   ///
   /// Example output:
@@ -102,7 +109,7 @@ enum InterceptorCodeGenerator {
   ///   - method: HTTP method (e.g., "GET", "POST")
   ///   - additionalRequestCode: Additional code to add to request (headers, query params, body)
   ///   - hasInterceptors: Whether interceptors are enabled
-  /// - Returns: Complete function implementation as string
+  /// - Returns: Complete function implementation as DeclSyntax
   static func generateMethodImplementation(
     functionName: String,
     parameters: String,
@@ -111,7 +118,7 @@ enum InterceptorCodeGenerator {
     method: String,
     additionalRequestCode: String,
     hasInterceptors: Bool
-  ) -> String {
+  ) -> DeclSyntax {
     if hasInterceptors {
       return generateMethodWithInterceptors(
         functionName: functionName,
@@ -143,12 +150,12 @@ enum InterceptorCodeGenerator {
     pathCode: String,
     method: String,
     additionalRequestCode: String
-  ) -> String {
+  ) -> DeclSyntax {
     let contextCreation = generateContextCreation(path: "path", method: ".\(method)")
     let requestHook = generateRequestInterceptorHook(returnType: returnType)
     let responseHook = generateResponseInterceptorHook()
 
-    return """
+    let implementation = """
       func \(functionName)(\(parameters)) async throws -> \(returnType) {
         let path = \(pathCode)
         var request = HTTPRequest(method: .\(method), path: path, baseURL: baseURL)\(additionalRequestCode)
@@ -163,6 +170,8 @@ enum InterceptorCodeGenerator {
         return try JSONDecoder().decode(\(returnType).self, from: response.data)
       }
       """
+
+    return DeclSyntax(stringLiteral: implementation)
   }
 
   /// Generates method implementation without interceptors (Phase 5.2 compatibility).
@@ -173,8 +182,8 @@ enum InterceptorCodeGenerator {
     pathCode: String,
     method: String,
     additionalRequestCode: String
-  ) -> String {
-    """
+  ) -> DeclSyntax {
+    let implementation = """
     func \(functionName)(\(parameters)) async throws -> \(returnType) {
       let path = \(pathCode)
       var request = HTTPRequest(method: .\(method), path: path, baseURL: baseURL)\(additionalRequestCode)
@@ -182,5 +191,7 @@ enum InterceptorCodeGenerator {
       return try JSONDecoder().decode(\(returnType).self, from: response.data)
     }
     """
+
+    return DeclSyntax(stringLiteral: implementation)
   }
 }
