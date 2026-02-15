@@ -1,6 +1,7 @@
 import Testing
 import Foundation
-@testable import Networking
+@testable import NetworkingGraphQL
+import Networking  // For MockNetworkClient if needed
 
 @Suite("GraphQL Tests")
 struct GraphQLClientTests {
