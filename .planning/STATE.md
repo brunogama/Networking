@@ -32,6 +32,7 @@
 
 | Date | Action | Details |
 |------|--------|---------|
+| 2026-02-15 | Plan 03-01 completed | Batch concurrency limiting - BatchConcurrencyLimiter actor, 5 tests, BATCH-02 closed |
 | 2026-02-14 | Project initialized | Created PROJECT.md, config.json |
 | 2026-02-14 | Research completed | STACK.md, FEATURES.md, PITFALLS.md, SUMMARY.md |
 | 2026-02-14 | Requirements defined | 55 requirements across 9 categories |
@@ -462,6 +463,9 @@ Packages/NetworkingMacros/ (standalone package)
 - [Phase 10.2]: Phase 10.2 marked PARTIAL COMPLETE - 8/13 macros tested (61.5%), 9 test files deferred to future work (8-12 hour estimate)
 - [Phase 10.2.1]: Fixed HeadersMacro error handling to use MacroHelpers.emitError instead of throwing for proper diagnostic formatting
 - [Phase 10.2.1]: Deferred @Headers closure syntax tests due to MacroTesting limitations with result builder trailing closures - integration tests provide coverage
+| 2026-02-15 | 03 | Use actor-based semaphore instead of DispatchSemaphore for batch concurrency limiting | DispatchSemaphore blocks threads, actor suspension is cooperative |
+| 2026-02-15 | 03 | Fire-and-forget release in defer with Task wrapper | defer runs synchronously but release() is async (actor-isolated), safe due to idempotent release |
+| 2026-02-15 | 03 | maxConcurrency=0 means unlimited (Int.max) | Consistent with common API patterns, allows opt-out of limiting |
 | 2026-02-15 | 09 | Use parallel matrix strategy instead of sequential dependency order | SPM resolves dependencies automatically - parallel execution faster than sequential builds |
 | 2026-02-15 | 09 | Use fail-fast: true to stop all jobs on first failure | Faster feedback to developers, saves CI minutes, encourages immediate fixes |
 | 2026-02-15 | 09 | Consolidate all package symbols into unified baseline with package field | Single source of truth for API changes across workspace, easier to track evolution |
@@ -470,6 +474,7 @@ Packages/NetworkingMacros/ (standalone package)
 | 2026-02-15 | 09 | Combined index page for GitHub Pages deployment | Single landing page improves UX, easier package discovery |
 | 2026-02-15 | 09 | Symbol graph extraction for new type detection | Compiler-generated JSON provides accurate type information, avoids regex parsing |
 | 2026-02-15 | 09 | Automated PRs for doc stubs instead of direct commits | Allows human review and enhancement, prevents overwrites, maintains audit trail |
+- [Phase 03]: Use actor-based semaphore instead of DispatchSemaphore for batch concurrency limiting
 
 ## Performance Metrics
 
@@ -524,7 +529,9 @@ Packages/NetworkingMacros/ (standalone package)
 | 04-02 | 1243 | 3 | 3 | 4 |
 | 04-03 | 382 | 2 | 2 | 2 |
 | 04-04 | 744 | 4 | 4 | 5 |
-| **Total** | **14254** | **158** | **376** | **118** |
+| 03-01 | 383 | 3 | 4 | 2 |
+| **Total** | **14637** | **161** | **380** | **120** |
+| Phase 03 P01 | 383 | 3 tasks | 4 files |
 
 ## Blockers
 
@@ -543,8 +550,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed Phase 04 - Observability (4/4 plans, 21 tests)
-- **Next Action**: Phase 04 COMPLETE. Ready for Phase 3 (Batch Operations & Progress) or Phase 6 (Testing & Documentation).
+- **Stopped At**: Completed 03-01-PLAN.md (Batch concurrency limiting)
+- **Next Action**: Phase 03 Plan 01 COMPLETE. Ready for Phase 03 Plan 02 or subsequent plans in Batch Operations & Progress.
 
 ---
 *Initialized: 2026-02-14*
