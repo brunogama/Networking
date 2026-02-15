@@ -41,21 +41,42 @@ public struct CacheableMacro: PeerMacro {
     }
 
     // Extract arguments using shared helpers
-    let duration = MacroHelpers.extractIntegerValue(labeled: "duration", from: node)
+    let durationString = MacroHelpers.extractIntegerValue(labeled: "duration", from: node)
       ?? "300"
     let policy = MacroHelpers.extractMemberValue(labeled: "policy", from: node)
       ?? "standard"
     let protocolName = protocolDecl.name.text
 
-    // Generate extension with cacheConfiguration using string interpolation
-    // Note: Template algebra infrastructure available via MacroTemplateKit for future enhancement
+    // Convert duration string to integer for Template.literal()
+    let durationValue = Int(durationString) ?? 300
+
+    // Build CacheConfiguration using Template algebra
+    let ttlTemplate: Template<Void> = .functionCall(
+      function: "ttl",
+      arguments: [(label: nil, value: .literal(.integer(durationValue)))]
+    )
+
+    let policyTemplate: Template<Void> = .propertyAccess(
+      base: .literal(.nil),
+      property: policy
+    )
+
+    let cacheConfigTemplate: Template<Void> = .functionCall(
+      function: "CacheConfiguration",
+      arguments: [
+        (label: "duration", value: ttlTemplate),
+        (label: "policy", value: policyTemplate)
+      ]
+    )
+
+    // Render Template to ExprSyntax
+    let cacheConfigExpr = Renderer.render(cacheConfigTemplate)
+
+    // Build extension using SwiftSyntax result builders
     let extensionCode: DeclSyntax = """
       extension \(raw: protocolName) {
         static var cacheConfiguration: CacheConfiguration {
-          CacheConfiguration(
-            duration: .ttl(\(raw: duration)),
-            policy: .\(raw: policy)
-          )
+          \(cacheConfigExpr)
         }
       }
       """
