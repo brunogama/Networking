@@ -38,7 +38,7 @@ repos:
     name: ⚠️ Checking for Swift warnings...
     entry: bash -c 'if git diff --cached --name-only | grep -q "\.swift$"; then echo
       "🔍 Compiling workspace with warnings as errors..."; for pkg in MacroTemplateKit
-      NetworkingMacros Networking NetworkingWebSocket NetworkingGraphQL; do if git
+      NetworkingMacros Networking; do if git
       diff --cached --name-only | grep -q "Packages/$pkg/"; then echo "Building $pkg...";
       swift build --package-path "Packages/$pkg" -Xswiftc -warnings-as-errors || exit
       1; fi; done; fi'

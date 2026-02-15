@@ -12,8 +12,6 @@ packages=(
   "MacroTemplateKit"
   "NetworkingMacros"
   "Networking"
-  "NetworkingWebSocket"
-  "NetworkingGraphQL"
 )
 
 echo "Generating symbol graphs for all packages..."
@@ -42,15 +40,13 @@ A production-grade Swift networking library featuring async/await, interceptors,
 
 ## Overview
 
-ModernNetworking is a monorepo containing 5 Swift packages:
+ModernNetworking MVP contains 3 Swift packages:
 
 | Package | Purpose |
 |---------|---------|
 | MacroTemplateKit | SwiftSyntax template DSL for macro code generation |
 | NetworkingMacros | Swift compiler plugin for HTTP client macros |
 | Networking | Core async/await HTTP client with middleware |
-| NetworkingWebSocket | Actor-based WebSocket client |
-| NetworkingGraphQL | Type-safe GraphQL client |
 
 ## Quick Start
 

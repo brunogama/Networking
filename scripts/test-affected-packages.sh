@@ -9,8 +9,6 @@ packages_ordered=(
   "MacroTemplateKit"
   "NetworkingMacros"
   "Networking"
-  "NetworkingWebSocket"
-  "NetworkingGraphQL"
 )
 
 # Get changed Swift files from staged changes

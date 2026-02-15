@@ -1,6 +1,6 @@
 // swift-tools-version: 6.0
-// Workspace manifest for ModernNetworking monorepo
-// Each package should be consumed directly from Packages/ subdirectories
+// MVP Workspace: Core Networking + Macros only
+// Excludes WebSocket and GraphQL extensions
 
 import PackageDescription
 
@@ -14,20 +14,14 @@ let package = Package(
   ],
   products: [],
   dependencies: [
-    // CRITICAL: List packages in dependency order (leaf nodes first)
-
-    // MacroTemplateKit FIRST (no dependencies on other packages)
+    // MacroTemplateKit (template DSL for macro code generation)
     .package(path: "Packages/MacroTemplateKit"),
 
-    // NetworkingMacros SECOND (depends on MacroTemplateKit)
+    // NetworkingMacros (Swift compiler plugin: @GET, @POST, etc.)
     .package(path: "Packages/NetworkingMacros"),
 
-    // Core Networking THIRD (depends on NetworkingMacros)
+    // Core Networking (async/await HTTP client with interceptors)
     .package(path: "Packages/Networking"),
-
-    // Extensions LAST (depend on Core Networking)
-    .package(path: "Packages/NetworkingWebSocket"),
-    .package(path: "Packages/NetworkingGraphQL"),
   ],
   targets: []
 )

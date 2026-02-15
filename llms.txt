@@ -4,15 +4,13 @@ A production-grade Swift networking library featuring async/await, interceptors,
 
 ## Overview
 
-ModernNetworking is a monorepo containing 5 Swift packages:
+ModernNetworking MVP contains 3 Swift packages:
 
 | Package | Purpose |
 |---------|---------|
 | MacroTemplateKit | SwiftSyntax template DSL for macro code generation |
 | NetworkingMacros | Swift compiler plugin for HTTP client macros |
 | Networking | Core async/await HTTP client with middleware |
-| NetworkingWebSocket | Actor-based WebSocket client |
-| NetworkingGraphQL | Type-safe GraphQL client |
 
 ## Quick Start
 
@@ -1487,35 +1485,6 @@ protocol UsersAPI {
 - `ValidatedResponse.ValueType`
 - `uuid_string_t`
 - `uuid_t`
-
-
-### NetworkingWebSocket
-
-**Structs:**
-- `WebSocketCloseCode`
-- `WebSocketConfiguration`
-
-**Enums:**
-- `WebSocketClient.State`
-- `WebSocketError`
-- `WebSocketMessage`
-
-**Classes:**
-- `WebSocketClient`
-
-
-### NetworkingGraphQL
-
-**Structs:**
-- `GraphQLClient`
-- `GraphQLError`
-- `GraphQLError.Location`
-- `GraphQLRequest`
-- `GraphQLResponse`
-
-**Enums:**
-- `GraphQLError.PathComponent`
-- `GraphQLValue`
 
 
 ## Documentation
