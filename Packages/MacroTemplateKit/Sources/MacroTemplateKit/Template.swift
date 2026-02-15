@@ -56,6 +56,18 @@ public indirect enum Template<A> {
     arguments: [(label: String?, value: Template<A>)]
   )
 
+  /// Method call on an expression (base.method(args)).
+  ///
+  /// For calling methods on instances or chained expressions.
+  /// Example: Date().timeIntervalSince(startTime) or Metrics.shared.record(...)
+  ///
+  /// SwiftSyntax equivalent: `FunctionCallExprSyntax` with `MemberAccessExprSyntax` callee
+  case methodCall(
+    base: Template<A>,
+    method: String,
+    arguments: [(label: String?, value: Template<A>)]
+  )
+
   /// Infix binary operation (left operator right).
   ///
   /// Note: `operator` is a reserved keyword, use backticks when pattern matching.
@@ -152,6 +164,12 @@ public indirect enum Template<A> {
     case .functionCall(let function, let arguments):
       return .functionCall(
         function: function,
+        arguments: arguments.map { (label: $0.label, value: $0.value.map(transform)) }
+      )
+    case .methodCall(let base, let method, let arguments):
+      return .methodCall(
+        base: base.map(transform),
+        method: method,
         arguments: arguments.map { (label: $0.label, value: $0.value.map(transform)) }
       )
     case .binaryOperation(let left, let op, let right):

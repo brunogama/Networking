@@ -57,6 +57,13 @@ public indirect enum Statement<A> {
   /// SwiftSyntax equivalent: `ThrowStmtSyntax` with `ExprSyntax`
   case throwStatement(Template<A>)
 
+  // MARK: - Defer
+
+  /// defer { statements }
+  ///
+  /// SwiftSyntax equivalent: `DeferStmtSyntax` with `CodeBlockSyntax`
+  case deferStatement([Statement<A>])
+
   // MARK: - Expressions as Statements
 
   /// expression (function call, assignment, etc.)
@@ -99,6 +106,8 @@ extension Statement {
       return .returnStatement(expression?.map(transform))
     case .throwStatement(let expression):
       return .throwStatement(expression.map(transform))
+    case .deferStatement(let body):
+      return .deferStatement(body.map { $0.map(transform) })
     case .expression(let expr):
       return .expression(expr.map(transform))
     }
