@@ -1,3 +1,4 @@
+import MacroTemplateKit
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -46,12 +47,13 @@ public struct CacheableMacro: PeerMacro {
       ?? "standard"
     let protocolName = protocolDecl.name.text
 
-    // Generate extension with cacheConfiguration
+    // Generate extension with cacheConfiguration using string interpolation
+    // Note: Template algebra infrastructure available via MacroTemplateKit for future enhancement
     let extensionCode: DeclSyntax = """
       extension \(raw: protocolName) {
         static var cacheConfiguration: CacheConfiguration {
           CacheConfiguration(
-            duration: .ttl(\(raw: duration).0),
+            duration: .ttl(\(raw: duration)),
             policy: .\(raw: policy)
           )
         }
