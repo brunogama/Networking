@@ -310,6 +310,35 @@ public struct ProgressTracking: Sendable {
       let remainingBytes = total - transferredBytes
       return Double(remainingBytes) / currentSpeed
     }
+
+    /// Bridges URLSessionDownloadDelegate progress updates to AsyncThrowingStream.
+    ///
+    /// Called from delegate callbacks to update progress for download tasks.
+    /// Thread-safe via actor isolation.
+    ///
+    /// - Parameters:
+    ///   - transferId: Unique transfer ID (derived from URLSessionTask identifier)
+    ///   - bytesWritten: Bytes written in this callback
+    ///   - totalBytesWritten: Total bytes written so far
+    ///   - totalBytesExpected: Expected total bytes (-1 if unknown)
+    public func bridgeDownloadProgress(
+      for transferId: UUID,
+      bytesWritten: Int64,
+      totalBytesWritten: Int64,
+      totalBytesExpected: Int64
+    ) async {
+      do {
+        try await updateProgress(
+          for: transferId,
+          transferredBytes: totalBytesWritten,
+          phase: .downloading
+        )
+      } catch {
+        // Log error but don't throw - delegate callbacks can't propagate errors
+        // In production, use logger.error("Failed to update download progress: \(error)")
+        print("Progress update failed: \(error)")
+      }
+    }
   }
 
   // MARK: - Speed Calculation
