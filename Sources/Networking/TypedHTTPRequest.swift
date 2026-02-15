@@ -202,6 +202,50 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   }
 }
 
+// MARK: - Body-Allowed Method Extension
+
+extension TypedHTTPRequest where Method: BodyAllowedMethod {
+  /// Adds an encodable body to the request.
+  ///
+  /// This method is only available for HTTP methods that semantically support request bodies
+  /// (POST, PUT, PATCH). Attempting to call this on GET, DELETE, or HEAD requests will result
+  /// in a compile-time error.
+  ///
+  /// The value is automatically encoded to JSON, and the `Content-Type: application/json` header
+  /// is set. If you need custom encoding or a different content type, use ``withBody(_:)`` directly.
+  ///
+  /// ## Example
+  ///
+  /// ```swift
+  /// struct User: Encodable {
+  ///     let name: String
+  ///     let email: String
+  /// }
+  ///
+  /// let request = TypedHTTPRequest<POSTMethod, ProductionEnvironment>(path: "/users")
+  ///     .withJSONBody(User(name: "Alice", email: "alice@example.com"))
+  ///
+  /// // ❌ This will not compile (GET doesn't allow bodies):
+  /// // let getRequest = TypedHTTPRequest<GETMethod, ProductionEnvironment>(path: "/users")
+  /// //     .withJSONBody(someData)  // Compile error
+  /// ```
+  ///
+  /// - Parameters:
+  ///   - value: The Encodable value to serialize as JSON body
+  ///   - encoder: The JSON encoder to use (default: `JSONEncoder()`)
+  /// - Returns: A new typed request with the JSON body and Content-Type header set
+  /// - Throws: `EncodingError` if the value cannot be encoded
+  public func withJSONBody<T: Encodable & Sendable>(
+    _ value: T,
+    encoder: JSONEncoder = JSONEncoder()
+  ) throws -> Self {
+    let data = try encoder.encode(value)
+    var newHeaders = headers
+    newHeaders["Content-Type"] = "application/json"
+    return Self(path: path, headers: newHeaders, body: data, timeout: timeout)
+  }
+}
+
 // MARK: - HTTPClient Extension for Typed Requests
 
 extension HTTPClient {
