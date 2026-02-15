@@ -1,10 +1,12 @@
-#if MACRO_TESTS_ENABLED
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
+
+#if canImport(NetworkingMacros)
 import NetworkingMacros
+#endif
 
 /// Tests for @GET macro expansion.
 final class GETMacroTests: XCTestCase {
@@ -246,4 +248,3 @@ final class GETMacroTests: XCTestCase {
     )
   }
 }
-#endif
