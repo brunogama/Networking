@@ -133,6 +133,8 @@
 | 2026-02-14 | 00 | Wrap auth challenge validation in continuation | SecurityConfiguration delegate signature must remain (Apple design), but validation logic can be async |
 | 2026-02-14 | 02 | Use value types for all response chain wrappers | Sendable compliance and immutability guarantee thread safety without actor overhead |
 | 2026-02-14 | 02 | Separate wrapper types for each configuration | Type-safe configuration composition with clear semantics (DecodedResponse, CacheableResponse, RetryableResponse) |
+- [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
+- [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 
 ## Performance Metrics
 
@@ -148,6 +150,7 @@
 | 01-07 | 202 | 3 | 1 | 1 |
 | 02-02 | 197 | 3 | 3 | 3 |
 | **Total** | **1723** | **22** | **21** | **22** |
+| Phase 02 P04 | 620 | 2 tasks | 6 files |
 
 ## Blockers
 
