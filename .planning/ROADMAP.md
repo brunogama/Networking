@@ -106,19 +106,29 @@ Plans:
 
 ### Phase 4: Observability
 
-**Goal**: Enable production monitoring with distributed tracing and metrics.
+**Goal**: Enable production monitoring with distributed tracing and metrics via OTLP export.
 
 **Requirements**: OBS-01, OBS-02, OBS-03, OBS-04, OBS-05, OBS-06, OBS-07
 
-**Success Criteria**:
-1. Requests create distributed tracing spans
-2. Trace context propagates in HTTP headers (W3C Trace Context)
-3. swift-otel integration works end-to-end
-4. Request timing metrics available
-5. Success/failure rates tracked
-6. Structured logging captures request/response details
+**Research Finding**: 86% of requirements already implemented (OBS-01, OBS-02, OBS-04, OBS-05, OBS-06, OBS-07). Only OBS-03 (swift-otel integration) requires new implementation.
 
-**Rationale**: Production observability. Depends on core transport features to instrument them.
+**Success Criteria**:
+1. ✓ Requests create distributed tracing spans (existing: TraceSpan in DistributedTracing.swift)
+2. ✓ Trace context propagates in HTTP headers (existing: TracingMiddleware with W3C traceparent)
+3. swift-otel integration works end-to-end (NEW: OTLPTraceExporter, OTLPMetricsCollector)
+4. ✓ Request timing metrics available (existing: NetworkObservabilityMiddleware)
+5. ✓ Success/failure rates tracked (existing: PerformanceMetrics.errorRate)
+6. ✓ Structured logging captures request/response details (existing: LoggingMiddleware)
+
+**Plans**: 4 plans in 3 waves
+
+Plans:
+- [ ] 04-01-PLAN.md — Add opentelemetry-swift dependency and create OTLPConfiguration/OTLPResource (Wave 1)
+- [ ] 04-02-PLAN.md — Implement OTLPTraceExporter with HTTP semantic conventions (Wave 2)
+- [ ] 04-03-PLAN.md — Implement OTLPMetricsCollector for PerformanceMetrics export (Wave 2)
+- [ ] 04-04-PLAN.md — Integration tests and Observability module documentation (Wave 3)
+
+**Rationale**: Production observability via OpenTelemetry standards. Extends existing infrastructure with OTLP exporters (no breaking changes).
 
 ---
 
