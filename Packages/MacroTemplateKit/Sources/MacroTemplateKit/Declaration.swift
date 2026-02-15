@@ -1,88 +1,248 @@
-// MARK: - Supporting Types
-
-/// Function parameter representation for declaration templates.
-public struct FunctionParameter: Equatable, Hashable, Sendable {
-  /// External parameter label (nil for unlabeled parameters)
-  public let label: String?
-  /// Internal parameter name
-  public let name: String
-  /// Parameter type annotation
-  public let type: String
-
-  public init(label: String? = nil, name: String, type: String) {
-    self.label = label
-    self.name = name
-    self.type = type
-  }
-}
-
-// MARK: - Declaration
-
 /// Declaration-level code generation templates.
 ///
-/// `Declaration<A>` enables generating full function declarations, extensions,
-/// and properties using type-safe template composition without string interpolation.
+/// `Declaration<A>` extends the Template algebra to handle top-level Swift declarations.
+/// Combined with `Template<A>` (expressions) and `Statement<A>` (statements), this provides
+/// a complete AST for macro code generation without string interpolation.
 ///
-/// The type parameter `A` represents metadata attached to nested templates,
-/// allowing compile-time tracking of variable usage.
+/// # Functor Laws
+///
+/// Declaration satisfies the functor laws:
+/// - Identity: `decl.map(id) == decl`
+/// - Composition: `decl.map(f).map(g) == decl.map(g ∘ f)`
+///
+/// # Cases
+///
+/// The enum provides 5 declaration patterns:
+/// 1. `.function` - Function declarations with async/throws/parameters/body
+/// 2. `.property` - Stored property declarations (let/var)
+/// 3. `.computedProperty` - Computed properties with getter/setter
+/// 4. `.extensionDecl` - Extension declarations with members
+/// 5. `.structDecl` - Struct declarations with members
 public indirect enum Declaration<A> {
   // MARK: - Function Declaration
 
-  /// Function declaration with parameters, async/throws modifiers, return type, and body.
+  /// Function declaration with full signature support.
   ///
-  /// Represents: `func name(params) async throws -> ReturnType { body }`
+  /// Renders to:
+  /// ```swift
+  /// func name(label param: Type, ...) async throws -> ReturnType {
+  ///   statements...
+  /// }
+  /// ```
   ///
   /// SwiftSyntax equivalent: `FunctionDeclSyntax`
-  case function(
-    name: String,
-    parameters: [FunctionParameter],
-    isAsync: Bool,
-    `throws`: Bool,
-    returnType: String?,
-    body: [Template<A>]
-  )
+  case function(FunctionSignature<A>)
 
-  // MARK: - Property Declaration
+  // MARK: - Property Declarations
 
-  /// Stored property declaration with optional type annotation and initializer.
+  /// Stored property declaration (let or var).
   ///
-  /// Represents: `static? let/var name: Type = initializer`
+  /// Renders to:
+  /// ```swift
+  /// static? let/var name: Type = initializer
+  /// ```
   ///
   /// SwiftSyntax equivalent: `VariableDeclSyntax` with `PatternBindingSyntax`
-  case property(
-    name: String,
-    type: String?,
-    isStatic: Bool,
-    isLet: Bool,
-    initializer: Template<A>?
-  )
-
-  // MARK: - Computed Property
+  case property(PropertySignature<A>)
 
   /// Computed property with getter and optional setter.
   ///
-  /// Represents: `static? var name: Type { get { } set { } }`
+  /// Renders to:
+  /// ```swift
+  /// static? var name: Type {
+  ///   get { statements... }
+  ///   set { statements... }
+  /// }
+  /// ```
   ///
-  /// SwiftSyntax equivalent: `VariableDeclSyntax` with `AccessorDeclSyntax`
-  case computedProperty(
+  /// SwiftSyntax equivalent: `VariableDeclSyntax` with `AccessorBlockSyntax`
+  case computedProperty(ComputedPropertySignature<A>)
+
+  // MARK: - Type Declarations
+
+  /// Extension declaration with member declarations.
+  ///
+  /// Renders to:
+  /// ```swift
+  /// extension TypeName: Protocol1, Protocol2 {
+  ///   members...
+  /// }
+  /// ```
+  ///
+  /// SwiftSyntax equivalent: `ExtensionDeclSyntax`
+  case extensionDecl(ExtensionSignature<A>)
+
+  /// Struct declaration with member declarations.
+  ///
+  /// Renders to:
+  /// ```swift
+  /// struct Name: Protocol1, Protocol2 {
+  ///   members...
+  /// }
+  /// ```
+  ///
+  /// SwiftSyntax equivalent: `StructDeclSyntax`
+  case structDecl(StructSignature<A>)
+}
+
+// MARK: - Supporting Types
+
+/// Function signature with all declaration components.
+public struct FunctionSignature<A>: Sendable where A: Sendable {
+  /// Function name.
+  public let name: String
+
+  /// Parameter list with labels, names, and types.
+  public let parameters: [ParameterSignature]
+
+  /// Whether function is async.
+  public let isAsync: Bool
+
+  /// Whether function can throw.
+  public let canThrow: Bool
+
+  /// Return type (nil for Void).
+  public let returnType: String?
+
+  /// Function body statements.
+  public let body: [Statement<A>]
+
+  public init(
+    name: String,
+    parameters: [ParameterSignature] = [],
+    isAsync: Bool = false,
+    canThrow: Bool = false,
+    returnType: String? = nil,
+    body: [Statement<A>] = []
+  ) {
+    self.name = name
+    self.parameters = parameters
+    self.isAsync = isAsync
+    self.canThrow = canThrow
+    self.returnType = returnType
+    self.body = body
+  }
+}
+
+/// Parameter signature for function parameters.
+public struct ParameterSignature: Equatable, Hashable, Sendable {
+  /// External label (nil for no label, "_" for explicit no label).
+  public let label: String?
+
+  /// Internal parameter name.
+  public let name: String
+
+  /// Parameter type.
+  public let type: String
+
+  /// Whether parameter is inout.
+  public let isInout: Bool
+
+  public init(
+    label: String? = nil,
     name: String,
     type: String,
-    isStatic: Bool,
-    getter: [Template<A>],
-    setter: [Template<A>]?
-  )
+    isInout: Bool = false
+  ) {
+    self.label = label
+    self.name = name
+    self.type = type
+    self.isInout = isInout
+  }
+}
 
-  // MARK: - Extension
+/// Property signature for stored properties.
+public struct PropertySignature<A>: Sendable where A: Sendable {
+  public let name: String
+  public let type: String?
+  public let isStatic: Bool
+  public let isLet: Bool
+  public let initializer: Template<A>?
 
-  /// Extension declaration containing member declarations.
-  ///
-  /// Represents: `extension TypeName { members }`
-  ///
-  /// SwiftSyntax equivalent: `ExtensionDeclSyntax` with `MemberBlockSyntax`
-  case extensionDecl(
+  public init(
+    name: String,
+    type: String? = nil,
+    isStatic: Bool = false,
+    isLet: Bool = true,
+    initializer: Template<A>? = nil
+  ) {
+    self.name = name
+    self.type = type
+    self.isStatic = isStatic
+    self.isLet = isLet
+    self.initializer = initializer
+  }
+}
+
+/// Computed property signature with accessors.
+public struct ComputedPropertySignature<A>: Sendable where A: Sendable {
+  public let name: String
+  public let type: String
+  public let isStatic: Bool
+  public let getter: [Statement<A>]
+  public let setter: SetterSignature<A>?
+
+  public init(
+    name: String,
+    type: String,
+    isStatic: Bool = false,
+    getter: [Statement<A>],
+    setter: SetterSignature<A>? = nil
+  ) {
+    self.name = name
+    self.type = type
+    self.isStatic = isStatic
+    self.getter = getter
+    self.setter = setter
+  }
+}
+
+/// Setter signature with parameter name and body.
+public struct SetterSignature<A>: Sendable where A: Sendable {
+  /// Setter parameter name (default: "newValue").
+  public let parameterName: String
+
+  /// Setter body statements.
+  public let body: [Statement<A>]
+
+  public init(parameterName: String = "newValue", body: [Statement<A>]) {
+    self.parameterName = parameterName
+    self.body = body
+  }
+}
+
+/// Extension signature with type name and members.
+public struct ExtensionSignature<A>: Sendable where A: Sendable {
+  public let typeName: String
+  public let conformances: [String]
+  public let members: [Declaration<A>]
+
+  public init(
     typeName: String,
-    members: [Declaration<A>]
-  )
+    conformances: [String] = [],
+    members: [Declaration<A>] = []
+  ) {
+    self.typeName = typeName
+    self.conformances = conformances
+    self.members = members
+  }
+}
+
+/// Struct signature with name and members.
+public struct StructSignature<A>: Sendable where A: Sendable {
+  public let name: String
+  public let conformances: [String]
+  public let members: [Declaration<A>]
+
+  public init(
+    name: String,
+    conformances: [String] = [],
+    members: [Declaration<A>] = []
+  ) {
+    self.name = name
+    self.conformances = conformances
+    self.members = members
+  }
 }
 
 // MARK: - Functor
@@ -98,50 +258,123 @@ extension Declaration {
   ///
   /// - Parameter transform: Function applied to each template payload
   /// - Returns: New declaration with transformed payloads and identical structure
-  public func map<B>(_ transform: (A) -> B) -> Declaration<B> {
+  public func map<B>(_ transform: @escaping @Sendable (A) -> B) -> Declaration<B>
+  where A: Sendable, B: Sendable {
     switch self {
-    case .function(let name, let params, let isAsync, let throwsFlag, let ret, let body):
-      return .function(
-        name: name,
-        parameters: params,
-        isAsync: isAsync,
-        throws: throwsFlag,
-        returnType: ret,
-        body: body.map { $0.map(transform) }
-      )
-    case .property(let name, let type, let isStatic, let isLet, let initializer):
-      return .property(
-        name: name,
-        type: type,
-        isStatic: isStatic,
-        isLet: isLet,
-        initializer: initializer?.map(transform)
-      )
-    case .computedProperty(let name, let type, let isStatic, let getter, let setter):
-      return .computedProperty(
-        name: name,
-        type: type,
-        isStatic: isStatic,
-        getter: getter.map { $0.map(transform) },
-        setter: setter?.map { $0.map(transform) }
-      )
-    case .extensionDecl(let typeName, let members):
-      return .extensionDecl(
-        typeName: typeName,
-        members: members.map { $0.map(transform) }
-      )
+    case .function(let signature):
+      return .function(signature.map(transform))
+    case .property(let signature):
+      return .property(signature.map(transform))
+    case .computedProperty(let signature):
+      return .computedProperty(signature.map(transform))
+    case .extensionDecl(let signature):
+      return .extensionDecl(signature.map(transform))
+    case .structDecl(let signature):
+      return .structDecl(signature.map(transform))
     }
   }
 }
 
-// MARK: - Equatable
+extension FunctionSignature {
+  func map<B>(_ transform: @escaping @Sendable (A) -> B) -> FunctionSignature<B>
+  where A: Sendable, B: Sendable {
+    FunctionSignature<B>(
+      name: name,
+      parameters: parameters,
+      isAsync: isAsync,
+      canThrow: canThrow,
+      returnType: returnType,
+      body: body.map { $0.map(transform) }
+    )
+  }
+}
+
+extension PropertySignature {
+  func map<B>(_ transform: @escaping @Sendable (A) -> B) -> PropertySignature<B>
+  where A: Sendable, B: Sendable {
+    PropertySignature<B>(
+      name: name,
+      type: type,
+      isStatic: isStatic,
+      isLet: isLet,
+      initializer: initializer?.map(transform)
+    )
+  }
+}
+
+extension ComputedPropertySignature {
+  func map<B>(_ transform: @escaping @Sendable (A) -> B) -> ComputedPropertySignature<B>
+  where A: Sendable, B: Sendable {
+    ComputedPropertySignature<B>(
+      name: name,
+      type: type,
+      isStatic: isStatic,
+      getter: getter.map { $0.map(transform) },
+      setter: setter?.map(transform)
+    )
+  }
+}
+
+extension SetterSignature {
+  func map<B>(_ transform: @escaping @Sendable (A) -> B) -> SetterSignature<B>
+  where A: Sendable, B: Sendable {
+    SetterSignature<B>(
+      parameterName: parameterName,
+      body: body.map { $0.map(transform) }
+    )
+  }
+}
+
+extension ExtensionSignature {
+  func map<B>(_ transform: @escaping @Sendable (A) -> B) -> ExtensionSignature<B>
+  where A: Sendable, B: Sendable {
+    ExtensionSignature<B>(
+      typeName: typeName,
+      conformances: conformances,
+      members: members.map { $0.map(transform) }
+    )
+  }
+}
+
+extension StructSignature {
+  func map<B>(_ transform: @escaping @Sendable (A) -> B) -> StructSignature<B>
+  where A: Sendable, B: Sendable {
+    StructSignature<B>(
+      name: name,
+      conformances: conformances,
+      members: members.map { $0.map(transform) }
+    )
+  }
+}
+
+// MARK: - Protocol Conformances
 
 extension Declaration: Equatable where A: Equatable {}
 
-// MARK: - Hashable
-
 extension Declaration: Hashable where A: Hashable {}
 
-// MARK: - Sendable
-
 extension Declaration: Sendable where A: Sendable {}
+
+extension FunctionSignature: Equatable where A: Equatable {}
+
+extension FunctionSignature: Hashable where A: Hashable {}
+
+extension PropertySignature: Equatable where A: Equatable {}
+
+extension PropertySignature: Hashable where A: Hashable {}
+
+extension ComputedPropertySignature: Equatable where A: Equatable {}
+
+extension ComputedPropertySignature: Hashable where A: Hashable {}
+
+extension SetterSignature: Equatable where A: Equatable {}
+
+extension SetterSignature: Hashable where A: Hashable {}
+
+extension ExtensionSignature: Equatable where A: Equatable {}
+
+extension ExtensionSignature: Hashable where A: Hashable {}
+
+extension StructSignature: Equatable where A: Equatable {}
+
+extension StructSignature: Hashable where A: Hashable {}
