@@ -1,8 +1,9 @@
+import MacroTemplateKit
+import Foundation
+import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
-import SwiftDiagnostics
-import Foundation
 
 /// Macro implementation for @DefaultHeaders.
 ///
@@ -55,6 +56,7 @@ public struct DefaultHeadersMacro: MemberMacro {
     // Note: The actual header application is handled by APIMacro
     // This macro just validates the syntax and makes the information available
     // to other macros via the attribute syntax
+    // Template algebra infrastructure available via MacroTemplateKit for future enhancement
 
     return []
   }
