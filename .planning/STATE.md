@@ -21,6 +21,7 @@
 | 5 | WebSocket & GraphQL | Pending | — | — |
 | 6 | Testing & Documentation | Pending | — | — |
 | 7 | Extract WebSocket & GraphQL to Extension Packages | Pending | — | — |
+| 8 | Extract Core Networking Macros to Atomic Package | Pending | — | — |
 
 ## Recent Activity
 
@@ -132,6 +133,7 @@
 
 - Phase 0 added: Audit URLSession and Apple APIs for Async/Await Modernization
 - Phase 7 added: Extract WebSocket and GraphQL to Separate Extension Packages (depends on Phase 2, executes before Phase 3)
+- Phase 8 added: Extract Core Networking Macros to Atomic Package (excludes WebSocket/GraphQL macros)
 
 ## Decisions
 
@@ -150,6 +152,8 @@
 | 2026-02-15 | 07 | One-way dependency: extensions depend on core, not vice versa | Core Networking package must remain standalone with no knowledge of WebSocket/GraphQL packages |
 | 2026-02-15 | 02 | Use inline retry logic in ChainedRequest instead of wiring to RetryInterceptor | NetworkClient interceptor chain is immutable; inline implementation simpler and more transparent |
 | 2026-02-15 | 02 | Use actor-based test clients for Swift 6 concurrency safety | NSLock unavailable in async contexts; actors provide thread-safe state management |
+| 2026-02-14 | 08 | Swift Package workspace for macro extraction | Monorepo architecture with workspace feature keeps all packages together while maintaining clean separation |
+| 2026-02-14 | 08 | Core Networking has no macro dependency | One-way dependency: consumers can import macros optionally, core remains lightweight |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 - [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
