@@ -4,7 +4,7 @@ import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
-import NetworkingMacros
+import NetworkingGraphQLMacros
 
 /// Tests for @Mutation macro expansion.
 final class MutationMacroTests: XCTestCase {
