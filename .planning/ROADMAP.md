@@ -158,6 +158,45 @@ Plans:
 
 ---
 
+### Phase 7: Extract WebSocket and GraphQL to Separate Extension Packages
+
+**Goal:** Extract WebSocket and GraphQL code into separate extension packages that extend the core Networking library.
+
+**Depends on:** Phase 2 (Developer Experience)
+
+**Success Criteria**:
+1. NetworkingWebSocket package created with all WebSocket-related code
+2. NetworkingGraphQL package created with all GraphQL-related code
+3. Core Networking package has NO dependency on extension packages (one-way dependency)
+4. Extension packages depend on core Networking (not vice versa)
+5. Core Networking remains standalone and lightweight
+6. All existing WebSocket tests pass in new package
+7. All existing GraphQL tests pass in new package
+8. Package.swift updated with multi-product structure (3 library products)
+
+**Rationale**: Modular architecture allows users to import only what they need. Reduces binary size for apps not using WebSocket/GraphQL. Enables independent versioning of extension packages.
+
+**Plans:** 3 plans in 2 waves
+
+Plans:
+- [ ] 07-01-PLAN.md — Update Package.swift for multi-product structure and create extension directories
+- [ ] 07-02-PLAN.md — Extract WebSocket files to NetworkingWebSocket package
+- [ ] 07-03-PLAN.md — Extract GraphQL files to NetworkingGraphQL package
+
+---
+
+### Phase 8: Extract Core Networking Macros to Atomic Package
+
+**Goal:** Extract core networking macro code (excluding WebSocket/GraphQL macros) into a standalone NetworkingMacros package. The main Networking package must not import or depend on the macro package. Macro testing utilities move to a separate test support package.
+
+**Depends on:** Phase 7 (Extract WebSocket & GraphQL)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 8 to break down)
+
+---
+
 ## Requirement Mapping
 
 | Phase | Requirements | Count |
@@ -190,29 +229,6 @@ Phase 3 (Batch/Progress) ───────────┘               │
 ```
 
 **Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs before Phase 3. Phases 3-4 can parallelize. Phase 5 polishes WebSocket/GraphQL in their new packages. Phase 6 is final.
-
-### Phase 7: Extract WebSocket and GraphQL to Separate Extension Packages
-
-**Goal:** Extract WebSocket and GraphQL code into separate extension packages that extend the core Networking library.
-
-**Depends on:** Phase 2 (Developer Experience)
-
-**Success Criteria**:
-1. NetworkingWebSocket package created with all WebSocket-related code
-2. NetworkingGraphQL package created with all GraphQL-related code
-3. Core Networking package has NO dependency on extension packages (one-way dependency)
-4. Extension packages depend on core Networking (not vice versa)
-5. Core Networking remains standalone and lightweight
-6. All existing WebSocket tests pass in new package
-7. All existing GraphQL tests pass in new package
-8. Package.swift updated with multi-product structure (3 library products)
-
-**Rationale**: Modular architecture allows users to import only what they need. Reduces binary size for apps not using WebSocket/GraphQL. Enables independent versioning of extension packages.
-
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 7 to break down)
 
 ---
 *Created: 2026-02-14*
