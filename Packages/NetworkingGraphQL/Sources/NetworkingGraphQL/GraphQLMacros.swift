@@ -32,7 +32,7 @@ import Foundation
 @attached(body)
 public macro Query(
   _ query: String
-) = #externalMacro(module: "NetworkingMacros", type: "QueryMacro")
+) = #externalMacro(module: "NetworkingGraphQLMacros", type: "QueryMacro")
 
 /// Generates a GraphQL mutation function body from the mutation string.
 ///
@@ -66,4 +66,4 @@ public macro Query(
 @attached(body)
 public macro Mutation(
   _ mutation: String
-) = #externalMacro(module: "NetworkingMacros", type: "MutationMacro")
+) = #externalMacro(module: "NetworkingGraphQLMacros", type: "MutationMacro")
