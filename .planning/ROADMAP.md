@@ -160,34 +160,47 @@ Plans:
 
 ### Phase 7: Extract WebSocket and GraphQL to Separate Extension Packages
 
-**Goal:** Extract WebSocket and GraphQL code into separate extension packages that extend the core Networking library.
+**Goal:** Create monorepo workspace with independent packages. Extract WebSocket and GraphQL code into separate packages with their own Package.swift manifests.
+
+**Architecture:** Monorepo with workspace - each package is truly independent:
+- `Packages/Networking/` - Core networking package (standalone Package.swift)
+- `Packages/NetworkingWebSocket/` - WebSocket extension (depends on Networking via local path)
+- `Packages/NetworkingGraphQL/` - GraphQL extension (depends on Networking via local path, has own macro target)
+- Root `Package.swift` - Workspace manifest grouping all packages
 
 **Depends on:** Phase 2 (Developer Experience)
 
 **Success Criteria**:
-1. NetworkingWebSocket package created with all WebSocket-related code
-2. NetworkingGraphQL package created with all GraphQL-related code
-3. Core Networking package has NO dependency on extension packages (one-way dependency)
-4. Extension packages depend on core Networking (not vice versa)
-5. Core Networking remains standalone and lightweight
-6. All existing WebSocket tests pass in new package
-7. All existing GraphQL tests pass in new package
-8. Package.swift updated with multi-product structure (3 library products)
+1. Packages/Networking/ exists with standalone Package.swift
+2. Packages/NetworkingWebSocket/ exists with Package.swift declaring `.package(path: "../Networking")`
+3. Packages/NetworkingGraphQL/ exists with Package.swift declaring `.package(path: "../Networking")`
+4. Each package builds independently with `swift build` in its directory
+5. Each package tests independently with `swift test` in its directory
+6. Core Networking has NO WebSocket or GraphQL code
+7. Extension packages depend on Core via local path (one-way dependency)
+8. Root Package.swift is workspace manifest referencing all packages
 
-**Rationale**: Modular architecture allows users to import only what they need. Reduces binary size for apps not using WebSocket/GraphQL. Enables independent versioning of extension packages.
+**Rationale**: Monorepo workspace allows users to import only what they need. Each package has independent versioning. Reduces binary size for apps not using WebSocket/GraphQL. Clear separation of concerns.
 
-**Plans:** 3 plans in 2 waves
+**Plans:** 4 plans in 3 waves
 
 Plans:
-- [ ] 07-01-PLAN.md — Update Package.swift for multi-product structure and create extension directories
-- [ ] 07-02-PLAN.md — Extract WebSocket files to NetworkingWebSocket package
-- [ ] 07-03-PLAN.md — Extract GraphQL files to NetworkingGraphQL package
+- [ ] 07-01-PLAN.md — Create workspace structure and move Core Networking to Packages/Networking/
+- [ ] 07-02-PLAN.md — Create NetworkingWebSocket package with own Package.swift
+- [ ] 07-03-PLAN.md — Create NetworkingGraphQL package with own Package.swift
+- [ ] 07-04-PLAN.md — Update root Package.swift as workspace manifest, verify all packages
 
 ---
 
 ### Phase 8: Extract Core Networking Macros to Atomic Package
 
-**Goal:** Extract core networking macro code (excluding WebSocket/GraphQL macros) into a standalone NetworkingMacros package. The main Networking package must not import or depend on the macro package. Macro testing utilities move to a separate test support package.
+**Goal:** Extract core networking macro code (excluding WebSocket/GraphQL macros) into a standalone NetworkingMacros package within the monorepo. The main Networking package optionally depends on the macro package. Macro testing utilities move to a separate test support package.
+
+**Architecture:**
+- Monorepo with Swift Package workspace (Package.swift at root)
+- NetworkingMacros as separate package within Packages/
+- One-way dependency: consumers import macros, core Networking has optional macro dependency
+- Macro tests in dedicated test target with MacroTesting support
 
 **Depends on:** Phase 7 (Extract WebSocket & GraphQL)
 **Plans:** 0 plans
@@ -208,8 +221,8 @@ Plans:
 | 4 | OBS-01 to OBS-07 | 7 |
 | 5 | WS-01 to WS-07, GQL-01 to GQL-06 | 13 |
 | 6 | TEST-01 to TEST-07, DOC-01 to DOC-05 | 12 |
-| 7 | PKG-01 to PKG-07 | 7 |
-| **Total** | | **71** |
+| 7 | PKG-01 to PKG-08 | 8 |
+| **Total** | | **72** |
 
 ## Dependencies
 
@@ -222,14 +235,16 @@ Phase 2 (DX) ──────────────────────�
       │                             │   │           │
       ▼                             │   │           │
 Phase 7 (Extract WS/GQL) ───────────┤   │           ▼
-                                    │   └─────► Phase 5 (WebSocket/GraphQL)
-Phase 3 (Batch/Progress) ───────────┘               │
+      │                             │   └─────► Phase 5 (WebSocket/GraphQL)
+      ▼                             │               │
+Phase 8 (Extract Macros) ───────────┘               │
                                                     ▼
-                                              Phase 6 (Testing/Docs)
+Phase 3 (Batch/Progress) ─────────────────────► Phase 6 (Testing/Docs)
 ```
 
-**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs before Phase 3. Phases 3-4 can parallelize. Phase 5 polishes WebSocket/GraphQL in their new packages. Phase 6 is final.
+**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phases 3-4 can parallelize. Phase 5 polishes WebSocket/GraphQL in their new packages. Phase 6 is final.
 
 ---
 *Created: 2026-02-14*
-*Total: 8 phases, 64 requirements*
+*Updated: 2026-02-15 (Phase 7 replanned with monorepo workspace architecture)*
+*Total: 8 phases, 72 requirements*
