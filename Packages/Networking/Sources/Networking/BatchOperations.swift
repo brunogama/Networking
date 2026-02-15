@@ -164,11 +164,23 @@ extension HTTPClient {
   ) async -> [BatchResult] {
     guard !requests.isEmpty else { return [] }
 
+    // Create concurrency limiter from configuration
+    let limiter = BatchConcurrencyLimiter(maxConcurrency: configuration.maxConcurrency)
+
     return await withTaskGroup(of: (Int, HTTPRequest, Result<HTTPResponse, HTTPError>).self) {
       group in
 
       for (index, request) in requests.enumerated() {
         group.addTask {
+          // Wait for available concurrency slot
+          await limiter.acquire()
+
+          // LIFECYCLE: Fire-and-forget release - safe because:
+          // 1. Actor isolation ensures thread safety
+          // 2. release() is idempotent (decrement is atomic)
+          // 3. No user-facing impact if delayed cleanup
+          defer { Task { await limiter.release() } }
+
           do {
             let response = try await self.execute(request)
             return (index, request, .success(response))

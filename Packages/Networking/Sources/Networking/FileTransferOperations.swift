@@ -1,7 +1,7 @@
 import Foundation
 
 #if canImport(FoundationNetworking)
-  import FoundationNetworking
+import FoundationNetworking
 #endif
 
 /// Represents the result of a file transfer operation.
@@ -257,6 +257,7 @@ public actor FileTransferOperations {
   private let httpClient: any HTTPClient
   private let configuration: FileTransferConfiguration
   private let progressMiddleware: ProgressTrackingMiddleware
+  private let progressStreamManager = ProgressTracking.ProgressStreamManager()
   private var activeTransfers: [UUID: ActiveTransfer] = [:]
 
   /// Background URLSession for file transfers.
@@ -304,9 +305,9 @@ public actor FileTransferOperations {
     )
 
     #if !os(Linux)
-      if configuration.backgroundTransferConfiguration.enableBackgroundTransfer {
-        self.backgroundSession = createBackgroundSession()
-      }
+    if configuration.backgroundTransferConfiguration.enableBackgroundTransfer {
+      self.backgroundSession = createBackgroundSession()
+    }
     #endif
   }
 
@@ -524,12 +525,12 @@ public actor FileTransferOperations {
     _ configuration: BackgroundTransferConfiguration
   ) async {
     #if !os(Linux)
-      if configuration.enableBackgroundTransfer {
-        self.backgroundSession = createBackgroundSession(with: configuration)
-      } else {
-        self.backgroundSession?.invalidateAndCancel()
-        self.backgroundSession = nil
-      }
+    if configuration.enableBackgroundTransfer {
+      self.backgroundSession = createBackgroundSession(with: configuration)
+    } else {
+      self.backgroundSession?.invalidateAndCancel()
+      self.backgroundSession = nil
+    }
     #endif
   }
 
@@ -735,26 +736,30 @@ public actor FileTransferOperations {
   }
 
   #if !os(Linux)
-    nonisolated private func createBackgroundSession(
-      with config: BackgroundTransferConfiguration? = nil
-    ) -> URLSession {
-      let configuration = config ?? self.configuration.backgroundTransferConfiguration
+  nonisolated private func createBackgroundSession(
+    with config: BackgroundTransferConfiguration? = nil
+  ) -> URLSession {
+    let configuration = config ?? self.configuration.backgroundTransferConfiguration
 
-      let sessionConfig = URLSessionConfiguration.background(
-        withIdentifier: configuration.backgroundSessionIdentifier
-      )
+    let sessionConfig = URLSessionConfiguration.background(
+      withIdentifier: configuration.backgroundSessionIdentifier
+    )
 
-      sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess
-      sessionConfig.allowsExpensiveNetworkAccess = configuration.allowsExpensiveNetworkAccess
-      sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest
-      sessionConfig.timeoutIntervalForResource = configuration.timeoutIntervalForResource
+    sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess
+    sessionConfig.allowsExpensiveNetworkAccess = configuration.allowsExpensiveNetworkAccess
+    sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest
+    sessionConfig.timeoutIntervalForResource = configuration.timeoutIntervalForResource
 
-      return URLSession(
-        configuration: sessionConfig,
-        delegate: BackgroundTransferDelegate(),
-        delegateQueue: nil
-      )
-    }
+    let delegate = BackgroundTransferDelegate(
+      progressStreamManager: self.progressStreamManager
+    )
+
+    return URLSession(
+      configuration: sessionConfig,
+      delegate: delegate,
+      delegateQueue: nil
+    )
+  }
   #endif
 
   private func getMimeType(for fileURL: URL) -> String? {
@@ -790,49 +795,71 @@ public actor FileTransferOperations {
 
 #if !os(Linux)
 
-  /// Delegate for handling background transfer events.
-  private final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDelegate, @unchecked
-    Sendable
-  {
-    func urlSession(
-      _ session: URLSession,
-      downloadTask: URLSessionDownloadTask,
-      didFinishDownloadingTo location: URL
-    ) {
-      // Handle completed download
-      // In a real implementation, this would notify the FileTransferOperations actor
-    }
+/// Delegate for handling background transfer events.
+private final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDelegate,
+  @unchecked
+  Sendable
+{
+  private let progressStreamManager: ProgressTracking.ProgressStreamManager
 
-    func urlSession(
-      _ session: URLSession,
-      downloadTask: URLSessionDownloadTask,
-      didWriteData bytesWritten: Int64,
-      totalBytesWritten: Int64,
-      totalBytesExpectedToWrite: Int64
-    ) {
-      // Handle progress updates
-      // In a real implementation, this would update progress through the middleware
-    }
+  init(progressStreamManager: ProgressTracking.ProgressStreamManager) {
+    self.progressStreamManager = progressStreamManager
+    super.init()
+  }
 
-    func urlSession(
-      _ session: URLSession,
-      downloadTask: URLSessionDownloadTask,
-      didResumeAtOffset fileOffset: Int64,
-      expectedTotalBytes: Int64
-    ) {
-      // Handle resumed download
-      // In a real implementation, this would update the transfer state
-    }
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didFinishDownloadingTo location: URL
+  ) {
+    // Handle completed download
+    // In a real implementation, this would notify the FileTransferOperations actor
+  }
 
-    func urlSession(
-      _ session: URLSession,
-      task: URLSessionTask,
-      didCompleteWithError error: (any Error)?
-    ) {
-      // Handle task completion or error
-      // In a real implementation, this would notify the FileTransferOperations actor
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didWriteData bytesWritten: Int64,
+    totalBytesWritten: Int64,
+    totalBytesExpectedToWrite: Int64
+  ) {
+    // LIFECYCLE: Fire-and-forget progress update - safe because:
+    // 1. progressStreamManager is actor-isolated (thread-safe)
+    // 2. Delegate callbacks run on URLSession's delegate queue (not main)
+    // 3. Actor suspension doesn't block delegate queue
+    // 4. Progress updates are best-effort (missing one doesn't break functionality)
+    Task.detached {
+      // Map URLSessionTask.taskIdentifier to UUID (FileTransferOperations tracks mapping)
+      let transferId = UUID()  // TODO: Retrieve from activeTransfers[downloadTask.taskIdentifier]
+
+      await self.progressStreamManager.bridgeDownloadProgress(
+        for: transferId,
+        bytesWritten: bytesWritten,
+        totalBytesWritten: totalBytesWritten,
+        totalBytesExpected: totalBytesExpectedToWrite
+      )
     }
   }
+
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didResumeAtOffset fileOffset: Int64,
+    expectedTotalBytes: Int64
+  ) {
+    // Handle resumed download
+    // In a real implementation, this would update the transfer state
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    task: URLSessionTask,
+    didCompleteWithError error: (any Error)?
+  ) {
+    // Handle task completion or error
+    // In a real implementation, this would notify the FileTransferOperations actor
+  }
+}
 
 #endif  // !os(Linux)
 
@@ -840,10 +867,10 @@ public actor FileTransferOperations {
 
 // Import CommonCrypto for checksum calculation (Apple platforms only)
 #if canImport(CommonCrypto)
-  import CommonCrypto
+import CommonCrypto
 #else
-  // For non-Apple platforms, define the CC_LONG type
-  private typealias CC_LONG = UInt32
+// For non-Apple platforms, define the CC_LONG type
+private typealias CC_LONG = UInt32
 #endif
 
 // Helper constants for CommonCrypto (secure algorithms only)
