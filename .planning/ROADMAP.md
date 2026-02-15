@@ -413,22 +413,6 @@ Plans:
 
 ---
 
-**Status**: Pending
-
-**Goal:** Eliminate code duplication across HTTP macros (GET, POST, PUT, PATCH, DELETE) and configuration macros by extracting shared logic into reusable components.
-
-**Depends on:** Phase 10 (MacroTemplateKit and Macro Refactoring)
-
-**Success Criteria**:
-1. Shared helper extraction code deduplicated (extractPath, extractHeaders, extractQueryParameters)
-2. HTTP macro implementations share single generateImplementation pathway
-3. Configuration macro shared patterns extracted
-4. All macros build with zero warnings
-5. All 143 tests pass (110 MacroTemplateKit + 33 NetworkingMacros)
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 10.1 to break down)
-
 ### Phase 10.2: NetworkingMacros Test Coverage ✓
 
 **Status**: PARTIAL COMPLETE (2026-02-15)
@@ -462,6 +446,36 @@ Plans:
 - [x] 10.2-04-PLAN.md — Phase verification and documentation
 
 ---
+
+### Phase 10.2.1: Complete NetworkingMacros Test Coverage
+
+**Status**: Pending
+
+**Goal:** Complete the remaining macro test coverage from Phase 10.2. Restore the 9 disabled test files for @API, @Body, @Headers, @Interceptors macros and integration tests.
+
+**Depends on:** Phase 10.2 (NetworkingMacros Test Coverage)
+
+**Success Criteria**:
+1. APIMacroTests.swift restored with real expansion tests
+2. BodyMacroTests.swift restored with real expansion tests
+3. HeaderBuilderTests.swift restored with real expansion tests
+4. InterceptorMacroTests.swift restored with real expansion tests
+5. Integration test files restored (AttachedMacroIntegrationTests, MacroIntegrationTests, IntegrationTests, RequestCompositionTests, RequestOperatorsTests)
+6. All 13 macros have expansion test coverage (100%)
+7. All tests pass with `swift test`
+
+**Estimated Effort:** 8-12 hours
+
+**Plans:** 5 plans in 3 waves
+
+Plans:
+- [ ] 10.2.1-01-PLAN.md — Restore APIMacroTests and BodyMacroTests (Wave 1)
+- [ ] 10.2.1-02-PLAN.md — Restore HeaderBuilderTests and InterceptorMacroTests (Wave 1)
+- [ ] 10.2.1-03-PLAN.md — Restore integration tests (AttachedMacroIntegrationTests, MacroIntegrationTests, IntegrationTests) (Wave 2)
+- [ ] 10.2.1-04-PLAN.md — Restore RequestCompositionTests and RequestOperatorsTests (Wave 2)
+- [ ] 10.2.1-05-PLAN.md — Phase verification and documentation updates (Wave 3)
+
+---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 10.1 added for DRY cleanup)*
-*Total: 12 phases, 97 requirements*
+*Updated: 2026-02-15 (Phase 10.2.1 plans created)*
+*Total: 13 phases, 97 requirements*
