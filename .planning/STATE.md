@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Current Phase | 09 |
-| Current Plan | 05 |
-| Phase Status | Completed |
+| Current Phase | 04 |
+| Current Plan | 01 |
+| Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
 ## Phase Progress
@@ -17,7 +17,7 @@
 | 1 | Swift 6 Concurrency Compliance | Completed | 2026-02-14 | 2026-02-14 |
 | 2 | Developer Experience | Completed | 2026-02-14 | 2026-02-15 |
 | 3 | Batch Operations & Progress | Pending | — | — |
-| 4 | Observability | Pending | — | — |
+| 4 | Observability | In Progress | 2026-02-15 | — |
 | 5 | WebSocket & GraphQL | Deferred | — | — |
 | 6 | Testing & Documentation | Pending | — | — |
 | 7 | Extract WebSocket & GraphQL to Extension Packages | Completed | 2026-02-15 | 2026-02-15 |
@@ -93,6 +93,7 @@
 | 2026-02-15 | Plan 09-05 completed | Documentation.docc automation with GitHub Pages - 3 tasks, 2 commits, multi-package DocC builds |
 | 2026-02-15 | Phase 9 complete | CI/hooks workspace automation - all 5 requirements met (CI-04 through CI-08) |
 | 2026-02-15 | Phase 10.2.1 complete | NetworkingMacros test coverage complete - 131 tests (79→131, +65.8%), 125 assertMacro calls, 13/13 macros (100%), all criteria verified |
+| 2026-02-15 | Plan 04-01 completed | OTLP configuration foundation - 3 tasks, 1 commit, 2 files, OTLPConfiguration and OTLPResource types |
 
 ## Phase 0 Progress Summary
 
@@ -318,6 +319,31 @@ Packages/NetworkingMacros/ (standalone package)
 | CI-07: LLMs.txt updates | ✅ PASS | llms-txt.yml from symbol graphs |
 | CI-08: Documentation.docc | ✅ PASS | docs.yml multi-package builds + GitHub Pages |
 
+## Phase 4 Progress Summary
+
+### Plans Completed (1/?)
+1. **Plan 04-01**: OTLP configuration foundation - OTLPConfiguration and OTLPResource types
+
+### Phase 4 Status: In Progress
+- **Plans Completed**: 1
+- **Files Created**: 2 (OTLPConfiguration.swift, OTLPResource.swift)
+- **Lines Added**: 409
+- **Commits**: 1
+- **Duration**: 398 seconds (~6.6 minutes)
+- **Status**: ACTIVE - Plan 04-01 complete, ready for Plan 04-02 (OTLP trace exporter integration)
+
+### Key Deliverables (Plan 04-01)
+1. **OTLPConfiguration**: Endpoint, headers, timeout, batch settings, protocol selection, validation
+2. **OTLPResource**: Service name/version, instance ID, environment, auto-detection from Bundle.main
+3. **OTLPProtocol**: HTTP protobuf and gRPC support (HTTP only in this phase)
+4. **ResourceAttributes**: Semantic convention keys for OTLP resource attributes
+
+### Key Decisions (Plan 04-01)
+- Use HTTP protocol exporter only (not gRPC) to minimize dependency footprint
+- Use standard OTEL_* environment variable names for interoperability
+- Auto-detect resource attributes from Bundle.main for sensible defaults
+- Redact security-sensitive attributes by default (authorization, cookies, API keys)
+
 ## Accumulated Context
 
 ### Roadmap Evolution
@@ -366,6 +392,10 @@ Packages/NetworkingMacros/ (standalone package)
 | 2026-02-15 | 10 | HTTP phantom types in NetworkingMacros, not MacroTemplateKit | MacroTemplateKit remains pure and networking-agnostic; HTTP-specific types belong in NetworkingMacros |
 | 2026-02-15 | 10 | Conditional extension for .withBody() based on BodyAllowedProtocol | Type-safe API prevents GET/HEAD/DELETE from having bodies at compile time, not runtime |
 | 2026-02-15 | 10 | Empty enums for phantom types instead of structs | Zero runtime cost, cannot be instantiated, only used as type parameters |
+| 2026-02-15 | 04 | Use HTTP protocol exporter only (not gRPC) | Minimizes dependency footprint, HTTP exporter simpler and sufficient for iOS/macOS apps |
+| 2026-02-15 | 04 | Use standard OTEL_* environment variable names | Follows OpenTelemetry semantic conventions for interoperability |
+| 2026-02-15 | 04 | Auto-detect resource attributes from Bundle.main | Provides sensible defaults for iOS/macOS apps without manual configuration |
+| 2026-02-15 | 04 | Redact security-sensitive attributes by default | Prevents accidental credential leakage in telemetry exports |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 - [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
@@ -451,7 +481,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 09-03 | 129 | 3 | 2 | 2 |
 | 09-04 | 365 | 3 | 3 | 3 |
 | 09-05 | 130 | 3 | 2 | 2 |
-| **Total** | **10863** | **137** | **357** | **99** |
+| 04-01 | 398 | 3 | 2 | 1 |
+| **Total** | **11261** | **140** | **359** | **100** |
 
 ## Blockers
 
@@ -470,9 +501,9 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed Phase 09 Plan 05 - Documentation.docc automation with GitHub Pages (3 tasks, 2 commits, 2 files)
-- **Next Action**: Phase 09 COMPLETE. All 5 CI/automation requirements verified (CI-04 through CI-08). Ready to continue with Phase 3 (Batch Operations), Phase 4 (Observability), or Phase 6 (Testing & Documentation).
+- **Stopped At**: Completed Phase 04 Plan 01 - OTLP configuration foundation (3 tasks, 1 commit, 2 files)
+- **Next Action**: Phase 04 IN PROGRESS. Plan 04-01 complete (OTLPConfiguration and OTLPResource types created). Ready for Plan 04-02 (OTLP trace exporter integration) or other Phase 4 observability plans.
 
 ---
 *Initialized: 2026-02-14*
-*Last Updated: 2026-02-15 (Phase 09 Plan 01 Complete)*
+*Last Updated: 2026-02-15 (Phase 04 Plan 01 Complete)*
