@@ -1,5 +1,34 @@
 import Foundation
 
+// MARK: - HTTPRequest Fluent Extensions
+
+extension HTTPRequest {
+  /// Prepares a request for fluent configuration and execution.
+  ///
+  /// This is the entry point for pre-execution request chains with caching and retry.
+  ///
+  /// Example:
+  /// ```swift
+  /// let user = try await request
+  ///   .prepare(for: User.self)
+  ///   .cacheable(ttl: 300)
+  ///   .retryable(maxAttempts: 3)
+  ///   .execute(on: client)
+  ///   .value
+  /// ```
+  ///
+  /// - Parameters:
+  ///   - type: The Decodable type to decode the response as
+  ///   - decoder: JSONDecoder to use (default: standard JSONDecoder)
+  /// - Returns: ChainedRequest ready for configuration and execution
+  public func prepare<T: Decodable & Sendable>(
+    for type: T.Type,
+    using decoder: JSONDecoder = JSONDecoder()
+  ) -> ChainedRequest<T> {
+    ChainedRequest(request: self, decoder: decoder)
+  }
+}
+
 // MARK: - HTTPResponse Fluent Extensions
 
 extension HTTPResponse {
