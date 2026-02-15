@@ -14,16 +14,22 @@ public struct HeadersMacro: PeerMacro {
   ) throws -> [DeclSyntax] {
     // 1. Validate macro is applied to a function
     guard let funcDecl = declaration.as(FunctionDeclSyntax.self) else {
-      throw MacroExpansionError.invalidMacroApplication(
-        "@Headers can only be applied to functions"
+      MacroHelpers.emitError(
+        "@Headers can only be applied to functions",
+        node: node,
+        context: context
       )
+      return []
     }
 
     // 2. Extract header configurations from result builder closure
     guard let headers = extractHeaderComponents(from: node) else {
-      throw MacroExpansionError.invalidHeadersSyntax(
-        "@Headers requires result builder closure: @Headers { H(\"name\", \"value\") }"
+      MacroHelpers.emitError(
+        "@Headers requires result builder closure: @Headers { H(\"name\", \"value\") }",
+        node: node,
+        context: context
       )
+      return []
     }
 
     // 3. Warn if empty (common mistake)
@@ -88,11 +94,18 @@ public struct HeadersMacro: PeerMacro {
   ) -> [(
     name: String, value: String
   )]? {
-    // Parse the closure argument
-    guard case .argumentList(let arguments) = node.arguments,
-      let closureArg = arguments.first,
-      let closure = closureArg.expression.as(ClosureExprSyntax.self)
-    else {
+    // Parse the closure argument (can be in argumentList or as trailing closure)
+    let closure: ClosureExprSyntax?
+
+    if case .argumentList(let arguments) = node.arguments,
+       let closureArg = arguments.first {
+      closure = closureArg.expression.as(ClosureExprSyntax.self)
+    } else {
+      // No closure found
+      return nil
+    }
+
+    guard let closure = closure else {
       return nil
     }
 
