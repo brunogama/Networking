@@ -1,13 +1,191 @@
+import MacroTesting
 import XCTest
+@testable import NetworkingMacrosPlugin
 
-/// Macro tests temporarily disabled - requires macro testing infrastructure refactor.
+/// Macro expansion tests for @Measured using MacroTesting framework.
 ///
-/// Original tests preserved in git history at commit 3bdc72f.
-/// See: .planning/phases/08-extract-core-networking-macros/08-VERIFICATION.md
-final class MeasuredMacroTestsDisabled: XCTestCase {
-  func testRequiresInfrastructure() {
-    // Placeholder: ensures test target compiles without SwiftCompilerPlugin errors.
-    // Primary goal (MACRO-08) achieved ✓
-    XCTAssertTrue(true, "Macro tests require testing infrastructure refactor")
+/// Tests validate that MeasuredMacro generates correct timing instrumentation
+/// wrapper functions with proper metric collection.
+final class MeasuredMacroTests: XCTestCase {
+  override func invokeTest() {
+    withMacroTesting(macros: [MeasuredMacro.self]) {
+      super.invokeTest()
+    }
+  }
+
+  // MARK: - Basic Expansion Tests
+
+  func testMeasuredBasicExpansion() {
+    assertMacro {
+      """
+      @Measured
+      func fetchUsers() async throws -> [User] {
+        return try await api.getUsers()
+      }
+      """
+    } expansion: {
+      """
+      func fetchUsers() async throws -> [User] {
+        return try await api.getUsers()
+      }
+
+      func fetchUsers_measured() async throws -> [User] {
+        let startTime = Date()
+        defer {
+          let duration = Date().timeIntervalSince(startTime)
+          Metrics.shared.record(duration duration, operation "fetchUsers")
+        }
+        return fetchUsers()
+      }
+      """
+    }
+  }
+
+  func testMeasuredWithLabel() {
+    assertMacro {
+      """
+      @Measured(name: "user_fetch")
+      func fetchUsers() async throws -> [User] {
+        return try await api.getUsers()
+      }
+      """
+    } expansion: {
+      """
+      func fetchUsers() async throws -> [User] {
+        return try await api.getUsers()
+      }
+
+      func fetchUsers_measured() async throws -> [User] {
+        let startTime = Date()
+        defer {
+          let duration = Date().timeIntervalSince(startTime)
+          Metrics.shared.record(duration duration, operation "user_fetch")
+        }
+        return fetchUsers()
+      }
+      """
+    }
+  }
+
+  func testMeasuredOnFunction() {
+    assertMacro {
+      """
+      @Measured
+      func processData(_ input: String) async throws -> Result {
+        return try await process(input)
+      }
+      """
+    } expansion: {
+      """
+      func processData(_ input: String) async throws -> Result {
+        return try await process(input)
+      }
+
+      func processData_measured(_ input: String) async throws -> Result {
+        let startTime = Date()
+        defer {
+          let duration = Date().timeIntervalSince(startTime)
+          Metrics.shared.record(duration duration, operation "processData")
+        }
+        return processData(input)
+      }
+      """
+    }
+  }
+
+  // MARK: - Different Signatures
+
+  func testMeasuredWithMultipleParameters() {
+    assertMacro {
+      """
+      @Measured
+      func updateUser(id: String, name: String) async throws -> User {
+        return try await api.update(id, name)
+      }
+      """
+    } expansion: {
+      """
+      func updateUser(id: String, name: String) async throws -> User {
+        return try await api.update(id, name)
+      }
+
+      func updateUser_measured(id id: String name name: String) async throws -> User {
+        let startTime = Date()
+        defer {
+          let duration = Date().timeIntervalSince(startTime)
+          Metrics.shared.record(duration duration, operation "updateUser")
+        }
+        return updateUser(id id, name name)
+      }
+      """
+    }
+  }
+
+  func testMeasuredWithVoidReturn() {
+    assertMacro {
+      """
+      @Measured
+      func deleteUser(id: String) async throws {
+        try await api.delete(id)
+      }
+      """
+    } expansion: {
+      """
+      func deleteUser(id: String) async throws {
+        try await api.delete(id)
+      }
+
+      func deleteUser_measured(id id: String) async throws {
+        let startTime = Date()
+        defer {
+          let duration = Date().timeIntervalSince(startTime)
+          Metrics.shared.record(duration duration, operation "deleteUser")
+        }
+        return deleteUser(id id)
+      }
+      """
+    }
+  }
+
+  // MARK: - Diagnostic Tests
+
+  func testMeasuredRequiresFunction() {
+    assertMacro {
+      """
+      @Measured
+      struct UserService {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } diagnostics: {
+      """
+      @Measured
+      ┬────────
+      ╰─ 🛑 @Measured can only be applied to functions
+      struct UserService {
+        func getUsers() async throws -> [User]
+      }
+      """
+    }
+  }
+
+  func testMeasuredOnProtocol() {
+    assertMacro {
+      """
+      @Measured
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+      """
+    } diagnostics: {
+      """
+      @Measured
+      ┬────────
+      ╰─ 🛑 @Measured can only be applied to functions
+      protocol UserAPI {
+        func getUsers() async throws -> [User]
+      }
+      """
+    }
   }
 }
