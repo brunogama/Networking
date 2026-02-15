@@ -5,9 +5,9 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 2 |
-| Current Plan | 3 |
+| Current Plan | 2 |
 | Phase Status | In Progress |
-| Last Updated | 2026-02-14 |
+| Last Updated | 2026-02-15 |
 
 ## Phase Progress
 
@@ -43,6 +43,7 @@
 | 2026-02-14 | Plan 00-01 completed | URLSession and Apple API audit - 9 files audited, 3 modernization targets identified |
 | 2026-02-14 | Phase 0 complete | Audit complete - 16-24 hour effort estimate for Phase 2 modernization |
 | 2026-02-14 | Plan 02-02 completed | Fluent response chaining API with decode/cacheable/retryable pattern |
+| 2026-02-15 | Plan 02-01 completed | Request composition operators and phantom type constraints - 3 tasks, 3 commits, 18 tests |
 
 ## Phase 0 Progress Summary
 
@@ -133,6 +134,8 @@
 | 2026-02-14 | 00 | Wrap auth challenge validation in continuation | SecurityConfiguration delegate signature must remain (Apple design), but validation logic can be async |
 | 2026-02-14 | 02 | Use value types for all response chain wrappers | Sendable compliance and immutability guarantee thread safety without actor overhead |
 | 2026-02-14 | 02 | Separate wrapper types for each configuration | Type-safe configuration composition with clear semantics (DecodedResponse, CacheableResponse, RetryableResponse) |
+| 2026-02-15 | 02 | Use + operator for request composition with merged(with:) alternative | Provides intuitive syntax while offering named alternative for clarity |
+| 2026-02-15 | 02 | BodyAllowedMethod as marker protocol for compile-time body constraints | Enables type-safe API preventing GET/HEAD/DELETE from having bodies at compile time |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 
@@ -148,8 +151,9 @@
 | 01-05 | 162 | 2 | 2 | 2 |
 | 01-06 | 181 | 2 | 4 | 2 |
 | 01-07 | 202 | 3 | 1 | 1 |
+| 02-01 | 639 | 3 | 6 | 3 |
 | 02-02 | 197 | 3 | 3 | 3 |
-| **Total** | **1723** | **22** | **21** | **22** |
+| **Total** | **2362** | **25** | **27** | **25** |
 | Phase 02 P04 | 620 | 2 tasks | 6 files |
 
 ## Blockers
@@ -168,9 +172,9 @@
 
 ## Last Session
 
-- **Date**: 2026-02-14
-- **Stopped At**: Completed 02-02-PLAN.md - Fluent response chaining API
-- **Next Action**: Continue Phase 2 with plan 02-03 (next DX improvement)
+- **Date**: 2026-02-15
+- **Stopped At**: Completed 02-01-PLAN.md - Request composition operators and phantom types
+- **Next Action**: Continue Phase 2 with plan 02-02 or 02-03 (DX improvements)
 
 ---
 *Initialized: 2026-02-14*
