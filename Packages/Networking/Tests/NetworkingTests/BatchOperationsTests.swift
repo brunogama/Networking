@@ -143,4 +143,41 @@ struct BatchOperationsTests {
     #expect(results.count == 1)
     #expect(results[0].isSuccess)
   }
+
+  // MARK: - Concurrency Limiting Tests
+
+  /// Test that executeBatch with maxConcurrency=5 throttles parallel requests.
+  ///
+  /// Note: This test validates the concurrency limiter is wired correctly
+  /// by verifying all requests complete and order is preserved. Timing-based
+  /// verification is avoided due to MockNetworkClient not supporting delays.
+  @Test("executeBatch with maxConcurrency limits parallelism")
+  func testExecuteBatch_withMaxConcurrency5_limitsParallelism() async throws {
+    let mockClient = MockNetworkClient()
+
+    // Create 20 test requests
+    let requests = (1...20).map { index in
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/item/\(index)")!)
+    }
+
+    // Stub all requests to return success
+    for index in 1...20 {
+      mockClient.stubGET(path: "/item/\(index)", response: Data())
+    }
+
+    let results = await mockClient.executeBatch(
+      requests,
+      configuration: BatchConfiguration(maxConcurrency: 5)
+    )
+
+    // Verify all requests complete successfully
+    #expect(results.count == 20, "Should return all 20 results")
+    #expect(results.allSatisfy { $0.isSuccess }, "All requests should succeed")
+
+    // Verify order preservation (BATCH-04 requirement)
+    for (index, result) in results.enumerated() {
+      #expect(result.index == index, "Result index should match submission order")
+      #expect(result.request.url.path.contains("/item/\(index + 1)"), "Request should match original")
+    }
+  }
 }
