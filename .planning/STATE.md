@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 2 |
-| Current Plan | 3 |
+| Current Plan | 5 |
 | Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
@@ -46,6 +46,7 @@
 | 2026-02-14 | Plan 02-02 completed | Fluent response chaining API with decode/cacheable/retryable pattern |
 | 2026-02-15 | Plan 02-01 completed | Request composition operators and phantom type constraints - 3 tasks, 3 commits, 18 tests |
 | 2026-02-15 | Plan 02-03 completed | @Cacheable and @Measured macros via TDD - 3 tasks, 3 commits, 7 files |
+| 2026-02-15 | Plan 02-05 completed | Response chaining integration with inline retry logic - 3 tasks, 2 commits, 9 tests |
 
 ## Phase 0 Progress Summary
 
@@ -109,25 +110,26 @@
 
 ## Phase 2 Progress Summary
 
-### Plans Completed (3/5)
+### Plans Completed (4/5)
 1. **Plan 02-01**: Request composition operators and phantom type constraints
 2. **Plan 02-02**: Fluent response chaining API - decode().cacheable().retryable() pattern
 3. **Plan 02-03**: @Cacheable and @Measured configuration macros via TDD
+4. **Plan 02-05**: Response chaining integration with inline retry logic and tests
 
 ### Phase 2 Current Status
 - **Build**: Passes with `-Xswiftc -warnings-as-errors`
-- **Tests**: 228 tests (214 passed, 14 pre-existing network failures)
-- **Files Created**: 10 (composition operators, fluent chaining, macros)
-- **Commits**: 9
-- **Duration**: 1260 seconds (~21 minutes cumulative)
-- **Status**: IN PROGRESS - 3/5 plans complete
+- **Tests**: 237 tests (223 passed, 14 pre-existing network failures)
+- **Files Created**: 11 (composition operators, fluent chaining, macros, integration tests)
+- **Commits**: 11
+- **Duration**: 1680 seconds (~28 minutes cumulative)
+- **Status**: IN PROGRESS - 4/5 plans complete
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 0 added: Audit URLSession and Apple APIs for Async/Await Modernization
-- Phase 7 added: Extract WebSocket and GraphQL to Separate Extension Packages
+- Phase 7 added: Extract WebSocket and GraphQL to Separate Extension Packages (depends on Phase 2, executes before Phase 3)
 
 ## Decisions
 
@@ -142,6 +144,9 @@
 | 2026-02-15 | 02 | Use + operator for request composition with merged(with:) alternative | Provides intuitive syntax while offering named alternative for clarity |
 | 2026-02-15 | 02 | BodyAllowedMethod as marker protocol for compile-time body constraints | Enables type-safe API preventing GET/HEAD/DELETE from having bodies at compile time |
 | 2026-02-15 | 02 | Use existing CachingPolicy and CacheDuration types instead of creating duplicates | Maintains consistency with NetworkClientBuilder DSL, reduces code duplication |
+| 2026-02-15 | 07 | Phase 7 depends on Phase 2 (not Phase 6) | Extract WebSocket/GraphQL to packages immediately after DX phase to modularize before further development |
+| 2026-02-15 | 02 | Use inline retry logic in ChainedRequest instead of wiring to RetryInterceptor | NetworkClient interceptor chain is immutable; inline implementation simpler and more transparent |
+| 2026-02-15 | 02 | Use actor-based test clients for Swift 6 concurrency safety | NSLock unavailable in async contexts; actors provide thread-safe state management |
 - [Phase 02]: Use SwiftSyntaxMacros.BodyMacro for GraphQL query/mutation body generation
 - [Phase 02]: Extract shared helpers in QueryMacro as static methods, reuse in MutationMacro (DRY principle)
 - [Phase 02]: Macro tests blocked by SwiftCompilerPlugin module dependency - tests written but can't execute in standard test targets
@@ -161,7 +166,8 @@
 | 02-01 | 639 | 3 | 6 | 3 |
 | 02-02 | 197 | 3 | 3 | 3 |
 | 02-03 | 424 | 3 | 7 | 3 |
-| **Total** | **2786** | **31** | **37** | **31** |
+| 02-05 | 420 | 3 | 3 | 2 |
+| **Total** | **3206** | **34** | **40** | **33** |
 
 ## Blockers
 
@@ -180,9 +186,9 @@
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed 02-03-PLAN.md - @Cacheable and @Measured macros
-- **Next Action**: Continue Phase 2 with remaining plans (02-04, 02-05)
+- **Stopped At**: Completed 02-05-PLAN.md - Response chaining integration with retry
+- **Next Action**: Continue Phase 2 with plan 02-04 (if exists) or proceed to Phase 2 verification
 
 ---
 *Initialized: 2026-02-14*
-*Last Updated: 2026-02-14 (Phase 2 In Progress - Plan 02-02 Complete)*
+*Last Updated: 2026-02-15 (Phase 2 In Progress - Plan 02-05 Complete)*
