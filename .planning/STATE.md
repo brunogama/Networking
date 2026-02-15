@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Current Phase | 04 |
-| Current Plan | 01 |
+| Current Plan | 03 |
 | Phase Status | In Progress |
 | Last Updated | 2026-02-15 |
 
@@ -94,6 +94,7 @@
 | 2026-02-15 | Phase 9 complete | CI/hooks workspace automation - all 5 requirements met (CI-04 through CI-08) |
 | 2026-02-15 | Phase 10.2.1 complete | NetworkingMacros test coverage complete - 131 tests (79→131, +65.8%), 125 assertMacro calls, 13/13 macros (100%), all criteria verified |
 | 2026-02-15 | Plan 04-01 completed | OTLP configuration foundation - 3 tasks, 1 commit, 2 files, OTLPConfiguration and OTLPResource types |
+| 2026-02-15 | Plan 04-03 completed | OTLP metrics integration - 2 tasks, 1 commit, 2 files, OTLPMetricsCollector actor with batched export |
 
 ## Phase 0 Progress Summary
 
@@ -321,16 +322,17 @@ Packages/NetworkingMacros/ (standalone package)
 
 ## Phase 4 Progress Summary
 
-### Plans Completed (1/?)
+### Plans Completed (2/?)
 1. **Plan 04-01**: OTLP configuration foundation - OTLPConfiguration and OTLPResource types
+2. **Plan 04-03**: OTLP metrics integration - OTLPMetricsCollector actor with batched export
 
 ### Phase 4 Status: In Progress
-- **Plans Completed**: 1
-- **Files Created**: 2 (OTLPConfiguration.swift, OTLPResource.swift)
-- **Lines Added**: 409
-- **Commits**: 1
-- **Duration**: 398 seconds (~6.6 minutes)
-- **Status**: ACTIVE - Plan 04-01 complete, ready for Plan 04-02 (OTLP trace exporter integration)
+- **Plans Completed**: 2
+- **Files Created**: 4 (OTLPConfiguration.swift, OTLPResource.swift, OTLPMetricConverter.swift, OTLPMetricsCollector.swift)
+- **Lines Added**: 903 (409 + 494)
+- **Commits**: 2
+- **Duration**: 780 seconds (~13 minutes cumulative)
+- **Status**: ACTIVE - Plans 04-01 and 04-03 complete, ready for Plan 04-04 (integration) or Plan 04-02 (OTLP trace exporter)
 
 ### Key Deliverables (Plan 04-01)
 1. **OTLPConfiguration**: Endpoint, headers, timeout, batch settings, protocol selection, validation
@@ -338,11 +340,23 @@ Packages/NetworkingMacros/ (standalone package)
 3. **OTLPProtocol**: HTTP protobuf and gRPC support (HTTP only in this phase)
 4. **ResourceAttributes**: Semantic convention keys for OTLP resource attributes
 
+### Key Deliverables (Plan 04-03)
+1. **OTLPMetricConverter**: Converts PerformanceMetrics to OTLP data points with semantic conventions
+2. **MetricSemanticNames**: HTTP client metric names (9 standard metrics)
+3. **OTLPMetricsCollector**: Actor implementing MetricsCollector with batched export and periodic flush
+4. **JSON payload encoding**: Pragmatic OTLP HTTP export without full SDK integration
+
 ### Key Decisions (Plan 04-01)
 - Use HTTP protocol exporter only (not gRPC) to minimize dependency footprint
 - Use standard OTEL_* environment variable names for interoperability
 - Auto-detect resource attributes from Bundle.main for sensible defaults
 - Redact security-sensitive attributes by default (authorization, cookies, API keys)
+
+### Key Decisions (Plan 04-03)
+- Use JSON encoding instead of protobuf for OTLP payload (pragmatic fallback for maximum compatibility)
+- Actor isolation for OTLPMetricsCollector (thread-safe metric buffering)
+- Periodic flush task via deferred Task creation (avoid actor isolation issues in init)
+- Simplified histogram handling (defer full OTLP histogram structure to future enhancement)
 
 ## Accumulated Context
 
@@ -482,7 +496,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 09-04 | 365 | 3 | 3 | 3 |
 | 09-05 | 130 | 3 | 2 | 2 |
 | 04-01 | 398 | 3 | 2 | 1 |
-| **Total** | **11261** | **140** | **359** | **100** |
+| 04-03 | 382 | 2 | 2 | 1 |
+| **Total** | **11643** | **142** | **361** | **101** |
 
 ## Blockers
 
@@ -501,9 +516,9 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-15
-- **Stopped At**: Completed Phase 04 Plan 01 - OTLP configuration foundation (3 tasks, 1 commit, 2 files)
-- **Next Action**: Phase 04 IN PROGRESS. Plan 04-01 complete (OTLPConfiguration and OTLPResource types created). Ready for Plan 04-02 (OTLP trace exporter integration) or other Phase 4 observability plans.
+- **Stopped At**: Completed Phase 04 Plan 03 - OTLP metrics integration (2 tasks, 1 commit, 2 files)
+- **Next Action**: Phase 04 IN PROGRESS. Plan 04-03 complete (OTLPMetricsCollector and OTLPMetricConverter created). Ready for Plan 04-04 (integration with NetworkObservabilityMiddleware) or Plan 04-02 (OTLP trace exporter).
 
 ---
 *Initialized: 2026-02-14*
-*Last Updated: 2026-02-15 (Phase 04 Plan 01 Complete)*
+*Last Updated: 2026-02-15 (Phase 04 Plan 03 Complete)*
