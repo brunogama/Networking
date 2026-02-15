@@ -1,3 +1,4 @@
+import MacroTemplateKit
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
@@ -45,7 +46,8 @@ public struct MeasuredMacro: PeerMacro {
     let signature = funcDecl.signature
     let parameterList = buildParameterPassthrough(from: signature)
 
-    // Generate wrapper function
+    // Generate wrapper function using string interpolation
+    // Note: Template algebra infrastructure available via MacroTemplateKit for future enhancement
     let wrapperCode: DeclSyntax = """
       func \(raw: funcName)_measured\(raw: signature.description) {
         let startTime = Date()
