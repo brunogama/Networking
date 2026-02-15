@@ -14,8 +14,15 @@ let package = Package(
   ],
   products: [],
   dependencies: [
-    // Local packages for workspace development
+    // CRITICAL: List packages in dependency order (leaf nodes first)
+
+    // NetworkingMacros FIRST (no dependencies on other packages)
+    .package(path: "Packages/NetworkingMacros"),
+
+    // Core Networking SECOND (depends on NetworkingMacros)
     .package(path: "Packages/Networking"),
+
+    // Extensions LAST (depend on Core Networking)
     .package(path: "Packages/NetworkingWebSocket"),
     .package(path: "Packages/NetworkingGraphQL"),
   ],
