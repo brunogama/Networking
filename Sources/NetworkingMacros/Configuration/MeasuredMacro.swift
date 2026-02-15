@@ -1,7 +1,5 @@
-import SwiftCompilerPlugin
 import SwiftDiagnostics
 import SwiftSyntax
-import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 /// Generates a timing wrapper function for performance measurement.
@@ -35,14 +33,15 @@ public struct MeasuredMacro: PeerMacro {
     guard let funcDecl = declaration.as(FunctionDeclSyntax.self) else {
       let diagnostic = Diagnostic(
         node: Syntax(node),
-        message: MacroDiagnostic.measuredRequiresFunction
+        message: ConfigurationMacroDiagnostic.measuredRequiresFunction
       )
       context.diagnose(diagnostic)
       return []
     }
 
     let funcName = funcDecl.name.text
-    let metricName = extractMetricName(from: node) ?? funcName
+    let metricName =
+      MacroHelpers.extractStringValue(labeled: "name", from: node) ?? funcName
     let signature = funcDecl.signature
     let parameterList = buildParameterPassthrough(from: signature)
 
@@ -61,26 +60,14 @@ public struct MeasuredMacro: PeerMacro {
     return [wrapperCode]
   }
 
-  private static func extractMetricName(from node: AttributeSyntax) -> String? {
-    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
-      return nil
-    }
-
-    for argument in arguments {
-      if argument.label?.text == "name",
-        let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
-        let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
-      {
-        return segment.content.text
-      }
-    }
-    return nil
-  }
-
+  /// Builds parameter pass-through for the wrapper function call
+  /// - Parameter signature: Function signature to extract parameters from
+  /// - Returns: Comma-separated parameter list for function call
   private static func buildParameterPassthrough(from signature: FunctionSignatureSyntax) -> String {
     signature.parameterClause.parameters.map { param in
       let label = param.firstName.text
-      return label == "_" ? param.secondName?.text ?? "" : "\(label): \(param.secondName?.text ?? label)"
+      let name = param.secondName?.text ?? label
+      return label == "_" ? name : "\(label): \(name)"
     }.joined(separator: ", ")
   }
 }
