@@ -124,6 +124,8 @@ Plans:
 
 ### Phase 5: WebSocket & GraphQL
 
+**Status**: DEFERRED (Out of scope for current milestone)
+
 **Goal**: Complete real-time and GraphQL capabilities.
 
 **Requirements**: WS-01, WS-02, WS-03, WS-04, WS-05, WS-06, WS-07, GQL-01, GQL-02, GQL-03, GQL-04, GQL-05, GQL-06
@@ -137,6 +139,8 @@ Plans:
 6. `@Query` and `@Mutation` macros generate boilerplate
 
 **Rationale**: Completes the transport layer options. WebSocket exists in progress, needs polish. GraphQL exists in progress, needs completion.
+
+**Deferral Note**: WebSocket and GraphQL packages already extracted (Phase 7). Feature completion deferred to future milestone to focus on core networking macro infrastructure.
 
 ---
 
@@ -368,6 +372,82 @@ Plans:
 - [ ] 10-08-PLAN.md — Refactor API/Body/Headers/Interceptors macros
 
 ---
+
+### Phase 10.1: Apply DRY to NetworkingMacros Repeated Code ✓
+
+**Status**: COMPLETE (2026-02-15)
+
+**Goal:** Eliminate code duplication across HTTP macros (GET, POST, PUT, PATCH, DELETE) by extracting shared logic into reusable components using protocol-oriented design.
+
+**Depends on:** Phase 10 (MacroTemplateKit and Macro Refactoring)
+
+**Architecture:**
+- `HTTPMethodConfig` struct — Per-method configuration (method name, requiresBody, allowsVoidReturn)
+- `ArgumentExtractors` enum — Shared extraction helpers (extractPath, extractHeaders, etc.)
+- `HTTPMacroExpansion` protocol — Shared expansion workflow via protocol extension
+- All 5 HTTP macros conform to HTTPMacroExpansion and delegate to sharedExpansion
+
+**Requirements:**
+- DRY-01: HTTPMethodConfig exists with 5 static configurations
+- DRY-02: ArgumentExtractors provides extractPath, extractBodyParameter, extractQueryParameters, extractHeaders
+- DRY-03: HTTPMacroExpansion protocol with default sharedExpansion implementation
+- DRY-04: All 5 HTTP macros conform to HTTPMacroExpansion
+- DRY-05: Total line reduction ~74% (1,752 -> ~450 lines)
+
+**Success Criteria**:
+1. ✓ Shared helper extraction code deduplicated (extractPath, extractHeaders, extractQueryParameters)
+2. ✓ HTTP macro implementations share single generateImplementation pathway
+3. N/A Configuration macro shared patterns extracted (already minimal at 524 lines total)
+4. ✓ All macros build with zero warnings
+5. ✓ All 143 tests pass (110 MacroTemplateKit + 33 NetworkingMacros)
+
+**Plans Executed:** 5 plans across 5 waves
+**Verification:** .planning/phases/10.1-apply-dry-to-networkingmacros-repeated-code/10.1-VERIFICATION.md
+
+Plans:
+- [x] 10.1-01-PLAN.md — Create HTTPMethodConfig and ArgumentExtractors shared infrastructure
+- [x] 10.1-02-PLAN.md — Create HTTPMacroExpansion protocol with shared expansion logic
+- [x] 10.1-03-PLAN.md — Refactor DELETEMacro and GETMacro to use HTTPMacroExpansion
+- [x] 10.1-04-PLAN.md — Refactor POSTMacro, PUTMacro, PATCHMacro to use HTTPMacroExpansion
+- [x] 10.1-05-PLAN.md — Verify phase completion and update documentation
+
+---
+
+**Status**: Pending
+
+**Goal:** Eliminate code duplication across HTTP macros (GET, POST, PUT, PATCH, DELETE) and configuration macros by extracting shared logic into reusable components.
+
+**Depends on:** Phase 10 (MacroTemplateKit and Macro Refactoring)
+
+**Success Criteria**:
+1. Shared helper extraction code deduplicated (extractPath, extractHeaders, extractQueryParameters)
+2. HTTP macro implementations share single generateImplementation pathway
+3. Configuration macro shared patterns extracted
+4. All macros build with zero warnings
+5. All 143 tests pass (110 MacroTemplateKit + 33 NetworkingMacros)
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10.1 to break down)
+
+### Phase 10.2: NetworkingMacros Test Coverage
+
+**Status**: Pending
+
+**Goal:** Achieve comprehensive test coverage for all NetworkingMacros. Fill in empty test stubs and add macro expansion tests to verify correct code generation.
+
+**Depends on:** Phase 10.1 (Apply DRY to NetworkingMacros Repeated Code)
+
+**Success Criteria**:
+1. All 19 stubbed macro tests restored with real test implementations
+2. Macro expansion tests verify correct SwiftSyntax output for all 13 macros
+3. Edge case coverage: invalid inputs, missing parameters, malformed syntax
+4. All tests pass with `swift test` in NetworkingMacros package
+5. Zero empty test bodies (all `XCTSkip` and placeholder tests replaced)
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10.2 to break down)
+
+---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 10 added for MacroTemplateKit helper package)*
-*Total: 11 phases, 92 requirements*
+*Updated: 2026-02-15 (Phase 10.1 added for DRY cleanup)*
+*Total: 12 phases, 97 requirements*
