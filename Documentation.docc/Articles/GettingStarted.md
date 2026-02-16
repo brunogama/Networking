@@ -134,11 +134,11 @@ let (user, posts) = try await (userTask, postsTask)
 
 Now that you have the basics, explore more advanced features:
 
-- **<doc:ClientConfiguration>**: Learn about comprehensive client configuration options
-- **<doc:MiddlewareOverview>**: Understand the powerful middleware system
-- **<doc:MacroGeneration>**: Generate type-safe API clients automatically
-- **<doc:SecurityFeatures>**: Implement SSL pinning and secure authentication
-- **<doc:CachingOverview>**: Add intelligent caching to your requests
+- <doc:ClientConfiguration>: Learn about comprehensive client configuration options
+- <doc:MiddlewareOverview>: Understand the powerful middleware system
+- <doc:ADVANCED_USAGE>: Advanced patterns and API client generation with macros
+- <doc:SWIFT_6_FEATURES>: Modern Swift 6 concurrency patterns
+- <doc:MIGRATION_GUIDE>: Migrating from URLSession or other frameworks
 
 ## Common Patterns
 
@@ -193,8 +193,7 @@ let client = NetworkClient {
 ## See Also
 
 - ``NetworkClient``
-- ``HTTPRequest`` 
+- ``HTTPRequest``
 - ``HTTPResponse``
-- ``RequestBuilder``
-- <doc:QuickStart>
-- <doc:BasicUsage>
+- <doc:GETTING_STARTED>
+- <doc:TESTING_GUIDE>
