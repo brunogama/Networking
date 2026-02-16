@@ -31,7 +31,7 @@ let package = Package(
         .watchOS(.v9)
     ],
     dependencies: [
-        .package(url: "https://github.com/your-org/Networking.git", from: "1.0.0")
+        .package(url: "https://github.com/brunogama/Networking.git", from: "1.0.0")
     ],
     targets: [
         .target(
@@ -45,7 +45,7 @@ let package = Package(
 ### Xcode Integration
 
 1. In Xcode, go to **File → Add Package Dependencies**
-2. Enter the repository URL: `https://github.com/your-org/Networking.git`
+2. Enter the repository URL: `https://github.com/brunogama/Networking.git`
 3. Select the version range and add to your target
 
 ### Requirements
@@ -843,4 +843,4 @@ Check out these example projects to see Networking in action:
 - **Video Tutorials** - Step-by-step walkthroughs
 - **Community Support** - Active community of developers
 
-Ready to build amazing networking experiences with Networking! 🚀
+Ready to build amazing networking experiences with Networking.
