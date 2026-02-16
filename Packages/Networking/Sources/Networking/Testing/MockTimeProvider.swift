@@ -110,8 +110,9 @@ public final class MockTimeProvider: TimeProvider, MockVerifiable, @unchecked Se
 
   // MARK: - MockVerifiable Conformance
 
-  public var callCount: Int {
-    queue.sync { nowCallCount }
+  nonisolated public var callCount: Int {
+    get async { queue.sync { nowCallCount }
+    }
   }
 
   // MARK: - Convenience Factories
