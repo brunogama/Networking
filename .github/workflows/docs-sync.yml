@@ -64,20 +64,19 @@ jobs:
       - name: Generate Symbol Graphs
         run: |
           mkdir -p .build/symbol-graphs
-          for pkg in NetworkingMacros Networking; do
-            echo "Generating symbol graph for $pkg..."
-            swift build --package-path Packages/$pkg \
-              -Xswiftc -emit-symbol-graph \
-              -Xswiftc -emit-symbol-graph-dir -Xswiftc .build/symbol-graphs/$pkg
-          done
+          echo "Building workspace with symbol graph generation..."
+          swift build \
+            -Xswiftc -emit-symbol-graph \
+            -Xswiftc -emit-symbol-graph-dir -Xswiftc .build/symbol-graphs
 
       - name: Extract and Compare Symbols
         id: diff
         run: |
           # Consolidate all package symbols into single baseline
           mkdir -p .cache
-          for pkg in NetworkingMacros Networking; do
-            if [ -f ".build/symbol-graphs/$pkg/$pkg.symbols.json" ]; then
+          for symfile in .build/symbol-graphs/*.symbols.json; do
+            if [ -f "$symfile" ]; then
+              pkg=$(basename "$symfile" .symbols.json)
               echo "Extracting symbols from $pkg..."
               jq -c --arg pkg "$pkg" '[
                 .symbols[]? |
@@ -89,9 +88,9 @@ jobs:
                   kind: .kind.identifier,
                   precise: .identifier.precise
                 }
-              ]' ".build/symbol-graphs/$pkg/$pkg.symbols.json"
+              ]' "$symfile"
             fi
-          done | jq -s 'add' > .cache/current-symbols.json
+          done | jq -s 'add // []' > .cache/current-symbols.json
 
           NEW_COUNT=$(jq 'length' .cache/current-symbols.json)
           echo "Total public symbols across all packages: $NEW_COUNT"
