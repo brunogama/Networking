@@ -46,7 +46,7 @@
 @attached(peer)
 public macro Body(_ parameterName: String) =
   #externalMacro(
-    module: "NetworkingMacros",
+    module: "NetworkingMacrosPlugin",
     type: "BodyMacro"
   )
 
@@ -114,6 +114,6 @@ public macro Headers(
   @HeaderBuilder _ headers: () -> [HeaderComponent]
 ) =
   #externalMacro(
-    module: "NetworkingMacros",
+    module: "NetworkingMacrosPlugin",
     type: "HeadersMacro"
   )

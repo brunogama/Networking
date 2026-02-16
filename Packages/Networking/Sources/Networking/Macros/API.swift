@@ -122,4 +122,4 @@ import Foundation
 ///
 @attached(member, names: arbitrary)
 public macro API(baseURL: String) =
-  #externalMacro(module: "NetworkingMacros", type: "APIMacro")
+  #externalMacro(module: "NetworkingMacrosPlugin", type: "APIMacro")

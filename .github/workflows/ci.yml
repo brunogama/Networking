@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build and Test
+  build-macros:
+    name: Build NetworkingMacros
     runs-on: macos-14
     steps:
       - name: Checkout
@@ -28,17 +28,43 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            .build
+            Packages/NetworkingMacros/.build
             ~/.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Packages/*/Package.swift') }}
+          key: ${{ runner.os }}-spm-macros-${{ hashFiles('Packages/NetworkingMacros/Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-spm-macros-
 
-      - name: Build Workspace
-        run: swift build -Xswiftc -warnings-as-errors
+      - name: Build NetworkingMacros
+        run: swift build --package-path Packages/NetworkingMacros -Xswiftc -warnings-as-errors
 
       - name: Test NetworkingMacros
         run: swift test --package-path Packages/NetworkingMacros
+
+  build-networking:
+    name: Build Networking
+    runs-on: macos-14
+    needs: build-macros
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.0'
+
+      - name: Cache SPM Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            Packages/Networking/.build
+            ~/.swiftpm
+          key: ${{ runner.os }}-spm-networking-${{ hashFiles('Packages/Networking/Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-networking-
+
+      - name: Build Networking
+        run: swift build --package-path Packages/Networking -Xswiftc -warnings-as-errors
 
       - name: Test Networking
         run: swift test --package-path Packages/Networking
@@ -47,6 +73,5 @@ jobs:
         run: |
           echo "## Build Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Workspace build: PASS" >> $GITHUB_STEP_SUMMARY
-          echo "- NetworkingMacros tests: PASS" >> $GITHUB_STEP_SUMMARY
-          echo "- Networking tests: PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- NetworkingMacros: PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- Networking: PASS" >> $GITHUB_STEP_SUMMARY
