@@ -4,10 +4,10 @@
 
 | Field | Value |
 |-------|-------|
-| Current Phase | 04 |
-| Current Plan | 04 |
-| Phase Status | Completed |
-| Last Updated | 2026-02-15 |
+| Current Phase | 06 |
+| Current Plan | 01 |
+| Phase Status | In Progress |
+| Last Updated | 2026-02-16 |
 
 ## Phase Progress
 
@@ -19,7 +19,7 @@
 | 3 | Batch Operations & Progress | Completed | 2026-02-15 | 2026-02-15 |
 | 4 | Observability | Completed | 2026-02-15 | 2026-02-15 |
 | 5 | WebSocket & GraphQL | Deferred | — | — |
-| 6 | Testing & Documentation | Pending | — | — |
+| 6 | Testing & Documentation | In Progress | 2026-02-16 | — |
 | 7 | Extract WebSocket & GraphQL to Extension Packages | Completed | 2026-02-15 | 2026-02-15 |
 | 8 | Extract Core Networking Macros to Atomic Package | Completed | 2026-02-15 | 2026-02-15 |
 | 9 | Update CI and Pre-commit Hooks for SPM Workspace Layout | Completed | 2026-02-15 | 2026-02-15 |
@@ -102,6 +102,7 @@
 | 2026-02-15 | Plan 04-02 completed | OTLP trace exporter - 3 tasks, 4 commits, 3 files, OTLPTraceExporter actor with HTTP semantic attributes |
 | 2026-02-15 | Plan 04-04 completed | OTLP testing and documentation - 4 tasks, 5 commits, 4 files, 21 tests (9+6+6), Observability.swift module |
 | 2026-02-15 | Phase 04 complete | Observability infrastructure - 4/4 plans, 10 files, 21 tests, OTLP trace and metrics export |
+| 2026-02-16 | Plan 06-01 completed | SequentialMock test utility - standalone utility with consumption tracking, 5 tests |
 
 ## Phase 0 Progress Summary
 
@@ -478,6 +479,7 @@ Packages/NetworkingMacros/ (standalone package)
 | 2026-02-15 | 09 | Symbol graph extraction for new type detection | Compiler-generated JSON provides accurate type information, avoids regex parsing |
 | 2026-02-15 | 09 | Automated PRs for doc stubs instead of direct commits | Allows human review and enhancement, prevents overwrites, maintains audit trail |
 - [Phase 03]: Use actor-based semaphore instead of DispatchSemaphore for batch concurrency limiting
+| 2026-02-16 | 06 | Use NSLock for ConsumptionTracker instead of actor | Actor isolation with async Task in matcher callback causes race condition; NSLock provides synchronous access for requestCapture callback |
 
 ## Performance Metrics
 
@@ -533,7 +535,8 @@ Packages/NetworkingMacros/ (standalone package)
 | 04-03 | 382 | 2 | 2 | 2 |
 | 04-04 | 744 | 4 | 4 | 5 |
 | 03-01 | 383 | 3 | 4 | 2 |
-| **Total** | **14637** | **161** | **380** | **120** |
+| 06-01 | 960 | 3 | 2 | 2 |
+| **Total** | **15597** | **164** | **382** | **122** |
 | Phase 03 P01 | 383 | 3 tasks | 4 files |
 
 ## Blockers
@@ -550,11 +553,30 @@ Packages/NetworkingMacros/ (standalone package)
 - Breaking API changes allowed per config
 - **Phase 1 complete**: Swift 6 strict concurrency compliance verified and production-ready
 
+## Phase 6 Progress Summary
+
+### Plans Completed (1/4)
+1. **Plan 06-01**: SequentialMock test utility - standalone utility with NSLock-based consumption tracking, 5 tests
+
+### Phase 6 Status: In Progress
+- **Plans Completed**: 1/4
+- **Files Created**: 2 (SequentialMock.swift, SequentialMockTests.swift)
+- **Tests**: 5/5 passing
+- **Commits**: 2
+- **Duration**: 16 minutes
+- **Status**: Plan 01 complete, ready for Plan 02 (Integration Tests Audit)
+
+### Key Deliverables (Plan 06-01)
+1. **SequentialMock**: Standalone test utility for ordered request expectations
+2. **ConsumptionTracker**: NSLock-based thread-safe consumption counting
+3. **SequentialMockError**: Error enum with requestMismatch, unexpectedCall, unconsumedExpectations
+4. **Integration with MockDSL**: Uses existing Expect/Respond DSL and MockURLProtocol
+
 ## Last Session
 
-- **Date**: 2026-02-15
-- **Stopped At**: Completed Phase 03 - Batch Operations & Progress (3/3 plans, 20 tests)
-- **Next Action**: Phase 03 COMPLETE. Ready for Phase 6 (Testing & Documentation) or production release.
+- **Date**: 2026-02-16
+- **Stopped At**: Completed Plan 06-01 - SequentialMock test utility
+- **Next Action**: Ready for Plan 06-02 (Integration Tests Audit) or Plan 06-03 (API Documentation)
 
 ---
 *Initialized: 2026-02-14*
