@@ -30,7 +30,7 @@ The implementation consists of several key architectural components:
 
 ## Implemented Features
 
-### ✅ Authentication Configuration
+### [DONE] Authentication Configuration
 
 ```swift
 let client = NetworkClient {
@@ -55,7 +55,7 @@ let client = NetworkClient {
 - `.automatic` - Automatic refresh on 401 errors
 - `.manual(handler)` - Custom refresh logic
 
-### ✅ Retry Configuration
+### [DONE] Retry Configuration
 
 ```swift
 let client = NetworkClient {
@@ -80,7 +80,7 @@ let client = NetworkClient {
 - `.serverErrors()` - Retry on 5xx status codes
 - `.statusCodes(codes)` - Retry on specific status codes
 
-### ✅ Caching Configuration
+### [DONE] Caching Configuration
 
 ```swift
 let client = NetworkClient {
@@ -108,7 +108,7 @@ let client = NetworkClient {
 **Storage Sizes:**
 - `.KB(n)`, `.MB(n)`, `.GB(n)` with automatic byte conversion
 
-### ✅ Session Configuration
+### [DONE] Session Configuration
 
 ```swift
 let client = NetworkClient {
@@ -130,7 +130,7 @@ let client = NetworkClient {
 - Connection management
 - Cache policy settings
 
-### ✅ Conditional Configuration
+### [DONE] Conditional Configuration
 
 The DSL supports Swift's `if` statements for conditional configuration:
 
@@ -173,11 +173,11 @@ print(delay) // Outputs: 4.0 seconds
 ## Swift 6 Compliance
 
 The implementation is fully Swift 6 compliant with:
-- ✅ **Sendable conformance** for all configuration types
-- ✅ **Result builders** with comprehensive build methods
-- ✅ **Structured concurrency** support
-- ✅ **Type safety** with strong typing throughout
-- ✅ **Actor isolation** where needed for thread safety
+- [DONE] **Sendable conformance** for all configuration types
+- [DONE] **Result builders** with comprehensive build methods
+- [DONE] **Structured concurrency** support
+- [DONE] **Type safety** with strong typing throughout
+- [DONE] **Actor isolation** where needed for thread safety
 
 ## Type Aliases for Clean API
 
@@ -191,7 +191,7 @@ public typealias RefreshStrategy = AuthRefreshStrategyComponent
 
 ## Implementation Status
 
-### ✅ Completed
+### [DONE] Completed
 - Core DSL infrastructure with result builders
 - All configuration component types
 - Authentication configuration (components only)
@@ -202,7 +202,7 @@ public typealias RefreshStrategy = AuthRefreshStrategyComponent
 - Type safety and Swift 6 compliance
 - Conditional configuration support
 
-### ✅ Fixed Issues
+### [DONE] Fixed Issues
 - **Authentication middleware creation** has been debugged and fixed:
   - Removed `try!` statement that caused fatal errors
   - Fixed BearerTokenProviderWrapper to properly handle refresh strategies
@@ -217,15 +217,15 @@ public typealias RefreshStrategy = AuthRefreshStrategyComponent
   - Made calculateDelay method async to properly access actor-isolated properties
   - Fixed decorrelated jitter implementation with proper await usage
 
-### 🚧 Current Issues
+### [WIP] Current Issues
 - Test infrastructure has dependency conflict with MacroTesting causing fatal errors during test execution
 - Some `any` keyword warnings for protocol existentials (non-breaking, Swift 6 compliance warnings)
 - Authentication and retry configurations work at the component level but cannot be integration tested due to test infrastructure issues
 
-### 📋 Next Steps
-1. ✅ ~~Debug and fix authentication middleware creation in NetworkClient builder~~
-2. ✅ ~~Debug and fix retry middleware creation in NetworkClient builder~~
-3. ✅ ~~Debug and fix caching middleware creation in NetworkClient builder~~
+### [TODO] Next Steps
+1. [DONE] ~~Debug and fix authentication middleware creation in NetworkClient builder~~
+2. [DONE] ~~Debug and fix retry middleware creation in NetworkClient builder~~
+3. [DONE] ~~Debug and fix caching middleware creation in NetworkClient builder~~
 4. Resolve test infrastructure dependency issues to enable comprehensive testing
 5. Add comprehensive integration tests once test infrastructure is working
 6. Add performance benchmarks

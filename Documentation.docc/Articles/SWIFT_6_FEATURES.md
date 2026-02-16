@@ -21,12 +21,12 @@ Networking is built from the ground up to leverage Swift 6's advanced concurrenc
 
 ### Swift 6 Compliance Highlights
 
-✅ **Full Sendable conformance** - All public types are thread-safe by design  
-✅ **Actor-based state management** - Shared mutable state protected by actors  
-✅ **Structured concurrency support** - Proper task cancellation and hierarchy  
-✅ **Data race prevention** - Compile-time safety guarantees  
-✅ **Modern result builders** - Type-safe DSL construction  
-✅ **Swift macros integration** - Generated API clients with full type safety
+- **Full Sendable conformance** - All public types are thread-safe by design
+- **Actor-based state management** - Shared mutable state protected by actors
+- **Structured concurrency support** - Proper task cancellation and hierarchy
+- **Data race prevention** - Compile-time safety guarantees
+- **Modern result builders** - Type-safe DSL construction
+- **Swift macros integration** - Generated API clients with full type safety
 
 ---
 
