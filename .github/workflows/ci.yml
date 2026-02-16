@@ -29,17 +29,17 @@ jobs:
         working-directory: Packages/NetworkingMacros
         run: swift package resolve
 
+      - name: Clean Build
+        working-directory: Packages/NetworkingMacros
+        run: rm -rf .build
+
       - name: Build NetworkingMacros
         working-directory: Packages/NetworkingMacros
-        env:
-          IDEPackageEnablePrebuilts: "NO"
-        run: swift build --disable-sandbox -Xswiftc -warnings-as-errors
+        run: swift build -j 1 -Xswiftc -warnings-as-errors
 
       - name: Test NetworkingMacros
         working-directory: Packages/NetworkingMacros
-        env:
-          IDEPackageEnablePrebuilts: "NO"
-        run: swift test --disable-sandbox
+        run: swift test -j 1
 
   build-networking:
     name: Build Networking
@@ -58,17 +58,17 @@ jobs:
         working-directory: Packages/Networking
         run: swift package resolve
 
+      - name: Clean Build
+        working-directory: Packages/Networking
+        run: rm -rf .build
+
       - name: Build Networking
         working-directory: Packages/Networking
-        env:
-          IDEPackageEnablePrebuilts: "NO"
-        run: swift build --disable-sandbox -Xswiftc -warnings-as-errors
+        run: swift build -j 1 -Xswiftc -warnings-as-errors
 
       - name: Test Networking
         working-directory: Packages/Networking
-        env:
-          IDEPackageEnablePrebuilts: "NO"
-        run: swift test --disable-sandbox
+        run: swift test -j 1
 
       - name: Summary
         run: |
