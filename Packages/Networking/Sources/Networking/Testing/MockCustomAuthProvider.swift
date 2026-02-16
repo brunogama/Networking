@@ -128,10 +128,9 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
     }
 
     // Call handler and convert return type (HTTPRequest? -> HTTPResponse?)
-    if let retryRequest = await handler(request, response) {
-      // If handler returns a retry request, we need to create a synthetic response
-      // For mock purposes, return nil to indicate "please retry with this request"
-      // Real implementation would execute the retry request
+    // Handler returns HTTPRequest? but we return HTTPResponse?
+    // If handler indicates retry (returns request), return nil to signal "retry needed"
+    if await handler(request, response) != nil {
       return nil
     }
 
@@ -190,7 +189,8 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
   ///
   /// Conforms to `MockVerifiable` protocol for shared verification methods.
   nonisolated public var callCount: Int {
-    get async { queue.sync { authenticateCount + errorHandleCount }
+    get async {
+      queue.sync { authenticateCount + errorHandleCount }
     }
   }
 
