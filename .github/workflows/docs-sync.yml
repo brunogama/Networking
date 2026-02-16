@@ -64,7 +64,7 @@ jobs:
       - name: Generate Symbol Graphs
         run: |
           mkdir -p .build/symbol-graphs
-          for pkg in MacroTemplateKit NetworkingMacros Networking NetworkingWebSocket NetworkingGraphQL; do
+          for pkg in NetworkingMacros Networking; do
             echo "Generating symbol graph for $pkg..."
             swift build --package-path Packages/$pkg \
               -Xswiftc -emit-symbol-graph \
@@ -76,7 +76,7 @@ jobs:
         run: |
           # Consolidate all package symbols into single baseline
           mkdir -p .cache
-          for pkg in MacroTemplateKit NetworkingMacros Networking NetworkingWebSocket NetworkingGraphQL; do
+          for pkg in NetworkingMacros Networking; do
             if [ -f ".build/symbol-graphs/$pkg/$pkg.symbols.json" ]; then
               echo "Extracting symbols from $pkg..."
               jq -c --arg pkg "$pkg" '[

@@ -19,7 +19,6 @@ jobs:
       fail-fast: true
       matrix:
         package:
-          - MacroTemplateKit
           - NetworkingMacros
           - Networking
     steps:
