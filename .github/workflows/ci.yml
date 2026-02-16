@@ -20,23 +20,22 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          swift --version
+          xcodebuild -version
 
-      - name: Cache SPM Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            Packages/NetworkingMacros/.build
-            ~/.swiftpm
-          key: ${{ runner.os }}-spm-macros-${{ hashFiles('Packages/NetworkingMacros/Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-macros-
+      - name: Resolve Dependencies
+        working-directory: Packages/NetworkingMacros
+        run: swift package resolve
 
       - name: Build NetworkingMacros
-        run: swift build --package-path Packages/NetworkingMacros -Xswiftc -warnings-as-errors
+        working-directory: Packages/NetworkingMacros
+        run: xcrun swift build -Xswiftc -warnings-as-errors
 
       - name: Test NetworkingMacros
-        run: swift test --package-path Packages/NetworkingMacros
+        working-directory: Packages/NetworkingMacros
+        run: xcrun swift test
 
   build-networking:
     name: Build Networking
@@ -47,23 +46,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          swift --version
 
-      - name: Cache SPM Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            Packages/Networking/.build
-            ~/.swiftpm
-          key: ${{ runner.os }}-spm-networking-${{ hashFiles('Packages/Networking/Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-networking-
+      - name: Resolve Dependencies
+        working-directory: Packages/Networking
+        run: swift package resolve
 
       - name: Build Networking
-        run: swift build --package-path Packages/Networking -Xswiftc -warnings-as-errors
+        working-directory: Packages/Networking
+        run: xcrun swift build -Xswiftc -warnings-as-errors
 
       - name: Test Networking
-        run: swift test --package-path Packages/Networking
+        working-directory: Packages/Networking
+        run: xcrun swift test
 
       - name: Summary
         run: |
