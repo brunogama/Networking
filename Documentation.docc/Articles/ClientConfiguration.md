@@ -697,5 +697,5 @@ extension NetworkClient {
 - ``HTTPClient``
 - <doc:NetworkClient>
 - <doc:MiddlewareOverview>
-- <doc:SecurityFeatures>
-- <doc:SessionManagement>
+- <doc:SWIFT_6_FEATURES>
+- <doc:ADVANCED_USAGE>

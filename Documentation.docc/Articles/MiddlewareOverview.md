@@ -660,7 +660,6 @@ extension NetworkClientBuilder {
 - ``HTTPResponseMiddleware``
 - ``HTTPErrorMiddleware``
 - ``NetworkClient``
-- <doc:AuthenticationMiddleware>
-- <doc:RetryMiddleware>
-- <doc:CachingMiddleware>
-- <doc:CustomMiddleware>
+- <doc:MIDDLEWARE_DOCUMENTATION>
+- <doc:ADVANCED_USAGE>
+- <doc:NetworkClient>

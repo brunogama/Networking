@@ -424,4 +424,4 @@ let response = try await mockClient.execute(testRequest)
 - <doc:ClientConfiguration>
 - <doc:MiddlewareOverview>
 - <doc:RequestBuilding>
-- <doc:ErrorHandling>
+- <doc:ADVANCED_USAGE>
