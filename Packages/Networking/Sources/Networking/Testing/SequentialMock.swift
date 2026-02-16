@@ -57,7 +57,7 @@ public enum SequentialMockError: Error, Sendable, CustomStringConvertible {
 /// Standalone test utility for sequential mock expectations.
 ///
 /// Provides ordered expectation matching where requests must arrive in a specific
-/// sequence. Uses actor isolation internally for thread-safe call index tracking.
+/// sequence. Uses NSLock for thread-safe call index tracking.
 ///
 /// ## Usage
 /// ```swift
@@ -77,9 +77,13 @@ public struct SequentialMock: Sendable {
   private let expectations: [ExpectationPair]
   private let consumptionTracker: ConsumptionTracker
 
-  /// Creates a `SequentialMock` from mock rules.
+  /// Creates a `SequentialMock` from mock rules using the DSL builder.
   public init(@MockRuleBuilder _ content: () throws -> [MockRule]) throws {
-    let rules = try content()
+    try self.init(rules: content())
+  }
+
+  /// Creates a `SequentialMock` from an array of mock rules.
+  public init(rules: [MockRule]) throws {
     self.expectations = rules.map { ExpectationPair(from: $0) }
     self.consumptionTracker = ConsumptionTracker(total: expectations.count)
   }
@@ -93,7 +97,7 @@ public struct SequentialMock: Sendable {
 
   /// Verifies that all expectations have been consumed.
   public func verifyAllExpectationsConsumed() async throws {
-    let remaining = await consumptionTracker.remainingCount()
+    let remaining = consumptionTracker.remainingCount()
     if remaining > 0 {
       throw SequentialMockError.unconsumedExpectations(remaining: remaining)
     }
@@ -104,20 +108,33 @@ public struct SequentialMock: Sendable {
 
 extension SequentialMock {
   /// Tracks how many expectations have been consumed.
-  private actor ConsumptionTracker {
+  ///
+  /// Uses NSLock for synchronous thread-safe access since the requestCapture
+  /// callback is invoked synchronously from MockURLProtocol.
+  ///
+  /// - Note: `@unchecked Sendable` justification:
+  ///   1. Test-only code, not production
+  ///   2. Mutable state (`consumed`) protected by `NSLock`
+  ///   3. All access synchronized through lock
+  final class ConsumptionTracker: @unchecked Sendable {
     private var consumed: Int = 0
     private let total: Int
+    private let lock = NSLock()
 
     init(total: Int) {
       self.total = total
     }
 
     func markConsumed() {
+      lock.lock()
+      defer { lock.unlock() }
       consumed += 1
     }
 
     func remainingCount() -> Int {
-      total - consumed
+      lock.lock()
+      defer { lock.unlock() }
+      return total - consumed
     }
   }
 
@@ -148,36 +165,34 @@ extension SequentialMock {
     let tracker = consumptionTracker
     let pairs = expectations
 
-    for (index, pair) in pairs.enumerated() {
+    for pair in pairs {
       let response = buildMockResponse(from: pair.response)
-      let matcher = buildMatcher(from: pair.expectation, at: index, tracker: tracker)
+      let matcher = buildMatcher(from: pair.expectation)
 
+      // Use requestCapture to track consumption when stub is actually used
       MockURLProtocol.stub(
         matching: matcher,
         response: response,
-        maxUsageCount: 1
+        maxUsageCount: 1,
+        requestCapture: { @Sendable _ in
+          tracker.markConsumed()
+        }
       )
     }
   }
 
   private func buildMatcher(
-    from expectation: MockExpectation,
-    at index: Int,
-    tracker: ConsumptionTracker
+    from expectation: MockExpectation
   ) -> MockURLProtocol.RequestMatcher {
     let expectedMethod = expectation.method
     let expectedPath = expectation.path
 
     return .custom { @Sendable request in
-      let matches = Self.requestMatches(
+      Self.requestMatches(
         request: request,
         method: expectedMethod,
         path: expectedPath
       )
-      if matches {
-        Task { await tracker.markConsumed() }
-      }
-      return matches
     }
   }
 
