@@ -129,7 +129,7 @@ import Foundation
 public macro GET(
   _ path: String,
   queryParameters: [String] = []
-) = #externalMacro(module: "NetworkingMacros", type: "GETMacro")
+) = #externalMacro(module: "NetworkingMacrosPlugin", type: "GETMacro")
 
 /// Marks a method as an HTTP POST request.
 ///
@@ -160,7 +160,7 @@ public macro POST(
   _ path: String,
   body: String,
   headers: [String: String] = [:]
-) = #externalMacro(module: "NetworkingMacros", type: "POSTMacro")
+) = #externalMacro(module: "NetworkingMacrosPlugin", type: "POSTMacro")
 
 /// Marks a method as an HTTP PUT request.
 ///
@@ -184,7 +184,7 @@ public macro PUT(
   _ path: String,
   body: String,
   headers: [String: String] = [:]
-) = #externalMacro(module: "NetworkingMacros", type: "PUTMacro")
+) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PUTMacro")
 
 /// Marks a method as an HTTP PATCH request.
 ///
@@ -208,7 +208,7 @@ public macro PATCH(
   _ path: String,
   body: String,
   headers: [String: String] = [:]
-) = #externalMacro(module: "NetworkingMacros", type: "PATCHMacro")
+) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PATCHMacro")
 
 /// Marks a method as an HTTP DELETE request.
 ///
@@ -233,4 +233,4 @@ public macro PATCH(
 ///
 @attached(peer)
 public macro DELETE(_ path: String) =
-  #externalMacro(module: "NetworkingMacros", type: "DELETEMacro")
+  #externalMacro(module: "NetworkingMacrosPlugin", type: "DELETEMacro")

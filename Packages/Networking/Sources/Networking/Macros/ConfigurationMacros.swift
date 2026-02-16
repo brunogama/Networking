@@ -48,7 +48,7 @@ import Foundation
 ///   precedence over default headers when there are conflicts.
 @attached(member)
 public macro DefaultHeaders(_ headers: [String: String]) =
-  #externalMacro(module: "NetworkingMacros", type: "DefaultHeadersMacro")
+  #externalMacro(module: "NetworkingMacrosPlugin", type: "DefaultHeadersMacro")
 
 /// Sets the default timeout for all endpoints in an API protocol.
 ///
@@ -82,7 +82,7 @@ public macro DefaultHeaders(_ headers: [String: String]) =
 ///   their own timeout configuration.
 @attached(member)
 public macro Timeout(_ seconds: Double) =
-  #externalMacro(module: "NetworkingMacros", type: "TimeoutMacro")
+  #externalMacro(module: "NetworkingMacrosPlugin", type: "TimeoutMacro")
 
 /// Configures request/response interceptors for all endpoints in an API protocol.
 ///
@@ -159,7 +159,7 @@ public macro Timeout(_ seconds: Double) =
 /// - Note: All interceptors must be `Sendable` to comply with Swift 6 strict concurrency.
 @attached(member)
 public macro Interceptors(_ interceptors: [Any]) =
-  #externalMacro(module: "NetworkingMacros", type: "InterceptorsMacro")
+  #externalMacro(module: "NetworkingMacrosPlugin", type: "InterceptorsMacro")
 
 /// Generates cache configuration for API protocols.
 ///
@@ -195,7 +195,7 @@ public macro Interceptors(_ interceptors: [Any]) =
 public macro Cacheable(
   duration: TimeInterval,
   policy: CachingPolicy = .standard
-) = #externalMacro(module: "NetworkingMacros", type: "CacheableMacro")
+) = #externalMacro(module: "NetworkingMacrosPlugin", type: "CacheableMacro")
 
 /// Generates a timing wrapper for performance measurement.
 ///
@@ -228,7 +228,7 @@ public macro Cacheable(
 @attached(peer, names: suffixed(_measured))
 public macro Measured(
   name: String? = nil
-) = #externalMacro(module: "NetworkingMacros", type: "MeasuredMacro")
+) = #externalMacro(module: "NetworkingMacrosPlugin", type: "MeasuredMacro")
 
 // MARK: - Supporting Types for Macro-Generated Code
 
