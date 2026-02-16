@@ -169,17 +169,30 @@ Plans:
 
 ### Phase 6: Testing & Documentation
 
+**Status**: PENDING
+
 **Goal**: Complete test coverage and documentation for production release.
 
 **Requirements**: TEST-01, TEST-02, TEST-03, TEST-04, TEST-05, TEST-06, TEST-07, DOC-01, DOC-02, DOC-03, DOC-04, DOC-05
 
+**Plans:** 3 plans in 2 waves
+
+Plans:
+- [ ] 06-01-PLAN.md — Sequential Mock DSL (TEST-03) - Wave 1
+- [ ] 06-02-PLAN.md — BDD Specs Expansion (TEST-06) + Integration Tests Audit (TEST-07) - Wave 1
+- [ ] 06-03-PLAN.md — DocC Documentation Verification & Completion (DOC-01 to DOC-05) - Wave 2
+
 **Success Criteria**:
-1. Expect/Respond DSL available for test mocking
-2. Property-based tests cover retry backoff and interceptor chain
-3. BDD specs cover user-facing behaviors
-4. DocC catalog generates with all public APIs
-5. Getting started guide included
-6. Migration guide from legacy APIs included
+1. Expect/Respond DSL available for test mocking (TEST-01, TEST-02 - EXISTING)
+2. Sequential expectation chaining for multi-step flows (TEST-03 - NEW)
+3. Property-based tests cover retry backoff and interceptor chain (TEST-04, TEST-05 - EXISTING)
+4. BDD specs cover user-facing behaviors (TEST-06 - EXPAND)
+5. Integration tests verify component interactions (TEST-07 - AUDIT)
+6. DocC catalog generates with all public APIs (DOC-01)
+7. Getting started guide included (DOC-02)
+8. Migration guide from legacy APIs included (DOC-03)
+
+**Research**: .planning/phases/06-testing-documentation/06-RESEARCH.md
 
 **Rationale**: Final phase ensures production readiness. Testing validates all features work correctly.
 
@@ -514,5 +527,5 @@ Plans:
 
 ---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 03 plans created)*
-*Total: 13 phases, 97 requirements*
+*Updated: 2026-02-15 (Phase 06 plans created)*
+*Total: 13 phases, 98 requirements*
