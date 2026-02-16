@@ -403,6 +403,7 @@ Packages/NetworkingMacros/ (standalone package)
 - Phase 10.1 added: Apply DRY to NetworkingMacros repeated code (decimal phase after Phase 10)
 - Phase 10.2 added: NetworkingMacros test coverage - restore stubbed tests and add macro expansion tests
 - Phase 5 deferred: WebSocket & GraphQL marked out of scope for current milestone (packages extracted, feature completion deferred)
+- Phase 11 added: Framework should allow users to mock types using protocols
 
 ## Decisions
 

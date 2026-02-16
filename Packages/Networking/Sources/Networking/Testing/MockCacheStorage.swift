@@ -134,7 +134,7 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   /// Total number of calls across all operations
   ///
   /// - Note: nonisolated to allow synchronous access from test assertions
-  public nonisolated var callCount: Int {
+  nonisolated public var callCount: Int {
     get async {
       await getCalls.count
         + setCalls.count
