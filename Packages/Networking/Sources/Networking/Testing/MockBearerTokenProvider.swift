@@ -38,8 +38,11 @@ import FoundationNetworking
 ///   2. Mutable state protected by `DispatchQueue.concurrent` with barrier writes
 ///   3. All public methods synchronize access through concurrent queue
 ///   4. Call count tracking uses atomic operations via queue
-///   5. Acceptable tradeoff for test ergonomics and API simplicity (same pattern as MockNetworkClient)
-public final class MockBearerTokenProvider: BearerTokenProvider, MockVerifiable, @unchecked Sendable {
+///   5. Acceptable tradeoff for test ergonomics (same pattern as MockNetworkClient)
+public final class MockBearerTokenProvider: BearerTokenProvider,
+  MockVerifiable,
+  @unchecked Sendable
+{
   // MARK: - Thread Safety
 
   private let queue = DispatchQueue(label: "mock.bearer.token.provider", attributes: .concurrent)
