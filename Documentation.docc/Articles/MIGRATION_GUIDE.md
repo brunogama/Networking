@@ -12,6 +12,7 @@
 8. [Performance Considerations](#performance-considerations)
 9. [Testing Migration](#testing-migration)
 10. [Troubleshooting](#troubleshooting)
+11. [Observability Integration](#observability-integration)
 
 ---
 
@@ -1231,5 +1232,111 @@ let client = NetworkClient {
 ```
 
 This will help identify issues with request/response handling during migration.
+
+---
+
+## Observability Integration
+
+### OpenTelemetry Protocol (OTLP) Export
+
+Networking includes built-in support for exporting traces and metrics via the OpenTelemetry Protocol (OTLP). This enables integration with observability platforms like Jaeger, Grafana, and Datadog.
+
+#### Basic OTLP Configuration
+
+```swift
+import Networking
+
+// Create OTLP configuration
+let config = OTLPConfiguration(
+    endpoint: URL(string: "http://localhost:4318")!,
+    headers: ["Authorization": "Bearer token"],
+    resource: OTLPResource(
+        serviceName: "my-ios-app",
+        serviceVersion: "1.0.0",
+        deploymentEnvironment: "production"
+    )
+)
+
+// Create trace exporter
+let traceExporter = try OTLPTraceExporter(configuration: config)
+
+// Create metrics collector
+let metricsCollector = try OTLPMetricsCollector(configuration: config)
+```
+
+#### Using with Middleware
+
+```swift
+// Create middleware with exporters
+let tracingMiddleware = TracingMiddleware(exporter: traceExporter)
+let observabilityMiddleware = NetworkObservabilityMiddleware(
+    metricsCollector: metricsCollector
+)
+
+// Configure network client with observability
+let client = try NetworkClient(components: [
+    BaseURL("https://api.example.com"),
+    AddMiddleware(tracingMiddleware),
+    AddMiddleware(observabilityMiddleware)
+])
+```
+
+#### Environment-Based Configuration
+
+```swift
+// Read from OTEL_EXPORTER_OTLP_* environment variables
+if let config = OTLPConfiguration.fromEnvironment() {
+    let exporter = try OTLPTraceExporter(configuration: config)
+    // Configure with environment settings
+}
+
+// Auto-detect service info from Bundle.main
+let resource = OTLPResource.autoDetect(serviceName: "my-app")
+let config = OTLPConfiguration(
+    endpoint: URL(string: "http://localhost:4318")!,
+    resource: resource
+)
+```
+
+#### W3C Trace Context Propagation
+
+Networking supports W3C Trace Context headers for distributed tracing:
+
+```swift
+// Create a trace context
+let context = TraceContext()
+print(context.traceparent)
+// "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+// Create child span for nested operations
+let childContext = context.createChild()
+
+// Parse incoming trace headers
+if let incomingContext = TraceContext.parse(traceparent: headerValue) {
+    // Continue trace from upstream service
+}
+```
+
+### Migrating from Custom Observability
+
+If you have existing observability code, adapt it to use the provided protocols:
+
+```swift
+// Implement TraceExporter for custom backends
+struct CustomTraceExporter: TraceExporter {
+    func export(span: TraceSpan) async throws {
+        // Send to your observability platform
+    }
+}
+
+// Implement MetricsCollector for custom metrics
+struct CustomMetricsCollector: MetricsCollector {
+    func record(metrics: PerformanceMetrics) async throws {
+        // Send to your metrics platform
+    }
+}
+```
+
+---
 
 Migration to Networking provides significant benefits in terms of Swift 6 compliance, developer experience, and production readiness. The structured approach outlined in this guide should help ensure a smooth transition from legacy networking code.
