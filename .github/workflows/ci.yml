@@ -31,11 +31,15 @@ jobs:
 
       - name: Build NetworkingMacros
         working-directory: Packages/NetworkingMacros
-        run: xcrun swift build -Xswiftc -warnings-as-errors
+        env:
+          IDEPackageEnablePrebuilts: "NO"
+        run: swift build --disable-sandbox -Xswiftc -warnings-as-errors
 
       - name: Test NetworkingMacros
         working-directory: Packages/NetworkingMacros
-        run: xcrun swift test
+        env:
+          IDEPackageEnablePrebuilts: "NO"
+        run: swift test --disable-sandbox
 
   build-networking:
     name: Build Networking
@@ -56,11 +60,15 @@ jobs:
 
       - name: Build Networking
         working-directory: Packages/Networking
-        run: xcrun swift build -Xswiftc -warnings-as-errors
+        env:
+          IDEPackageEnablePrebuilts: "NO"
+        run: swift build --disable-sandbox -Xswiftc -warnings-as-errors
 
       - name: Test Networking
         working-directory: Packages/Networking
-        run: xcrun swift test
+        env:
+          IDEPackageEnablePrebuilts: "NO"
+        run: swift test --disable-sandbox
 
       - name: Summary
         run: |
