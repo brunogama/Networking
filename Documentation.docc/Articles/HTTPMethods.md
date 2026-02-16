@@ -412,13 +412,13 @@ let request = HTTPRequest {
 
 | Operation | Idempotent | Safe | Method | Body | Response Body |
 |-----------|------------|------|--------|------|---------------|
-| Retrieve data | ✅ | ✅ | GET | ❌ | ✅ |
-| Create resource | ❌ | ❌ | POST | ✅ | ✅ |
-| Replace resource | ✅ | ❌ | PUT | ✅ | ✅ |
-| Update resource | ❌ | ❌ | PATCH | ✅ | ✅ |
-| Delete resource | ✅ | ❌ | DELETE | Optional | Optional |
-| Get metadata | ✅ | ✅ | HEAD | ❌ | ❌ |
-| Check capabilities | ✅ | ✅ | OPTIONS | ❌ | ✅ |
+| Retrieve data | Yes | Yes | GET | No | Yes |
+| Create resource | No | No | POST | Yes | Yes |
+| Replace resource | Yes | No | PUT | Yes | Yes |
+| Update resource | No | No | PATCH | Yes | Yes |
+| Delete resource | Yes | No | DELETE | Optional | Optional |
+| Get metadata | Yes | Yes | HEAD | No | No |
+| Check capabilities | Yes | Yes | OPTIONS | No | Yes |
 
 ### Best Practices
 
