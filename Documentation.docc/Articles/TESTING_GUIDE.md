@@ -1052,6 +1052,84 @@ public func expectError(
 }
 ```
 
+### Sequential Mock Testing
+
+The `SequentialMock` utility enables ordered expectation matching where requests must arrive in a specific sequence. This is useful for testing multi-step authentication flows, token refresh scenarios, and other workflows where request order matters.
+
+```swift
+import Testing
+import Networking
+
+@Test("Sequential mock enforces request order")
+func testSequentialMockOrder() async throws {
+    // Create mock with ordered expectations
+    let mock = try SequentialMock {
+        // First request: get auth token
+        Expect { Method(.get); Path("/token") }
+        Respond { Status(.ok); MockJSONBody(["token": "abc123"]) }
+
+        // Second request: use token to access protected resource
+        Expect { Method(.get); Path("/protected") }
+        Respond { Status(.ok); MockJSONBody(["data": "secret"]) }
+    }
+
+    // Create session with mock
+    let session = mock.createSession()
+    let client = NetworkClient(session: session)
+
+    // Requests must happen in order
+    let tokenResponse = try await client.execute { GET("/token") }
+    #expect(tokenResponse.status == .ok)
+
+    let protectedResponse = try await client.execute { GET("/protected") }
+    #expect(protectedResponse.status == .ok)
+
+    // Verify all expectations were consumed
+    try await mock.verifyAllExpectationsConsumed()
+}
+
+@Test("Sequential mock detects unconsumed expectations")
+func testUnconsumedExpectations() async throws {
+    let mock = try SequentialMock {
+        Expect { Method(.get); Path("/first") }
+        Respond { Status(.ok) }
+
+        Expect { Method(.get); Path("/second") }
+        Respond { Status(.ok) }
+    }
+
+    let session = mock.createSession()
+    let client = NetworkClient(session: session)
+
+    // Only make first request
+    _ = try await client.execute { GET("/first") }
+
+    // Verification should fail - second expectation not consumed
+    do {
+        try await mock.verifyAllExpectationsConsumed()
+        #expect(Bool(false), "Should have thrown SequentialMockError")
+    } catch let error as SequentialMockError {
+        // Expected: unconsumedExpectations(remaining: 1)
+        if case .unconsumedExpectations(let remaining) = error {
+            #expect(remaining == 1)
+        }
+    }
+}
+```
+
+**SequentialMock DSL Components:**
+- `Expect { }` - Define request expectations (Method, Path, Headers)
+- `Respond { }` - Define mock response (Status, MockJSONBody, Headers)
+- `Method(.get)` / `Method(.post)` - Match HTTP method
+- `Path("/endpoint")` - Match request path
+- `Status(.ok)` / `Status(.unauthorized)` - Set response status
+- `MockJSONBody([...])` - Set JSON response body
+
+**Error Types:**
+- `SequentialMockError.requestMismatch` - Request did not match expected pattern
+- `SequentialMockError.unexpectedCall` - Request received after all expectations consumed
+- `SequentialMockError.unconsumedExpectations` - Not all expectations were used
+
 ---
 
 ## Performance Testing
