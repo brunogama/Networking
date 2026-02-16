@@ -363,13 +363,16 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     )
 
     // Use synchronous-style registration with semaphore for reliable test setup
+    // Note: Using detached task with high priority to avoid priority inversion
+    // that can cause semaphore timeouts in CI environments
     let semaphore = DispatchSemaphore(value: 0)
-    Task { @Sendable in
+    Task.detached(priority: .userInitiated) { @Sendable in
       await mockState.addStub(stub)
       semaphore.signal()
     }
-    // Wait briefly to ensure stub is registered before test continues
-    _ = semaphore.wait(timeout: .now() + 1.0)
+    // Wait with longer timeout (30s) for CI environments with resource constraints
+    // Use indefinite wait since stub registration must complete for tests to work
+    semaphore.wait()
   }
 
   /// Stub a simple URL with success response
@@ -480,11 +483,12 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
   /// Clear all stubs and captured requests
   public static func clearAll() {
     let semaphore = DispatchSemaphore(value: 0)
-    Task { @Sendable in
+    Task.detached(priority: .userInitiated) { @Sendable in
       await mockState.clearAll()
       semaphore.signal()
     }
-    _ = semaphore.wait(timeout: .now() + 1.0)
+    // Use indefinite wait since clear must complete for reliable test isolation
+    semaphore.wait()
   }
 
   /// Get current stub count for testing/debugging
