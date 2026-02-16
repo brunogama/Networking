@@ -32,6 +32,7 @@
 
 | Date | Action | Details |
 |------|--------|---------|
+| 2026-02-16 | Plan 11-04 completed | Observability mocks and unified export - MockMetricsCollector (actor), MockTraceExporter (actor), Mocks.swift with MockHTTPClient typealias and documentation |
 | 2026-02-16 | Plan 11-03 completed | Interceptor and infrastructure mocks - MockRequestInterceptor, MockResponseInterceptor, MockCacheStorage (actor), MockTimeProvider with stubbing and verification |
 | 2026-02-16 | Plan 11-02 completed | Middleware mocking - MockHTTPRequestMiddleware, MockHTTPResponseMiddleware, MockHTTPErrorMiddleware with stubbing and verification |
 | 2026-02-16 | Phase 06 complete | Testing & Documentation - 3/3 plans, 13/13 must-haves verified, SequentialMock, 35 BDD specs, DocC updates |
@@ -487,6 +488,7 @@ Packages/NetworkingMacros/ (standalone package)
 - [Phase 03]: Use actor-based semaphore instead of DispatchSemaphore for batch concurrency limiting
 | 2026-02-16 | 06 | Use NSLock for ConsumptionTracker instead of actor | Actor isolation with async Task in matcher callback causes race condition; NSLock provides synchronous access for requestCapture callback |
 - [Phase 11-02]: Use DispatchQueue instead of actor for mock state protection (allows synchronous callCount access)
+- [Phase 11-04]: Use actor isolation for MockMetricsCollector and MockTraceExporter (thread-safe state management)
 
 ## Performance Metrics
 
@@ -550,6 +552,7 @@ Packages/NetworkingMacros/ (standalone package)
 | Phase 11 P02 | 440 | 3 tasks | 3 files |
 | Phase 11 P01 | 579 | 3 tasks | 3 files |
 | Phase 11-03 P03 | 614 | 3 tasks | 4 files |
+| Phase 11 P04 | 489 | 3 tasks | 3 files |
 
 ## Blockers
 
@@ -602,8 +605,8 @@ Packages/NetworkingMacros/ (standalone package)
 ## Last Session
 
 - **Date**: 2026-02-16
-- **Stopped At**: Plan 11-03 complete - Interceptor and infrastructure mocking (4 files, 703 lines, 3 commits)
-- **Next Action**: Continue Phase 11 or integration testing
+- **Stopped At**: Plan 11-04 complete - Observability mocks and unified export (3 files, 470 lines, 3 commits)
+- **Next Action**: Continue Phase 11 or finalize mocking infrastructure
 
 ---
 *Initialized: 2026-02-14*
