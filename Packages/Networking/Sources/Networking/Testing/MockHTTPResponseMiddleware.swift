@@ -114,17 +114,22 @@ public final class MockHTTPResponseMiddleware: HTTPResponseMiddleware, MockVerif
   /// - Parameter body: The new body data to use
   public func stubReplaceBody(_ body: Data) {
     stubTransform { response, _ in
-      var modified = response
-      modified.body = body
-      return modified
+      HTTPResponse(
+        request: response.request,
+        status: response.status,
+        headers: response.headers,
+        body: body,
+        url: response.url
+      )
     }
   }
 
   // MARK: - MockVerifiable Conformance
 
   /// The number of times `processResponse` was called.
-  public var callCount: Int {
-    queue.sync { processCount }
+  nonisolated public var callCount: Int {
+    get async { queue.sync { processCount }
+    }
   }
 
   // MARK: - Inspection Methods

@@ -189,8 +189,9 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
   /// Total number of calls made to this mock (authenticate + error handle)
   ///
   /// Conforms to `MockVerifiable` protocol for shared verification methods.
-  public var callCount: Int {
-    queue.sync { authenticateCount + errorHandleCount }
+  nonisolated public var callCount: Int {
+    get async { queue.sync { authenticateCount + errorHandleCount }
+    }
   }
 
   // MARK: - Verification Methods
@@ -220,8 +221,8 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
   /// Verify that neither authenticate nor error handling was called
   ///
   /// - Throws: `MockError.unexpectedCallCount` if any calls were made
-  public func verifyNeverUsed() throws {
-    let total = callCount
+  public func verifyNeverUsed() async throws {
+    let total = await callCount
     guard total == 0 else {
       throw MockError.unexpectedCallCount(expected: 0, actual: total)
     }

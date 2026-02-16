@@ -106,8 +106,9 @@ public final class MockRequestInterceptor: RequestInterceptor, MockVerifiable, @
 
   // MARK: - MockVerifiable Conformance
 
-  public var callCount: Int {
-    queue.sync { _interceptCount }
+  nonisolated public var callCount: Int {
+    get async { queue.sync { _interceptCount }
+    }
   }
 
   // MARK: - Inspection Methods

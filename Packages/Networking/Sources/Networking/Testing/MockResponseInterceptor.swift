@@ -50,7 +50,7 @@ public final class MockResponseInterceptor: ResponseInterceptor, MockVerifiable,
   private var _interceptHandler: (@Sendable (HTTPResponse, InterceptorContext) async throws ->
     InterceptorResult)?
   private var _interceptCount: Int = 0
-  private var _capturedResponses: [(response: HTTPResponse, request: HTTPRequest)] = []
+  private var _capturedResponses: [HTTPResponse] = []
 
   // MARK: - Initialization
 
@@ -66,7 +66,7 @@ public final class MockResponseInterceptor: ResponseInterceptor, MockVerifiable,
     let handler = queue.sync(flags: .barrier) { () -> (@Sendable (HTTPResponse, InterceptorContext) async throws -> InterceptorResult)? in
       _interceptCount += 1
       // Store both response and original request from context
-      _capturedResponses.append((response: response, request: context.originalRequest))
+      _capturedResponses.append(response)
       return _interceptHandler
     }
 
@@ -124,24 +124,25 @@ public final class MockResponseInterceptor: ResponseInterceptor, MockVerifiable,
 
   // MARK: - MockVerifiable Conformance
 
-  public var callCount: Int {
-    queue.sync { _interceptCount }
+  nonisolated public var callCount: Int {
+    get async { queue.sync { _interceptCount }
+    }
   }
 
   // MARK: - Inspection Methods
 
-  /// Get all captured responses with their requests
+  /// Get all captured responses
   ///
-  /// - Returns: Array of tuples containing (response, request)
-  public func getCapturedResponses() -> [(response: HTTPResponse, request: HTTPRequest)] {
+  /// - Returns: Array of captured responses (each response contains its request)
+  public func getCapturedResponses() -> [HTTPResponse] {
     queue.sync { _capturedResponses }
   }
 
   /// Get response at specific index
   ///
   /// - Parameter index: Index of response to retrieve
-  /// - Returns: Captured response tuple at index, or nil if out of bounds
-  public func getResponse(at index: Int) -> (response: HTTPResponse, request: HTTPRequest)? {
+  /// - Returns: Captured response at index, or nil if out of bounds
+  public func getResponse(at index: Int) -> HTTPResponse? {
     queue.sync {
       guard index >= 0 && index < _capturedResponses.count else { return nil }
       return _capturedResponses[index]
@@ -150,8 +151,8 @@ public final class MockResponseInterceptor: ResponseInterceptor, MockVerifiable,
 
   /// Get the most recent captured response
   ///
-  /// - Returns: Most recent response tuple, or nil if none captured
-  public func getLastResponse() -> (response: HTTPResponse, request: HTTPRequest)? {
+  /// - Returns: Most recent response, or nil if none captured
+  public func getLastResponse() -> HTTPResponse? {
     queue.sync { _capturedResponses.last }
   }
 

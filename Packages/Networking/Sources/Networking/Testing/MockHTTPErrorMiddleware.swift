@@ -74,6 +74,7 @@ public final class MockHTTPErrorMiddleware: HTTPErrorMiddleware, MockVerifiable,
 
     // Return default error response
     return HTTPResponse(
+      request: request,
       status: .internalServerError,
       headers: [:],
       body: nil
@@ -127,8 +128,9 @@ public final class MockHTTPErrorMiddleware: HTTPErrorMiddleware, MockVerifiable,
   // MARK: - MockVerifiable Conformance
 
   /// The number of times `handleError` was called.
-  public var callCount: Int {
-    queue.sync { handleCount }
+  nonisolated public var callCount: Int {
+    get async { queue.sync { handleCount }
+    }
   }
 
   // MARK: - Inspection Methods

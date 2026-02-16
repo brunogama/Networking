@@ -168,8 +168,8 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   /// Total number of calls made to this mock (token fetch + refresh)
   ///
   /// Conforms to `MockVerifiable` protocol for shared verification methods.
-  public var callCount: Int {
-    queue.sync { tokenFetchCount + refreshCount }
+  nonisolated public var callCount: Int {
+    get async { queue.sync { tokenFetchCount + refreshCount } }
   }
 
   // MARK: - Verification Methods
@@ -199,8 +199,8 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   /// Verify that neither token fetch nor refresh was called
   ///
   /// - Throws: `MockError.unexpectedCallCount` if any calls were made
-  public func verifyNeverAccessed() throws {
-    let total = callCount
+  public func verifyNeverAccessed() async throws {
+    let total = await callCount
     guard total == 0 else {
       throw MockError.unexpectedCallCount(expected: 0, actual: total)
     }
