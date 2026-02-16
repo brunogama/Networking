@@ -317,7 +317,8 @@ Plans:
 | 8 | MACRO-01 to MACRO-09 | 9 |
 | 9 | CI-01 to CI-05 | 5 |
 | 10 | TMPL-01 to TMPL-12 | 12 |
-| **Total** | | **98** |
+| 11 | MOCK-01 to MOCK-05 | 5 |
+| **Total** | | **103** |
 
 ## Dependencies
 
@@ -342,9 +343,12 @@ Phase 9 (CI/Hooks)
       │
       ▼
 Phase 3 (Batch/Progress)
+      │
+      ▼
+Phase 11 (Protocol Mocking)
 ```
 
-**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phase 10 (Template/Render refactor) modernizes macro code generation immediately after extraction. Phase 9 (CI/Hooks) follows Phase 10 to update infrastructure for the new workspace layout. Phases 3-6 can proceed in parallel or after Phase 9.
+**Critical path**: Phase 0 (audit) must complete first. Phase 1 depends on Phase 0. Phase 2 (DX) completes, then Phase 7 (extract WebSocket/GraphQL to packages) runs. Phase 8 (extract macros) follows Phase 7. Phase 10 (Template/Render refactor) modernizes macro code generation immediately after extraction. Phase 9 (CI/Hooks) follows Phase 10 to update infrastructure for the new workspace layout. Phases 3-6 can proceed in parallel or after Phase 9. Phase 11 extends testing infrastructure after Phase 10.
 
 ### Phase 10: MacroTemplateKit and Macro Refactoring ✓
 
@@ -498,14 +502,14 @@ Plans:
 
 **Depends on:** Phase 10.2 (NetworkingMacros Test Coverage)
 
-**Success Criteria** (All Met ✅):
-1. ✅ APIMacroTests.swift restored with 5 real expansion tests
-2. ✅ BodyMacroTests.swift restored with 7 real expansion tests
-3. ✅ HeaderBuilderTests.swift restored with 2 diagnostic tests (closure tests deferred due to MacroTesting limitations)
-4. ✅ InterceptorMacroTests.swift restored with 5 real expansion tests
-5. ✅ Integration test files restored (AttachedMacroIntegrationTests: 7, MacroIntegrationTests: 7, IntegrationTests: 6, RequestCompositionTests: 11, RequestOperatorsTests: 11)
-6. ✅ All 13 macros have expansion test coverage (100% - see verification report)
-7. ✅ All 131 tests pass with `swift test`
+**Success Criteria** (All Met):
+1. APIMacroTests.swift restored with 5 real expansion tests
+2. BodyMacroTests.swift restored with 7 real expansion tests
+3. HeaderBuilderTests.swift restored with 2 diagnostic tests (closure tests deferred due to MacroTesting limitations)
+4. InterceptorMacroTests.swift restored with 5 real expansion tests
+5. Integration test files restored (AttachedMacroIntegrationTests: 7, MacroIntegrationTests: 7, IntegrationTests: 6, RequestCompositionTests: 11, RequestOperatorsTests: 11)
+6. All 13 macros have expansion test coverage (100% - see verification report)
+7. All 131 tests pass with `swift test`
 
 **Actual Effort:** ~18 minutes (5 plans, 1099 seconds cumulative)
 
@@ -526,6 +530,58 @@ Plans:
 - [x] 10.2.1-05-PLAN.md — Phase verification and documentation updates (Wave 3)
 
 ---
+
+### Phase 11: Protocol Mocking for User Testing
+
+**Status**: Planning
+
+**Goal:** Enable framework users to easily create mocks for testing their code that depends on the framework's protocols.
+
+**Requirements:** MOCK-01, MOCK-02, MOCK-03, MOCK-04, MOCK-05
+
+**Depends on:** Phase 10 (MacroTemplateKit and Macro Refactoring)
+
+**Research:** .planning/phases/11-protocol-mocking-for-users/11-RESEARCH.md
+
+**Architecture:**
+- `MockVerifiable` protocol — Shared verification logic for all mocks (verifyCalledOnce, verifyCalledExactly, etc.)
+- `MockError` enum — Standard error types for mock failures
+- 12 mock implementations — Cover all major user-facing protocols
+- Actor-based mocks — For state-heavy protocols (CacheStorage, MetricsCollector)
+- DispatchQueue-based mocks — For simple protocols (TokenProvider)
+
+**Protocols to Mock (12 total):**
+- HTTPClient (existing MockNetworkClient, add typealias MockHTTPClient)
+- BearerTokenProvider
+- CustomAuthProvider
+- HTTPRequestMiddleware
+- HTTPResponseMiddleware
+- HTTPErrorMiddleware
+- RequestInterceptor
+- ResponseInterceptor
+- CacheStorage
+- TimeProvider
+- MetricsCollector
+- TraceExporter
+
+**Success Criteria**:
+1. MockVerifiable protocol provides shared verification for all mocks
+2. All 12 protocol mocks exist with stub/verify methods
+3. All mocks are Swift 6 concurrency compliant (@unchecked Sendable with justification or actor)
+4. 40+ tests cover all mock implementations
+5. TESTING_GUIDE.md documents protocol mocking for users
+6. Build passes with zero warnings
+
+**Plans:** 5 plans in 2 waves
+
+Plans:
+- [ ] 11-01-PLAN.md — Create MockVerifiable protocol and auth provider mocks (Wave 1)
+- [ ] 11-02-PLAN.md — Create middleware mocks (Wave 1)
+- [ ] 11-03-PLAN.md — Create interceptor and infrastructure mocks (Wave 1)
+- [ ] 11-04-PLAN.md — Create observability mocks and unified exports (Wave 2)
+- [ ] 11-05-PLAN.md — Tests and documentation (Wave 2)
+
+---
 *Created: 2026-02-14*
-*Updated: 2026-02-15 (Phase 06 plans created)*
-*Total: 13 phases, 98 requirements*
+*Updated: 2026-02-16 (Phase 11 plans created)*
+*Total: 14 phases (including sub-phases), 103 requirements*
