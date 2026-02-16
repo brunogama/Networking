@@ -1,6 +1,6 @@
 import Foundation
 import OpenTelemetryApi
-import OpenTelemetrySdk
+@preconcurrency import OpenTelemetrySdk
 
 /// HTTP semantic convention attribute keys per OpenTelemetry spec.
 ///
@@ -154,11 +154,12 @@ public struct OTLPSpanConverter: Sendable {
     let tracerProvider = TracerProviderSdk()
 
     // TracerProviderSdk.get() returns TracerSdk - guaranteed by SDK architecture
-    let tracer = tracerProvider.get(
-      instrumentationName: "Networking",
-      instrumentationVersion: nil
-      // swiftlint:disable:next force_cast
-    ) as! TracerSdk  // swiftlint:disable:this force_cast
+    let tracer =
+      tracerProvider.get(
+        instrumentationName: "Networking",
+        instrumentationVersion: nil
+          // swiftlint:disable:next force_cast
+      ) as! TracerSdk  // swiftlint:disable:this force_cast
 
     // Create a span and immediately end it
     let otelSpan = tracer.spanBuilder(spanName: params.name)
@@ -180,7 +181,7 @@ public struct OTLPSpanConverter: Sendable {
       return .unset
     case .ok:
       return .ok
-    case let .error(message):
+    case .error(let message):
       return .error(description: message)
     }
   }
