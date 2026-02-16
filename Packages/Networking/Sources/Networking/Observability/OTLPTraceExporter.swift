@@ -1,10 +1,10 @@
 import Foundation
 import OpenTelemetryProtocolExporterCommon
 import OpenTelemetryProtocolExporterHttp
-import OpenTelemetrySdk
+@preconcurrency import OpenTelemetrySdk
 
 #if canImport(OSLog)
-  import OSLog
+import OSLog
 #endif
 
 /// OTLP trace exporter that conforms to the existing TraceExporter protocol.
@@ -33,7 +33,7 @@ public actor OTLPTraceExporter: TraceExporter {
   private var flushTask: Task<Void, Never>?
 
   #if canImport(OSLog)
-    private let logger = Logger(subsystem: "Networking", category: "OTLPTraceExporter")
+  private let logger = Logger(subsystem: "Networking", category: "OTLPTraceExporter")
   #endif
 
   // MARK: - Initialization
@@ -128,14 +128,14 @@ public actor OTLPTraceExporter: TraceExporter {
     switch result {
     case .success:
       #if canImport(OSLog)
-        logger.debug("Exported \(spanDataList.count) spans to OTLP")
+      logger.debug("Exported \(spanDataList.count) spans to OTLP")
       #endif
     case .failure:
       #if canImport(OSLog)
-        logger.warning("Failed to export \(spanDataList.count) spans")
+      logger.warning("Failed to export \(spanDataList.count) spans")
       #endif
-      // Note: Failed spans are dropped to prevent unbounded memory growth
-      // In production, consider implementing retry with exponential backoff
+    // Note: Failed spans are dropped to prevent unbounded memory growth
+    // In production, consider implementing retry with exponential backoff
     }
   }
 
