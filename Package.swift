@@ -1,6 +1,7 @@
 // swift-tools-version: 6.0
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
+// Development manifest -- builds NetworkingMacros from source (requires swift-syntax).
+// For release tags, CI swaps Package.binary.swift into Package.swift so consumers
+// resolve a pre-built binary plugin without the swift-syntax dependency.
 import PackageDescription
 import CompilerPluginSupport
 
@@ -19,7 +20,7 @@ let package = Package(
     )
   ],
   dependencies: [
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", "510.0.0"..<"700.0.0"),
     .package(url: "https://github.com/pointfreeco/swift-macro-testing.git", from: "0.5.2"),
   ],
   targets: [
