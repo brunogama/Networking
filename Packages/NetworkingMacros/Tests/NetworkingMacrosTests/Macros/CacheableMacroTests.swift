@@ -32,7 +32,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(300), policy nil .standard)
+            return CacheConfiguration(duration ttl(Duration.seconds(300)), policy nil .standard)
           }
         }
       }
@@ -43,7 +43,7 @@ final class CacheableMacroTests: XCTestCase {
   func testCacheableWithDuration() {
     assertMacro {
       """
-      @Cacheable(duration: 600)
+      @Cacheable(duration: .seconds(600))
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -57,7 +57,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(600), policy nil .standard)
+            return CacheConfiguration(duration ttl(Duration.seconds(600)), policy nil .standard)
           }
         }
       }
@@ -68,7 +68,7 @@ final class CacheableMacroTests: XCTestCase {
   func testCacheableWithPolicy() {
     assertMacro {
       """
-      @Cacheable(duration: 300, policy: .aggressive)
+      @Cacheable(duration: .seconds(300), policy: .aggressive)
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -82,7 +82,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(300), policy nil .aggressive)
+            return CacheConfiguration(duration ttl(Duration.seconds(300)), policy nil .aggressive)
           }
         }
       }
@@ -93,7 +93,7 @@ final class CacheableMacroTests: XCTestCase {
   func testCacheableWithCustomDuration() {
     assertMacro {
       """
-      @Cacheable(duration: 1800, policy: .standard)
+      @Cacheable(duration: .seconds(1800), policy: .standard)
       protocol PostAPI {
         func getPosts() async throws -> [Post]
       }
@@ -107,7 +107,7 @@ final class CacheableMacroTests: XCTestCase {
       extension PostAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(1800), policy nil .standard)
+            return CacheConfiguration(duration ttl(Duration.seconds(1800)), policy nil .standard)
           }
         }
       }
@@ -162,7 +162,7 @@ final class CacheableMacroTests: XCTestCase {
   func testCacheableWithZeroDuration() {
     assertMacro {
       """
-      @Cacheable(duration: 0)
+      @Cacheable(duration: .seconds(0))
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -176,7 +176,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(0), policy nil .standard)
+            return CacheConfiguration(duration ttl(Duration.seconds(0)), policy nil .standard)
           }
         }
       }
@@ -187,7 +187,7 @@ final class CacheableMacroTests: XCTestCase {
   func testCacheableWithLargeDuration() {
     assertMacro {
       """
-      @Cacheable(duration: 86400)
+      @Cacheable(duration: .seconds(86400))
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -201,7 +201,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(86400), policy nil .standard)
+            return CacheConfiguration(duration ttl(Duration.seconds(86400)), policy nil .standard)
           }
         }
       }

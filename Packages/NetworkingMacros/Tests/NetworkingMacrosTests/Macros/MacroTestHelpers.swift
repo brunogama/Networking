@@ -17,9 +17,9 @@ enum MacroTestHelpers {
   /// ```swift
   /// try assertMacroExpansion(
   ///   """
-  ///   @API(baseURL: "https://api.example.com")
+  ///   @API(baseURL: .absolute("https://api.example.com"))
   ///   protocol UserAPI {
-  ///     @GET("/users/{id}")
+  ///     @GET(.path("/users/{id}"))
   ///     func getUser(id: String) async throws -> User
   ///   }
   ///   """,
@@ -53,7 +53,7 @@ enum MacroTestHelpers {
   /// ```swift
   /// assertMacroDiagnostics(
   ///   """
-  ///   @GET("/users/{userId}")
+  ///   @GET(.path("/users/{userId}"))
   ///   func getUser(id: String) async throws -> User
   ///   """,
   ///   diagnostics: [
@@ -90,7 +90,7 @@ enum MacroTestHelpers {
   ) -> String {
     let functionsJoined = functions.joined(separator: "\n  ")
     return """
-      @API(baseURL: "\(baseURL)")
+      @API(baseURL: .absolute("\(baseURL)"))
       protocol \(name) {
         \(functionsJoined)
       }
@@ -106,7 +106,7 @@ enum MacroTestHelpers {
   ) -> String {
     let params = parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
     return """
-      @GET("\(path)")
+      @GET(.path("\(path)"))
       func \(name)(\(params)) async throws -> \(returnType)
       """
   }
@@ -121,7 +121,7 @@ enum MacroTestHelpers {
   ) -> String {
     let params = parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
     return """
-      @POST("\(path)", body: "\(bodyParameter)")
+      @POST(.path("\(path)"), body: .parameter("\(bodyParameter)"))
       func \(name)(\(params)) async throws -> \(returnType)
       """
   }
@@ -134,7 +134,7 @@ enum MacroTestHelpers {
   ) -> String {
     let params = parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
     return """
-      @DELETE("\(path)")
+      @DELETE(.path("\(path)"))
       func \(name)(\(params)) async throws
       """
   }

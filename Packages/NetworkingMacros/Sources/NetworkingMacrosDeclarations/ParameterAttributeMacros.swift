@@ -44,7 +44,7 @@
 ///
 /// - Parameter parameterName: The name of the function parameter containing the request body
 @attached(peer)
-public macro Body(_ parameterName: String) =
+public macro Body(_ parameterName: ParameterReference) =
   #externalMacro(
     module: "NetworkingMacrosPlugin",
     type: "BodyMacro"

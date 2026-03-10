@@ -3,7 +3,7 @@
 /// Marker protocol for HTTP method phantom types.
 public protocol HTTPMethodProtocol: Sendable {
   /// The HTTP method string (e.g., "GET", "POST").
-  static var methodName: String { get }
+  static var methodName: HTTPMethodName { get }
 }
 
 // MARK: - HTTP Method Phantom Types
@@ -12,37 +12,37 @@ public protocol HTTPMethodProtocol: Sendable {
 public enum HTTPMethod {
   /// GET method - retrieves resources, no request body allowed.
   public enum GET: HTTPMethodProtocol {
-    public static let methodName = "GET"
+    public static let methodName = HTTPMethodName.named("GET")
   }
 
   /// POST method - creates resources, request body allowed.
   public enum POST: HTTPMethodProtocol {
-    public static let methodName = "POST"
+    public static let methodName = HTTPMethodName.named("POST")
   }
 
   /// PUT method - replaces resources, request body allowed.
   public enum PUT: HTTPMethodProtocol {
-    public static let methodName = "PUT"
+    public static let methodName = HTTPMethodName.named("PUT")
   }
 
   /// PATCH method - partially updates resources, request body allowed.
   public enum PATCH: HTTPMethodProtocol {
-    public static let methodName = "PATCH"
+    public static let methodName = HTTPMethodName.named("PATCH")
   }
 
   /// DELETE method - removes resources, no request body allowed.
   public enum DELETE: HTTPMethodProtocol {
-    public static let methodName = "DELETE"
+    public static let methodName = HTTPMethodName.named("DELETE")
   }
 
   /// HEAD method - retrieves headers only, no request body allowed.
   public enum HEAD: HTTPMethodProtocol {
-    public static let methodName = "HEAD"
+    public static let methodName = HTTPMethodName.named("HEAD")
   }
 
   /// OPTIONS method - describes communication options, no request body allowed.
   public enum OPTIONS: HTTPMethodProtocol {
-    public static let methodName = "OPTIONS"
+    public static let methodName = HTTPMethodName.named("OPTIONS")
   }
 }
 

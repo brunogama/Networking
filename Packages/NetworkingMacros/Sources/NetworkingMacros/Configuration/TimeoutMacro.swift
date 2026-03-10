@@ -68,7 +68,8 @@ public struct TimeoutMacro: MemberMacro {
     context: some MacroExpansionContext
   ) -> Double? {
     guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
-      let firstArg = arguments.first
+      let firstArg = arguments.first,
+      let timeout = BoundaryExpressionParser.double(from: firstArg.expression)
     else {
       MacroHelpers.emitError(
         "@Timeout requires a timeout value in seconds",
@@ -77,24 +78,7 @@ public struct TimeoutMacro: MemberMacro {
       )
       return nil
     }
-
-    // Try to extract numeric literal (Int or Float)
-    if let intLiteral = firstArg.expression.as(IntegerLiteralExprSyntax.self) {
-      if let value = Double(intLiteral.literal.text) {
-        return value
-      }
-    } else if let floatLiteral = firstArg.expression.as(FloatLiteralExprSyntax.self) {
-      if let value = Double(floatLiteral.literal.text) {
-        return value
-      }
-    }
-
-    MacroHelpers.emitError(
-      "@Timeout requires a numeric literal (e.g., 30.0 or 30)",
-      node: node,
-      context: context
-    )
-    return nil
+    return timeout
   }
 
   // MARK: - Helper Methods
@@ -114,14 +98,10 @@ public struct TimeoutMacro: MemberMacro {
       if attrName == "Timeout" {
         // Extract timeout from this attribute
         if let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
-          let firstArg = arguments.first
+          let firstArg = arguments.first,
+          let timeout = BoundaryExpressionParser.double(from: firstArg.expression)
         {
-          // Try to extract numeric literal
-          if let intLiteral = firstArg.expression.as(IntegerLiteralExprSyntax.self) {
-            return Double(intLiteral.literal.text)
-          } else if let floatLiteral = firstArg.expression.as(FloatLiteralExprSyntax.self) {
-            return Double(floatLiteral.literal.text)
-          }
+          return timeout
         }
       }
     }

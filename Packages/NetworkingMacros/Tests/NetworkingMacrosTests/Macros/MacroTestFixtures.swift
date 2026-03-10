@@ -34,9 +34,9 @@ enum MacroTestFixtures {
   // MARK: - Simple GET Endpoints
 
   static let simpleGETProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
     }
     """
@@ -63,9 +63,9 @@ enum MacroTestFixtures {
   // MARK: - GET with Query Parameters
 
   static let getWithQueryParamsProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users", queryParameters: ["role", "limit"])
+      @GET(.path("/users"), queryParameters: [.parameter("role"), .parameter("limit")])
       func listUsers(role: String?, limit: Int?) async throws -> [User]
     }
     """
@@ -103,9 +103,9 @@ enum MacroTestFixtures {
   // MARK: - POST with Body
 
   static let postWithBodyProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @POST("/users", body: "user")
+      @POST(.path("/users"), body: .parameter("user"))
       func createUser(user: CreateUserRequest) async throws -> User
     }
     """
@@ -134,9 +134,9 @@ enum MacroTestFixtures {
   // MARK: - PUT with Path Params and Body
 
   static let putWithPathAndBodyProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @PUT("/users/{id}", body: "user")
+      @PUT(.path("/users/{id}"), body: .parameter("user"))
       func updateUser(id: String, user: User) async throws -> User
     }
     """
@@ -144,9 +144,9 @@ enum MacroTestFixtures {
   // MARK: - DELETE Endpoint
 
   static let deleteProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @DELETE("/users/{id}")
+      @DELETE(.path("/users/{id}"))
       func deleteUser(id: String) async throws
     }
     """
@@ -172,22 +172,19 @@ enum MacroTestFixtures {
   // MARK: - Configuration Macros
 
   static let protocolWithHeaders = """
-    @API(baseURL: "https://api.example.com")
-    @DefaultHeaders([
-      "X-API-Version": "v1",
-      "Accept": "application/json"
-    ])
+    @API(baseURL: .absolute("https://api.example.com"))
+    @DefaultHeaders([.named("X-API-Version"): .literal("v1"), .named("Accept"): .literal("application/json")])
     protocol UserAPI {
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
     }
     """
 
   static let protocolWithTimeout = """
-    @API(baseURL: "https://api.example.com")
-    @Timeout(30.0)
+    @API(baseURL: .absolute("https://api.example.com"))
+    @Timeout(.seconds(30.0))
     protocol UserAPI {
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
     }
     """
@@ -195,23 +192,23 @@ enum MacroTestFixtures {
   // MARK: - Complex Multi-Method Protocol
 
   static let complexProtocol = """
-    @API(baseURL: "https://api.example.com")
-    @DefaultHeaders(["X-API-Version": "v1"])
-    @Timeout(15.0)
+    @API(baseURL: .absolute("https://api.example.com"))
+    @DefaultHeaders([.named("X-API-Version"): .literal("v1")])
+    @Timeout(.seconds(15.0))
     protocol UserAPI {
-      @GET("/users", queryParameters: ["role"])
+      @GET(.path("/users"), queryParameters: [.parameter("role")])
       func listUsers(role: String?) async throws -> [User]
 
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
 
-      @POST("/users", body: "request")
+      @POST(.path("/users"), body: .parameter("request"))
       func createUser(request: CreateUserRequest) async throws -> User
 
-      @PUT("/users/{id}", body: "user")
+      @PUT(.path("/users/{id}"), body: .parameter("user"))
       func updateUser(id: String, user: User) async throws -> User
 
-      @DELETE("/users/{id}")
+      @DELETE(.path("/users/{id}"))
       func deleteUser(id: String) async throws
     }
     """
@@ -220,73 +217,73 @@ enum MacroTestFixtures {
 
   /// Missing async keyword
   static let missingAsyncError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) throws -> User
     }
     """
 
   /// Missing throws keyword
   static let missingThrowsError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async -> User
     }
     """
 
   /// Path parameter mismatch
   static let pathParameterMismatchError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users/{userId}")
+      @GET(.path("/users/{userId}"))
       func getUser(id: String) async throws -> User
     }
     """
 
   /// Body parameter not found
   static let bodyParameterNotFoundError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @POST("/users", body: "request")
+      @POST(.path("/users"), body: .parameter("request"))
       func createUser(user: User) async throws -> User
     }
     """
 
   /// Query parameter not found
   static let queryParameterNotFoundError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users", queryParameters: ["role", "status"])
+      @GET(.path("/users"), queryParameters: [.parameter("role"), .parameter("status")])
       func listUsers(role: String?) async throws -> [User]
     }
     """
 
   /// Multiple HTTP methods
   static let multipleHTTPMethodsError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users/{id}")
-      @POST("/users/{id}")
+      @GET(.path("/users/{id}"))
+      @POST(.path("/users/{id}"))
       func handleUser(id: String) async throws -> User
     }
     """
 
   /// Invalid path template (unmatched braces)
   static let invalidPathTemplateError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users/{id")
+      @GET(.path("/users/{id"))
       func getUser(id: String) async throws -> User
     }
     """
 
   /// Invalid path template (empty parameter)
   static let emptyParameterError = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users/{}")
+      @GET(.path("/users/{}"))
       func getUser(id: String) async throws -> User
     }
     """
@@ -295,36 +292,36 @@ enum MacroTestFixtures {
 
   /// No parameters
   static let noParametersProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @GET("/users")
+      @GET(.path("/users"))
       func listUsers() async throws -> [User]
     }
     """
 
   /// Void return type
   static let voidReturnProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol UserAPI {
-      @DELETE("/users/{id}")
+      @DELETE(.path("/users/{id}"))
       func deleteUser(id: String) async throws
     }
     """
 
   /// Multiple path parameters
   static let multiplePathParamsProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol PostAPI {
-      @GET("/users/{userId}/posts/{postId}")
+      @GET(.path("/users/{userId}/posts/{postId}"))
       func getPost(userId: String, postId: String) async throws -> Post
     }
     """
 
   /// Mixed path and query parameters
   static let mixedParametersProtocol = """
-    @API(baseURL: "https://api.example.com")
+    @API(baseURL: .absolute("https://api.example.com"))
     protocol PostAPI {
-      @GET("/users/{userId}/posts", queryParameters: ["status", "limit"])
+      @GET(.path("/users/{userId}/posts"), queryParameters: [.parameter("status"), .parameter("limit")])
       func listUserPosts(
         userId: String,
         status: String?,
@@ -337,23 +334,20 @@ enum MacroTestFixtures {
 
   /// GitHub API-style protocol
   static let githubStyleProtocol = """
-    @API(baseURL: "https://api.github.com")
-    @DefaultHeaders([
-      "Accept": "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28"
-    ])
+    @API(baseURL: .absolute("https://api.github.com"))
+    @DefaultHeaders([.named("Accept"): .literal("application/vnd.github+json"), .named("X-GitHub-Api-Version"): .literal("2022-11-28")])
     protocol GitHubAPI {
-      @GET("/users/{username}")
+      @GET(.path("/users/{username}"))
       func getUser(username: String) async throws -> GitHubUser
 
-      @GET("/users/{username}/repos", queryParameters: ["sort", "direction"])
+      @GET(.path("/users/{username}/repos"), queryParameters: [.parameter("sort"), .parameter("direction")])
       func listRepos(
         username: String,
         sort: String?,
         direction: String?
       ) async throws -> [GitHubRepo]
 
-      @POST("/repos/{owner}/{repo}/issues", body: "issue")
+      @POST(.path("/repos/{owner}/{repo}/issues"), body: .parameter("issue"))
       func createIssue(
         owner: String,
         repo: String,

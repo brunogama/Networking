@@ -101,7 +101,7 @@ public struct InterceptorsMacro: MemberMacro {
   ///
   /// - Parameter declaration: The protocol declaration to search
   /// - Returns: Array of interceptor expressions, or empty array if no @Interceptors attribute found
-  public static func extractInterceptorExpressions(
+  static func extractInterceptorExpressions(
     from declaration: some WithAttributesSyntax
   ) -> [ExprSyntax] {
     for attribute in declaration.attributes {
@@ -142,7 +142,7 @@ public struct InterceptorsMacro: MemberMacro {
   ///
   /// - Parameter declaration: The protocol declaration to check
   /// - Returns: True if @Interceptors attribute is present, false otherwise
-  public static func hasInterceptors(from declaration: some WithAttributesSyntax) -> Bool {
+  static func hasInterceptors(from declaration: some WithAttributesSyntax) -> Bool {
     for attribute in declaration.attributes {
       guard case .attribute(let attr) = attribute else { continue }
       let attrName = attr.attributeName.description

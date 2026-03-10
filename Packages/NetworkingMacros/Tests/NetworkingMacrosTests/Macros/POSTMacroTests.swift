@@ -18,13 +18,13 @@ final class POSTMacroTests: XCTestCase {
   func testBasicPOSTExpansion() {
     assertMacro {
       """
-      @POST("/users")
-      @Body("user")
+      @POST(.path("/users"))
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) async throws -> User
       """
     } expansion: {
       """
-      @Body("user")
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) async throws -> User
 
       func createUser(user: CreateUserRequest) async throws -> User {
@@ -43,13 +43,13 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTWithPathParameter() {
     assertMacro {
       """
-      @POST("/users/{id}/profile")
-      @Body("profile")
+      @POST(.path("/users/{id}/profile"))
+      @Body(.parameter("profile"))
       func updateProfile(id: String, profile: Profile) async throws -> Profile
       """
     } expansion: {
       #"""
-      @Body("profile")
+      @Body(.parameter("profile"))
       func updateProfile(id: String, profile: Profile) async throws -> Profile
 
       func updateProfile(id: String profile: Profile) async throws -> Profile {
@@ -68,13 +68,13 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTWithQueryParameter() {
     assertMacro {
       """
-      @POST("/users", query: ["notify"])
-      @Body("user")
+      @POST(.path("/users"), query: [.parameter("notify")])
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest, notify: Bool) async throws -> User
       """
     } expansion: {
       """
-      @Body("user")
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest, notify: Bool) async throws -> User
 
       func createUser(user: CreateUserRequest notify: Bool) async throws -> User {
@@ -93,13 +93,13 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTWithAllParameters() {
     assertMacro {
       """
-      @POST("/projects/{projectId}/tasks", query: ["priority"])
-      @Body("task")
+      @POST(.path("/projects/{projectId}/tasks"), query: [.parameter("priority")])
+      @Body(.parameter("task"))
       func createTask(projectId: String, task: TaskRequest, priority: Int) async throws -> Task
       """
     } expansion: {
       #"""
-      @Body("task")
+      @Body(.parameter("task"))
       func createTask(projectId: String, task: TaskRequest, priority: Int) async throws -> Task
 
       func createTask(projectId: String task: TaskRequest priority: Int) async throws -> Task {
@@ -120,13 +120,13 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTRequiresBody() {
     assertMacro {
       """
-      @POST("/users")
+      @POST(.path("/users"))
       func createUser(user: CreateUserRequest) async throws -> User
       """
     } diagnostics: {
       """
-      @POST("/users")
-      ┬──────────────
+      @POST(.path("/users"))
+      ┬─────────────────────
       ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
       func createUser(user: CreateUserRequest) async throws -> User
       """
@@ -136,16 +136,16 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTRequiresAsyncThrows() {
     assertMacro {
       """
-      @POST("/users")
-      @Body("user")
+      @POST(.path("/users"))
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) -> User
       """
     } diagnostics: {
       """
-      @POST("/users")
-      ┬──────────────
+      @POST(.path("/users"))
+      ┬─────────────────────
       ╰─ 🛑 Function 'createUser' must be marked 'async'
-      @Body("user")
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) -> User
       """
     }
@@ -154,16 +154,16 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTValidatesPathParameters() {
     assertMacro {
       """
-      @POST("/users/{userId}/posts")
-      @Body("post")
+      @POST(.path("/users/{userId}/posts"))
+      @Body(.parameter("post"))
       func createPost(id: String, post: Post) async throws -> Post
       """
     } diagnostics: {
       """
-      @POST("/users/{userId}/posts")
-      ┬─────────────────────────────
+      @POST(.path("/users/{userId}/posts"))
+      ┬────────────────────────────────────
       ╰─ 🛑 Path parameter mismatch in '/users/{userId}/posts': function has parameters [id, post], but path requires [userId]
-      @Body("post")
+      @Body(.parameter("post"))
       func createPost(id: String, post: Post) async throws -> Post
       """
     }

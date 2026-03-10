@@ -121,5 +121,5 @@ import Foundation
 /// - `APIClientError`: Errors thrown by generated implementations
 ///
 @attached(member, names: arbitrary)
-public macro API(baseURL: String) =
+public macro API(baseURL: APIBaseURL) =
   #externalMacro(module: "NetworkingMacrosPlugin", type: "APIMacro")

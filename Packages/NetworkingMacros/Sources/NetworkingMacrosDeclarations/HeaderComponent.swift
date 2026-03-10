@@ -20,7 +20,7 @@
 /// ```
 public struct HeaderComponent: Sendable {
   /// The HTTP header name (e.g., "Authorization", "Content-Type")
-  public let name: String
+  public let name: HeaderName
 
   /// The source of the header value (parameter reference or literal)
   public let valueSource: ValueSource
@@ -28,10 +28,10 @@ public struct HeaderComponent: Sendable {
   /// Determines whether header value comes from a function parameter or is a literal.
   public enum ValueSource: Sendable {
     /// Value comes from a function parameter with the given name
-    case parameter(String)
+    case parameter(HeaderValueReference)
 
     /// Value is a literal string constant
-    case literal(String)
+    case literal(HeaderValueReference)
   }
 
   /// Creates a new header component.
@@ -39,7 +39,7 @@ public struct HeaderComponent: Sendable {
   /// - Parameters:
   ///   - name: The HTTP header name
   ///   - valueSource: The source of the header value
-  public init(name: String, valueSource: ValueSource) {
+  public init(name: HeaderName, valueSource: ValueSource) {
     self.name = name
     self.valueSource = valueSource
   }

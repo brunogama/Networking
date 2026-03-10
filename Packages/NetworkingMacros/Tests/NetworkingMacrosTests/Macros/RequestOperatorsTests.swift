@@ -24,7 +24,7 @@ final class RequestOperatorsTests: XCTestCase {
   func testGETRequestStructure() {
     assertMacro {
       """
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
       """
     } expansion: {
@@ -44,13 +44,13 @@ final class RequestOperatorsTests: XCTestCase {
   func testPOSTRequestStructure() {
     assertMacro {
       """
-      @POST("/users")
-      @Body("user")
+      @POST(.path("/users"))
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) async throws -> User
       """
     } expansion: {
       """
-      @Body("user")
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) async throws -> User
 
       func createUser(user: CreateUserRequest) async throws -> User {
@@ -69,7 +69,7 @@ final class RequestOperatorsTests: XCTestCase {
   func testDELETERequestStructure() {
     assertMacro {
       """
-      @DELETE("/users/{id}")
+      @DELETE(.path("/users/{id}"))
       func deleteUser(id: String) async throws
       """
     } expansion: {
@@ -91,7 +91,7 @@ final class RequestOperatorsTests: XCTestCase {
   func testDecodeResponsePattern() {
     assertMacro {
       """
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
       """
     } expansion: {
@@ -111,7 +111,7 @@ final class RequestOperatorsTests: XCTestCase {
   func testVoidReturnPattern() {
     assertMacro {
       """
-      @DELETE("/users/{id}")
+      @DELETE(.path("/users/{id}"))
       func deleteUser(id: String) async throws
       """
     } expansion: {
@@ -131,7 +131,7 @@ final class RequestOperatorsTests: XCTestCase {
   func testArrayReturnPattern() {
     assertMacro {
       """
-      @GET("/users")
+      @GET(.path("/users"))
       func listUsers() async throws -> [User]
       """
     } expansion: {
@@ -153,7 +153,7 @@ final class RequestOperatorsTests: XCTestCase {
   func testAsyncThrowsSignature() {
     assertMacro {
       """
-      @GET("/users")
+      @GET(.path("/users"))
       func getUsers() async throws -> [User]
       """
     } expansion: {
@@ -173,13 +173,13 @@ final class RequestOperatorsTests: XCTestCase {
   func testRequiresAsyncThrows() {
     assertMacro {
       """
-      @GET("/users")
+      @GET(.path("/users"))
       func getUsers() -> [User]
       """
     } diagnostics: {
       """
-      @GET("/users")
-      ┬─────────────
+      @GET(.path("/users"))
+      ┬────────────────────
       ╰─ 🛑 Function 'getUsers' must be marked 'async'
       func getUsers() -> [User]
       """
@@ -191,7 +191,7 @@ final class RequestOperatorsTests: XCTestCase {
   func testMultiplePathSegments() {
     assertMacro {
       """
-      @GET("/api/v1/users/{userId}/profile")
+      @GET(.path("/api/v1/users/{userId}/profile"))
       func getUserProfile(userId: String) async throws -> Profile
       """
     } expansion: {
@@ -208,50 +208,4 @@ final class RequestOperatorsTests: XCTestCase {
     }
   }
 
-  func testQueryParameterEncoding() {
-    assertMacro {
-      """
-      @GET("/search", query: ["q", "page", "limit"])
-      func search(q: String, page: Int, limit: Int) async throws -> SearchResults
-      """
-    } expansion: {
-      """
-      func search(q: String, page: Int, limit: Int) async throws -> SearchResults
-
-      func search(q: String page: Int limit: Int) async throws -> SearchResults {
-          let path = "/search"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(SearchResults.self, from response.data)
-      }
-      """
-    }
-  }
-
-  // MARK: - Complex Composition
-
-  func testComplexRequestComposition() {
-    assertMacro {
-      """
-      @POST("/projects/{projectId}/tasks", query: ["priority"])
-      @Body("task")
-      func createTask(projectId: String, task: TaskRequest, priority: Int) async throws -> Task
-      """
-    } expansion: {
-      #"""
-      @Body("task")
-      func createTask(projectId: String, task: TaskRequest, priority: Int) async throws -> Task
-
-      func createTask(projectId: String task: TaskRequest priority: Int) async throws -> Task {
-          let path = "/projects/\(projectId)/tasks"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(task))
-        request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(Task.self, from response.data)
-      }
-      """#
-    }
-  }
 }

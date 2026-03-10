@@ -18,7 +18,7 @@ final class BodyMacroTests: XCTestCase {
   func testBodyMacroBasicUsage() {
     assertMacro {
       """
-      @Body("user")
+      @Body(.parameter("user"))
       func createUser(user: User) async throws -> User
       """
     } expansion: {
@@ -31,7 +31,7 @@ final class BodyMacroTests: XCTestCase {
   func testBodyMacroWithMultipleParameters() {
     assertMacro {
       """
-      @Body("data")
+      @Body(.parameter("data"))
       func updateUser(id: String, data: UserData) async throws -> User
       """
     } expansion: {
@@ -44,7 +44,7 @@ final class BodyMacroTests: XCTestCase {
   func testBodyMacroWithInternalParameterName() {
     assertMacro {
       """
-      @Body("requestBody")
+      @Body(.parameter("requestBody"))
       func createPost(for userId: String, requestBody: PostData) async throws -> Post
       """
     } expansion: {
@@ -59,13 +59,13 @@ final class BodyMacroTests: XCTestCase {
   func testBodyMacroParameterNotFound() {
     assertMacro {
       """
-      @Body("nonexistent")
+      @Body(.parameter("nonexistent"))
       func createUser(user: User) async throws -> User
       """
     } diagnostics: {
       """
-      @Body("nonexistent")
-      ┬───────────────────
+      @Body(.parameter("nonexistent"))
+      ┬───────────────────────────────
       ╰─ 🛑 Body parameter 'nonexistent' not found in function signature. Available: [user]
       func createUser(user: User) async throws -> User
       """
@@ -82,7 +82,7 @@ final class BodyMacroTests: XCTestCase {
       """
       @Body
       ┬────
-      ╰─ 🛑 Invalid path template '@Body requires parameter name: @Body("parameterName")'
+      ╰─ 🛑 Invalid path template '@Body requires parameter name: @Body(.parameter("parameterName"))'
       func createUser(user: User) async throws -> User
       """
     }
@@ -91,15 +91,15 @@ final class BodyMacroTests: XCTestCase {
   func testBodyMacroOnNonFunction() {
     assertMacro {
       """
-      @Body("value")
+      @Body(.parameter("value"))
       struct User {
         let value: String
       }
       """
     } diagnostics: {
       """
-      @Body("value")
-      ┬─────────────
+      @Body(.parameter("value"))
+      ┬─────────────────────────
       ╰─ 🛑 Invalid path template '@Body can only be applied to functions'
       struct User {
         let value: String
@@ -111,17 +111,17 @@ final class BodyMacroTests: XCTestCase {
   func testBodyMacroMultipleOnSameFunction() {
     assertMacro {
       """
-      @Body("user")
-      @Body("data")
+      @Body(.parameter("user"))
+      @Body(.parameter("data"))
       func createUser(user: User, data: UserData) async throws -> User
       """
     } diagnostics: {
       """
-      @Body("user")
-      ┬────────────
+      @Body(.parameter("user"))
+      ┬────────────────────────
       ╰─ 🛑 Invalid path template 'Only one @Body macro allowed per function. Found 2.'
-      @Body("data")
-      ┬────────────
+      @Body(.parameter("data"))
+      ┬────────────────────────
       ╰─ 🛑 Invalid path template 'Only one @Body macro allowed per function. Found 2.'
       func createUser(user: User, data: UserData) async throws -> User
       """

@@ -311,19 +311,15 @@ public struct APIMacro: MemberMacro {
       return nil
     }
 
-    // Extract string literal value
-    if let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
-      let segment = stringLiteral.segments.first,
-      case .stringSegment(let stringSegment) = segment
-    {
-      return stringSegment.content.text
+    if let baseURL = BoundaryExpressionParser.string(from: firstArg.expression) {
+      return baseURL
     }
 
     context.diagnose(
       Diagnostic(
         node: Syntax(attribute),
         message: SimpleDiagnosticMessage(
-          message: "Base URL must be a string literal",
+          message: "Base URL must use a typed base URL expression",
           diagnosticID: MessageID(domain: "Networking", id: "invalidBaseURL"),
           severity: .error
         )

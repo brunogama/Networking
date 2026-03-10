@@ -30,6 +30,7 @@ public struct HeaderBuilder {
   }
 }
 
+// swiftlint:disable identifier_name
 /// Creates a header component for use in `@Headers` result builder.
 ///
 /// The second parameter can be either a literal string value or a reference
@@ -59,9 +60,10 @@ public struct HeaderBuilder {
 ///   - name: The HTTP header name (e.g., "Authorization", "Content-Type")
 ///   - value: Either a literal value or parameter name
 /// - Returns: HeaderComponent for builder composition
-public func H(_ name: String, _ value: String) -> HeaderComponent {
+public func H(_ name: HeaderName, _ value: HeaderValueReference) -> HeaderComponent {
   // At this stage, we default to .parameter
   // The macro will determine literal vs parameter during expansion
   // based on the function signature
   HeaderComponent(name: name, valueSource: .parameter(value))
 }
+// swiftlint:enable identifier_name

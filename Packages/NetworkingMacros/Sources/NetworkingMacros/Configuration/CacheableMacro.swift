@@ -73,7 +73,16 @@ public struct CacheableMacro: PeerMacro {
           label: "duration",
           value: .functionCall(
             function: "ttl",
-            arguments: [(label: nil, value: .literal(.integer(duration)))]
+            arguments: [
+              (
+                label: nil,
+                value: .methodCall(
+                  base: .variable("Duration", payload: ()),
+                  method: "seconds",
+                  arguments: [(label: nil, value: .literal(.integer(duration)))]
+                )
+              )
+            ]
           )
         ),
         (

@@ -127,8 +127,8 @@ import Foundation
 ///
 @attached(peer)
 public macro GET(
-  _ path: String,
-  queryParameters: [String] = []
+  _ path: EndpointPath,
+  queryParameters: [ParameterReference] = []
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "GETMacro")
 
 /// Marks a method as an HTTP POST request.
@@ -157,9 +157,9 @@ public macro GET(
 ///
 @attached(peer)
 public macro POST(
-  _ path: String,
-  body: String,
-  headers: [String: String] = [:]
+  _ path: EndpointPath,
+  body: ParameterReference,
+  headers: DefaultHeaderMap = [:]
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "POSTMacro")
 
 /// Marks a method as an HTTP PUT request.
@@ -181,9 +181,9 @@ public macro POST(
 ///
 @attached(peer)
 public macro PUT(
-  _ path: String,
-  body: String,
-  headers: [String: String] = [:]
+  _ path: EndpointPath,
+  body: ParameterReference,
+  headers: DefaultHeaderMap = [:]
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PUTMacro")
 
 /// Marks a method as an HTTP PATCH request.
@@ -205,9 +205,9 @@ public macro PUT(
 ///
 @attached(peer)
 public macro PATCH(
-  _ path: String,
-  body: String,
-  headers: [String: String] = [:]
+  _ path: EndpointPath,
+  body: ParameterReference,
+  headers: DefaultHeaderMap = [:]
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PATCHMacro")
 
 /// Marks a method as an HTTP DELETE request.
@@ -232,5 +232,5 @@ public macro PATCH(
 /// - Parameter path: The endpoint path relative to base URL
 ///
 @attached(peer)
-public macro DELETE(_ path: String) =
+public macro DELETE(_ path: EndpointPath) =
   #externalMacro(module: "NetworkingMacrosPlugin", type: "DELETEMacro")
