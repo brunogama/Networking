@@ -1,228 +1,200 @@
-import XCTest
-import Quick
-import Nimble
-@testable import Networking
 import Foundation
+import Testing
+
+@testable import Networking
 
 /// Basic BDD tests for core networking functionality using existing APIs
-final class SimpleBDDTests: QuickSpec {
-  override class func spec() {
-    describe("HTTPRequest") {
-      context("when creating a basic request") {
-        it("should have the correct properties") {
-          // Given: A URL and method
-          let url = URL(string: "https://api.example.com/users")!
-          let method = HTTPMethod.get
+@Suite("Core networking behavior")
+struct SimpleBDDTests {
+  @Suite("HTTPRequest")
+  struct HTTPRequestBehavior {
+    @Suite("When creating a basic request")
+    struct WhenCreatingABasicRequest {
+      @Test("Has the correct properties")
+      func hasTheCorrectProperties() {
+        let url = URL(string: "https://api.example.com/users")!
+        let request = HTTPRequest(method: .get, url: url)
 
-          // When: Creating a request
-          let request = HTTPRequest(method: method, url: url)
+        #expect(request.method == .get)
+        #expect(request.url == url)
+        #expect(request.headers.isEmpty)
+        #expect(request.body == nil)
+      }
 
-          // Then: Should have correct values
-          expect(request.method).to(equal(.get))
-          expect(request.url).to(equal(url))
-          expect(request.headers).to(beEmpty())
-          expect(request.body).to(beNil())
-        }
+      @Test("Supports headers and body")
+      func supportsHeadersAndBody() {
+        let url = URL(string: "https://api.example.com/users")!
+        let headers = ["Content-Type": "application/json", "Authorization": "Bearer token"]
+        let bodyData = Data("test body".utf8)
 
-        it("should support headers and body") {
-          // Given: Request data
-          let url = URL(string: "https://api.example.com/users")!
-          let headers = ["Content-Type": "application/json", "Authorization": "Bearer token"]
-          let bodyData = Data("test body".utf8)
+        let request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: headers,
+          body: bodyData
+        )
 
-          // When: Creating request with data
-          let request = HTTPRequest(
-            method: .post,
-            url: url,
-            headers: headers,
-            body: bodyData
-          )
-
-          // Then: Should contain all data
-          expect(request.method).to(equal(.post))
-          expect(request.url).to(equal(url))
-          expect(request.headers).to(equal(headers))
-          expect(request.body).to(equal(bodyData))
-        }
+        #expect(request.method == .post)
+        #expect(request.url == url)
+        #expect(request.headers == headers)
+        #expect(request.body == bodyData)
       }
     }
+  }
 
-    describe("HTTPStatus") {
-      context("when checking status categories") {
-        it("should correctly identify success status codes") {
-          let status200 = HTTPStatus(rawValue: 200)
-          let status201 = HTTPStatus(rawValue: 201)
-          let status299 = HTTPStatus(rawValue: 299)
+  @Suite("HTTPStatus")
+  struct HTTPStatusBehavior {
+    @Suite("When checking status categories")
+    struct WhenCheckingStatusCategories {
+      @Test("Correctly identifies success status codes")
+      func correctlyIdentifiesSuccessStatusCodes() {
+        #expect(HTTPStatus(rawValue: 200).isSuccess)
+        #expect(HTTPStatus(rawValue: 201).isSuccess)
+        #expect(HTTPStatus(rawValue: 299).isSuccess)
+      }
 
-          expect(status200.isSuccess).to(beTrue())
-          expect(status201.isSuccess).to(beTrue())
-          expect(status299.isSuccess).to(beTrue())
-        }
+      @Test("Correctly identifies client error status codes")
+      func correctlyIdentifiesClientErrorStatusCodes() {
+        #expect(HTTPStatus(rawValue: 400).isClientError)
+        #expect(HTTPStatus(rawValue: 404).isClientError)
+        #expect(HTTPStatus(rawValue: 499).isClientError)
+      }
 
-        it("should correctly identify client error status codes") {
-          let status400 = HTTPStatus(rawValue: 400)
-          let status404 = HTTPStatus(rawValue: 404)
-          let status499 = HTTPStatus(rawValue: 499)
-
-          expect(status400.isClientError).to(beTrue())
-          expect(status404.isClientError).to(beTrue())
-          expect(status499.isClientError).to(beTrue())
-        }
-
-        it("should correctly identify server error status codes") {
-          let status500 = HTTPStatus(rawValue: 500)
-          let status502 = HTTPStatus(rawValue: 502)
-          let status599 = HTTPStatus(rawValue: 599)
-
-          expect(status500.isServerError).to(beTrue())
-          expect(status502.isServerError).to(beTrue())
-          expect(status599.isServerError).to(beTrue())
-        }
+      @Test("Correctly identifies server error status codes")
+      func correctlyIdentifiesServerErrorStatusCodes() {
+        #expect(HTTPStatus(rawValue: 500).isServerError)
+        #expect(HTTPStatus(rawValue: 502).isServerError)
+        #expect(HTTPStatus(rawValue: 599).isServerError)
       }
     }
+  }
 
-    describe("HTTPError") {
-      context("when handling different error categories") {
-        it("should categorize HTTP errors correctly") {
-          // Given: Different HTTP status codes
-          let status400 = HTTPStatus(rawValue: 400)
-          let status500 = HTTPStatus(rawValue: 500)
+  @Suite("HTTPError")
+  struct HTTPErrorBehavior {
+    @Suite("When handling different error categories")
+    struct WhenHandlingDifferentErrorCategories {
+      @Test("Categorizes HTTP errors correctly")
+      func categorizesHTTPErrorsCorrectly() {
+        let clientError = HTTPError(category: .http(HTTPStatus(rawValue: 400)))
+        let serverError = HTTPError(category: .http(HTTPStatus(rawValue: 500)))
 
-          // When: Creating HTTP errors
-          let clientError = HTTPError(category: .http(status400))
-          let serverError = HTTPError(category: .http(status500))
-
-          // Then: Should have correct categories
-          switch clientError.category {
-          case .http(let status):
-            expect(status.isClientError).to(beTrue())
-
-          default:
-            fail("Expected HTTP error category")
-          }
-
-          switch serverError.category {
-          case .http(let status):
-            expect(status.isServerError).to(beTrue())
-
-          default:
-            fail("Expected HTTP error category")
-          }
+        guard case .http(let clientStatus) = clientError.category else {
+          Issue.record("Expected HTTP error category for client error")
+          return
         }
 
-        it("should handle network errors") {
-          // Given: A network error
-          let networkError = HTTPError(category: .network(.connectionLost))
-
-          // When: Checking error properties
-          // Then: Should be recoverable
-          expect(networkError.recoveryCategory != .nonRecoverable).to(beTrue())
+        guard case .http(let serverStatus) = serverError.category else {
+          Issue.record("Expected HTTP error category for server error")
+          return
         }
 
-        it("should handle timeout errors") {
-          // Given: A timeout error
-          let timeoutError = HTTPError(category: .timeout)
+        #expect(clientStatus.isClientError)
+        #expect(serverStatus.isServerError)
+      }
 
-          // When: Checking error properties
-          // Then: Should be recoverable
-          expect(timeoutError.recoveryCategory != .nonRecoverable).to(beTrue())
-        }
+      @Test("Handles network errors")
+      func handlesNetworkErrors() {
+        let networkError = HTTPError(category: .network(.connectionLost))
+
+        #expect(networkError.recoveryCategory != .nonRecoverable)
+      }
+
+      @Test("Handles timeout errors")
+      func handlesTimeoutErrors() {
+        let timeoutError = HTTPError(category: .timeout)
+
+        #expect(timeoutError.recoveryCategory != .nonRecoverable)
       }
     }
+  }
 
-    describe("CacheMetadata") {
-      context("when configuring cache settings") {
-        it("should store TTL and tags correctly") {
-          // Given: Cache configuration
-          let ttl: TimeInterval = 300
-          let tags = ["user", "profile"]
+  @Suite("CacheMetadata")
+  struct CacheMetadataBehavior {
+    @Suite("When configuring cache settings")
+    struct WhenConfiguringCacheSettings {
+      @Test("Stores TTL and tags correctly")
+      func storesTTLAndTagsCorrectly() {
+        let metadata = CacheMetadata(ttl: 300, tags: ["user", "profile"])
 
-          // When: Creating cache metadata
-          let metadata = CacheMetadata(ttl: ttl, tags: tags)
+        #expect(metadata.ttl == 300)
+        #expect(metadata.tags == ["user", "profile"])
+        #expect(metadata.customKey == nil)
+        #expect(!metadata.isInvalidating)
+      }
 
-          // Then: Should have correct values
-          expect(metadata.ttl).to(equal(ttl))
-          expect(metadata.tags).to(equal(tags))
-          expect(metadata.customKey).to(beNil())
-          expect(metadata.isInvalidating).to(beFalse())
-        }
+      @Test("Supports custom configuration")
+      func supportsCustomConfiguration() {
+        let metadata = CacheMetadata(
+          ttl: 600,
+          tags: ["data"],
+          customKey: "custom-key",
+          isInvalidating: true,
+          invalidationTags: ["invalidate-user"]
+        )
 
-        it("should support custom configuration") {
-          // Given: Custom cache settings
-          let customKey = "custom-key"
-          let invalidationTags = ["invalidate-user"]
-
-          // When: Creating metadata with custom settings
-          let metadata = CacheMetadata(
-            ttl: 600,
-            tags: ["data"],
-            customKey: customKey,
-            isInvalidating: true,
-            invalidationTags: invalidationTags
-          )
-
-          // Then: Should store all settings
-          expect(metadata.ttl).to(equal(600))
-          expect(metadata.tags).to(equal(["data"]))
-          expect(metadata.customKey).to(equal(customKey))
-          expect(metadata.isInvalidating).to(beTrue())
-          expect(metadata.invalidationTags).to(equal(invalidationTags))
-        }
+        #expect(metadata.ttl == 600)
+        #expect(metadata.tags == ["data"])
+        #expect(metadata.customKey == "custom-key")
+        #expect(metadata.isInvalidating)
+        #expect(metadata.invalidationTags == ["invalidate-user"])
       }
     }
+  }
 
-    describe("ValidatedResponse") {
-      context("when creating validated responses") {
-        it("should create successful responses") {
-          // Given: Response data
-          let url = URL(string: "https://api.example.com/data")!
-          let request = HTTPRequest(method: .get, url: url)
-          let status = HTTPStatus(rawValue: 200)
-          let response = HTTPResponse(
-            request: request,
-            status: status,
-            headers: [:],
-            body: Data("success".utf8)
-          )
-          let value = "test data"
+  @Suite("ValidatedResponse")
+  struct ValidatedResponseBehavior {
+    @Suite("When creating validated responses")
+    struct WhenCreatingValidatedResponses {
+      @Test("Creates successful responses")
+      func createsSuccessfulResponses() {
+        let request = HTTPRequest(
+          method: .get,
+          url: URL(string: "https://api.example.com/data")!
+        )
+        let status = HTTPStatus(rawValue: 200)
+        let response = HTTPResponse(
+          request: request,
+          status: status,
+          headers: [:],
+          body: Data("success".utf8)
+        )
+        let validatedResponse = ValidatedResponse.success(response: response, value: "test data")
 
-          // When: Creating validated response
-          let validatedResponse = ValidatedResponse.success(response: response, value: value)
+        #expect(validatedResponse.isValid)
+        #expect(validatedResponse.value == "test data")
+        #expect(validatedResponse.response.status == status)
+        #expect(validatedResponse.validationErrors.isEmpty)
+      }
 
-          // Then: Should be valid
-          expect(validatedResponse.isValid).to(beTrue())
-          expect(validatedResponse.value).to(equal(value))
-          expect(validatedResponse.response.status).to(equal(status))
-          expect(validatedResponse.validationErrors).to(beEmpty())
+      @Test("Creates failed responses")
+      func createsFailedResponses() {
+        let request = HTTPRequest(
+          method: .get,
+          url: URL(string: "https://api.example.com/data")!
+        )
+        let status = HTTPStatus(rawValue: 400)
+        let response = HTTPResponse(
+          request: request,
+          status: status,
+          headers: [:],
+          body: nil
+        )
+        let validatedResponse = ValidatedResponse.failure(
+          response: response,
+          value: "error data",
+          error: HTTPError(category: .http(status))
+        )
+
+        #expect(!validatedResponse.isValid)
+        #expect(validatedResponse.value == "error data")
+        #expect(!validatedResponse.validationErrors.isEmpty)
+
+        guard let firstValidationError = validatedResponse.validationErrors.first else {
+          Issue.record("Expected a validation error")
+          return
         }
 
-        it("should create failed responses") {
-          // Given: Response data with error
-          let url = URL(string: "https://api.example.com/data")!
-          let request = HTTPRequest(method: .get, url: url)
-          let status = HTTPStatus(rawValue: 400)
-          let response = HTTPResponse(
-            request: request,
-            status: status,
-            headers: [:],
-            body: nil
-          )
-          let value = "error data"
-          let error = HTTPError(category: .http(status))
-
-          // When: Creating failed response
-          let validatedResponse = ValidatedResponse.failure(
-            response: response,
-            value: value,
-            error: error
-          )
-
-          // Then: Should be invalid
-          expect(validatedResponse.isValid).to(beFalse())
-          expect(validatedResponse.value).to(equal(value))
-          expect(validatedResponse.validationErrors).toNot(beEmpty())
-          expect(validatedResponse.validationErrors.first).to(beAnInstanceOf(HTTPError.self))
-        }
+        #expect(firstValidationError is HTTPError)
       }
     }
   }
