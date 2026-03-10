@@ -1,221 +1,159 @@
 # Testing Guide
 
-Learn how to test your networking code using the Networking framework's built-in testing utilities and mock implementations.
+Learn how to test networking code with the dedicated `NetworkingTesting` package and the
+framework's supported fake seams.
 
-## Protocol Mocking for User Tests
+## Testing Strategy
 
-The Networking framework provides comprehensive mock implementations for all major protocols, making it easy to test your networking code without making real HTTP requests.
+The framework intentionally keeps most production APIs concrete. Testing is built around narrow,
+supported seams rather than protocolizing every value type.
 
-All mocks conform to `MockVerifiable` for consistent verification patterns.
+Prefer this order of operations in user tests:
 
-### Available Mocks
+1. Use real value types like `HTTPRequest`, `HTTPResponse`, and `NetworkClient` configuration.
+2. Add `NetworkingTesting` when you need a fake or mock seam.
+3. Mock only approved runtime boundaries such as `HTTPClient`, auth providers, middleware, cache
+   storage, time, tracing, and metrics.
+4. Prefer middleware-oriented tests for new runtime behavior. Interceptor mocks remain available for
+   compatibility scenarios only.
 
-The framework provides the following mock implementations:
+## Module Imports
 
-- **MockHTTPClient** (alias for MockNetworkClient) - Mock HTTP client for unit testing
-- **MockBearerTokenProvider** - Mock bearer token authentication provider
-- **MockCustomAuthProvider** - Mock custom authentication provider
-- **MockHTTPRequestMiddleware** - Mock request transformation middleware
-- **MockHTTPResponseMiddleware** - Mock response transformation middleware
-- **MockHTTPErrorMiddleware** - Mock error handling middleware
-- **MockRequestInterceptor** - Mock request interceptor
-- **MockResponseInterceptor** - Mock response interceptor
-- **MockCacheStorage** - Mock cache storage (actor-based)
-- **MockTimeProvider** - Mock time provider for testing time-dependent code
-- **MockMetricsCollector** - Mock metrics collector (actor-based)
-- **MockTraceExporter** - Mock trace exporter (actor-based)
+For most app and package tests:
 
-### Usage Examples
+```swift
+import Networking
+import NetworkingTesting
+```
 
-#### Example 1: Testing with Mock Token Provider
+For package-local tests inside the split modules, import only the package under test plus the test
+helpers you need:
+
+```swift
+@testable import NetworkingRuntime
+import NetworkingDSL
+import NetworkingRuntimeDSL
+import NetworkingTesting
+```
+
+## Supported Fake Seams
+
+`NetworkingTesting` provides concrete test doubles for the approved seams:
+
+- `MockNetworkClient` / `MockHTTPClient`
+- `MockBearerTokenProvider`
+- `MockCustomAuthProvider`
+- `MockHTTPRequestMiddleware`
+- `MockHTTPResponseMiddleware`
+- `MockHTTPErrorMiddleware`
+- `MockCacheStorage`
+- `MockTimeProvider`
+- `MockMetricsCollector`
+- `MockTraceExporter`
+- `MockURLProtocol`
+- `SequentialMock`
+
+All mock objects expose consistent verification helpers through `MockVerifiable`.
+
+## Example: End-To-End Request Stubbing
 
 ```swift
 import Testing
-@testable import Networking
+import Networking
+import NetworkingTesting
 
 @Test
-func userService_fetchesProfile_withValidToken() async throws {
-  let mockTokenProvider = MockBearerTokenProvider()
-  mockTokenProvider.stubToken("test-token-123")
+func fetchProfile_usesMockURLProtocol() async throws {
+  let contextID = UUID().uuidString
+  let data = #"{"id": 42}"#.data(using: .utf8)!
 
-  let client = NetworkClient {
-    BaseURL("https://api.example.com")
-    BearerAuth(provider: mockTokenProvider)
-  }
-
-  let request = HTTPRequest { GET("/profile") }
-  let response = try await client.execute(request)
-
-  #expect(response.status == .ok)
-  try await mockTokenProvider.verifyCalledOnce()
-}
-```
-
-#### Example 2: Testing Custom Middleware
-
-```swift
-@Test
-func middleware_addsCustomHeader() async throws {
-  let mockMiddleware = MockHTTPRequestMiddleware()
-  mockMiddleware.stubAddHeader("X-Custom", value: "test-value")
-
-  let request = HTTPRequest { GET("/users") }
-  let processed = try await mockMiddleware.modifyRequest(request)
-
-  #expect(processed.headers["X-Custom"] == "test-value")
-  try await mockMiddleware.verifyCalledOnce()
-}
-```
-
-#### Example 3: Testing Cache Behavior
-
-```swift
-@Test
-func caching_storesResponse() async throws {
-  let mockCache = MockCacheStorage()
-  let entry = CachingMiddleware.CacheEntry(
-    response: HTTPResponse(...),
-    ttl: 300
+  MockURLProtocol.clearAll(contextID: contextID)
+  MockURLProtocol.stubSuccess(
+    url: "https://api.example.com/profile",
+    statusCode: 200,
+    data: data,
+    headers: ["Content-Type": "application/json"],
+    contextID: contextID
   )
 
-  await mockCache.set("cache-key", entry: entry)
-
-  try await mockCache.verifySet("cache-key", times: 1)
-}
-```
-
-### Verification Patterns
-
-All mocks conforming to `MockVerifiable` provide standard verification methods:
-
-#### Async Verification Methods
-
-Due to Swift 6 concurrency requirements, all verification methods are async:
-
-```swift
-// Verify called exactly once
-try await mock.verifyCalledOnce()
-
-// Verify called exact number of times
-try await mock.verifyCalledExactly(3)
-
-// Verify never called
-try await mock.verifyNeverCalled()
-
-// Verify called at least N times
-try await mock.verifyCalledAtLeast(2)
-```
-
-#### Mock-Specific Verification
-
-Some mocks provide additional verification methods:
-
-```swift
-// MockBearerTokenProvider
-try mock.verifyTokenFetched(times: 1)
-try mock.verifyRefreshed(times: 2)
-try await mock.verifyNeverAccessed()
-
-// MockCacheStorage
-try await mockCache.verifyGet("key", times: 1)
-try await mockCache.verifySet("key", times: 1)
-
-// MockTraceExporter
-try await mockTracer.verifySpanExported(withName: "operation")
-```
-
-### Best Practices
-
-#### 1. Use Actors for State-Heavy Mocks
-
-Actor-based mocks (`MockCacheStorage`, `MockMetricsCollector`, `MockTraceExporter`) provide built-in thread safety:
-
-```swift
-let mockCache = MockCacheStorage() // Actor - thread-safe by design
-await mockCache.set("key", entry: entry)
-let retrieved = await mockCache.get("key")
-```
-
-#### 2. Use DispatchQueue for Simple Mocks
-
-Class-based mocks use DispatchQueue for synchronization:
-
-```swift
-let mockProvider = MockBearerTokenProvider() // Thread-safe via DispatchQueue
-mockProvider.stubToken("token")
-_ = try await mockProvider.getCurrentToken()
-```
-
-#### 3. Always Verify Expectations
-
-Verify that mocks were called as expected to catch missing calls:
-
-```swift
-@Test
-func feature_callsTokenProvider() async throws {
-  let mock = MockBearerTokenProvider()
-  mock.stubToken("token")
-
-  // ... execute code that should call the mock ...
-
-  try await mock.verifyCalledOnce() // Verify it was actually called
-}
-```
-
-#### 4. Reset Mocks Between Tests
-
-If reusing mocks, reset them between tests:
-
-```swift
-let mock = MockBearerTokenProvider()
-
-// First test
-mock.stubToken("token1")
-// ... test code ...
-
-// Reset before second test
-mock.reset()
-mock.stubToken("token2")
-// ... test code ...
-```
-
-### Testing Error Paths
-
-Mocks support error stubbing for testing error handling:
-
-```swift
-@Test
-func client_handlesTokenFetchError() async throws {
-  let mock = MockBearerTokenProvider()
-  mock.stubTokenFetchError(URLError(.notConnectedToInternet))
-
-  await #expect(throws: URLError.self) {
-    _ = try await mock.getCurrentToken()
+  let client = MockURLProtocol.createMockHTTPClient(contextID: contextID)
+  let request = try HTTPRequest {
+    GET("https://api.example.com/profile")
   }
+
+  let response = try await client.execute(request)
+  #expect(response.status == .ok)
 }
 ```
 
-### Testing Time-Dependent Code
-
-Use `MockTimeProvider` for testing time-dependent logic:
+## Example: Auth Provider Verification
 
 ```swift
+import Testing
+import Networking
+import NetworkingTesting
+
 @Test
-func cache_expiresAfterTTL() async throws {
-  let mockTime = MockTimeProvider()
-  mockTime.setTime(Date(timeIntervalSince1970: 1000))
+func authentication_fetchesBearerToken() async throws {
+  let tokenProvider = MockBearerTokenProvider()
+  tokenProvider.stubToken("test-token")
 
-  // ... set up cache with TTL ...
+  _ = try await tokenProvider.getCurrentToken()
 
-  mockTime.advance(by: 400) // Advance past TTL
-
-  // ... verify cache entry expired ...
+  try tokenProvider.verifyTokenFetched(times: 1)
+  try await tokenProvider.verifyCalledOnce()
 }
 ```
+
+## Example: Middleware Isolation
+
+```swift
+import Testing
+import NetworkingRuntime
+import NetworkingTesting
+
+@Test
+func requestMiddleware_addsHeader() async throws {
+  let middleware = MockHTTPRequestMiddleware()
+  middleware.stubAddHeader("X-Test", value: "true")
+
+  let request = HTTPRequest(method: .get, url: URL(string: "https://example.com")!)
+  let processed = try await middleware.modifyRequest(request)
+
+  #expect(processed.headers["X-Test"] == "true")
+  try await middleware.verifyCalledOnce()
+}
+```
+
+## Verification Helpers
+
+Verification remains async so the helpers stay Swift 6-safe:
+
+```swift
+try await mock.verifyCalledOnce()
+try await mock.verifyCalledExactly(3)
+try await mock.verifyCalledAtLeast(2)
+try await mock.verifyNeverCalled()
+```
+
+Mock-specific helpers remain available where they add signal:
+
+```swift
+try mock.verifyTokenFetched(times: 1)
+try await mockCache.verifySet("profile", times: 1)
+try await mockTraceExporter.verifySpanExported(withName: "fetch_profile")
+```
+
+## Best Practices
+
+- Use real request/response models first. Do not create mocks for builders or configuration values.
+- Reset shared mocks between tests when you intentionally reuse them.
+- Prefer actor-backed helpers like `MockCacheStorage` and `MockTraceExporter` for state-heavy tests.
+- Keep interceptor-specific tests confined to `NetworkingInterceptorsCompat` compatibility scenarios.
 
 ## See Also
 
-- ``MockVerifiable`` - Protocol for verifiable mock objects
-- ``MockBearerTokenProvider`` - Mock bearer token provider
-- ``MockHTTPRequestMiddleware`` - Mock request middleware
-- ``MockCacheStorage`` - Mock cache storage
+- <doc:Module-Migration>
+- ``MockVerifiable``
+- ``MockURLProtocol``
+- ``MockNetworkClient``

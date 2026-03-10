@@ -6,6 +6,9 @@ Learn how to integrate and use Networking in your Swift applications.
 
 Networking provides a modern, declarative approach to HTTP networking in Swift. This guide will walk you through the basics of setting up and using the framework.
 
+`Networking` remains the recommended default import. Use direct module imports only when you want to
+keep a target scoped to a smaller dependency surface.
+
 ## Installation
 
 ### Swift Package Manager
@@ -22,6 +25,14 @@ Then import the framework:
 
 ```swift
 import Networking
+```
+
+For package-level adoption, import the smallest module set that matches the behavior you need:
+
+```swift
+import NetworkingRuntime
+import NetworkingDSL
+import NetworkingRuntimeDSL
 ```
 
 ## Basic Concepts
@@ -121,6 +132,21 @@ do {
     }
 }
 ```
+
+### Runtime Extensibility
+
+Use middleware for new runtime behavior:
+
+```swift
+let client = NetworkClient {
+    BaseURL("https://api.example.com")
+    AddMiddleware(AuthenticationMiddleware(tokenProvider: tokenProvider))
+    AddMiddleware(RetryMiddleware())
+}
+```
+
+`NetworkingInterceptorsCompat` remains available for compatibility, but new extension work should
+prefer middleware.
 
 ### Retry Logic
 
@@ -234,6 +260,7 @@ let response = try await client.execute {
 ## Next Steps
 
 - Explore the <doc:Middleware-Guide> to learn about custom middleware
+- See <doc:Module-Migration> for the split package map and direct-import guidance
 - Learn about <doc:Security-Features> for production applications
 - Check out <doc:Testing-Guide> for testing strategies
 - See <doc:API-Reference> for complete API documentation
