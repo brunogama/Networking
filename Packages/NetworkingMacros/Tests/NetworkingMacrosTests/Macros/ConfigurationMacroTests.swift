@@ -18,7 +18,7 @@ final class ConfigurationMacroTests: XCTestCase {
   func testTimeoutBasicExpansion() {
     assertMacro {
       """
-      @Timeout(30.0)
+      @Timeout(.seconds(30.0))
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -35,7 +35,7 @@ final class ConfigurationMacroTests: XCTestCase {
   func testTimeoutOnProtocol() {
     assertMacro {
       """
-      @Timeout(60.0)
+      @Timeout(.seconds(60.0))
       protocol PostAPI {
         func getPosts() async throws -> [Post]
       }
@@ -52,15 +52,15 @@ final class ConfigurationMacroTests: XCTestCase {
   func testTimeoutRequiresProtocol() {
     assertMacro {
       """
-      @Timeout(30.0)
+      @Timeout(.seconds(30.0))
       struct UserService {
         func getUsers() async throws -> [User]
       }
       """
     } diagnostics: {
       """
-      @Timeout(30.0)
-      ┬─────────────
+      @Timeout(.seconds(30.0))
+      ┬───────────────────────
       ╰─ 🛑 @Timeout can only be applied to protocols
       struct UserService {
         func getUsers() async throws -> [User]
@@ -74,7 +74,7 @@ final class ConfigurationMacroTests: XCTestCase {
   func testDefaultHeadersBasicExpansion() {
     assertMacro {
       """
-      @DefaultHeaders(["Accept": "application/json"])
+      @DefaultHeaders([.named("Accept"): .literal("application/json")])
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -91,10 +91,7 @@ final class ConfigurationMacroTests: XCTestCase {
   func testDefaultHeadersMultiple() {
     assertMacro {
       """
-      @DefaultHeaders([
-        "Accept": "application/json",
-        "X-API-Version": "v1"
-      ])
+      @DefaultHeaders([.named("Accept"): .literal("application/json"), .named("X-API-Version"): .literal("v1")])
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -111,7 +108,7 @@ final class ConfigurationMacroTests: XCTestCase {
   func testDefaultHeadersOnProtocol() {
     assertMacro {
       """
-      @DefaultHeaders(["Authorization": "Bearer token"])
+      @DefaultHeaders([.named("Authorization"): .literal("Bearer token")])
       protocol SecureAPI {
         func getData() async throws -> Data
       }
@@ -128,15 +125,15 @@ final class ConfigurationMacroTests: XCTestCase {
   func testDefaultHeadersRequiresProtocol() {
     assertMacro {
       """
-      @DefaultHeaders(["Accept": "application/json"])
+      @DefaultHeaders([.named("Accept"): .literal("application/json")])
       struct UserService {
         func getUsers() async throws -> [User]
       }
       """
     } diagnostics: {
       """
-      @DefaultHeaders(["Accept": "application/json"])
-      ┬──────────────────────────────────────────────
+      @DefaultHeaders([.named("Accept"): .literal("application/json")])
+      ┬────────────────────────────────────────────────────────────────
       ╰─ 🛑 @DefaultHeaders can only be applied to protocols
       struct UserService {
         func getUsers() async throws -> [User]
@@ -150,7 +147,7 @@ final class ConfigurationMacroTests: XCTestCase {
   func testTimeoutWithInteger() {
     assertMacro {
       """
-      @Timeout(45)
+      @Timeout(.seconds(45))
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
@@ -167,15 +164,15 @@ final class ConfigurationMacroTests: XCTestCase {
   func testDefaultHeadersEmptyDictionary() {
     assertMacro {
       """
-      @DefaultHeaders([:])
+      @DefaultHeaders([])
       protocol UserAPI {
         func getUsers() async throws -> [User]
       }
       """
     } diagnostics: {
       """
-      @DefaultHeaders([:])
-      ┬───────────────────
+      @DefaultHeaders([])
+      ┬──────────────────
       ╰─ 🛑 @DefaultHeaders requires a non-empty headers dictionary
       protocol UserAPI {
         func getUsers() async throws -> [User]

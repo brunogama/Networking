@@ -31,45 +31,45 @@ final class IntegrationTests: XCTestCase {
   func testUserAPIPattern() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func listUsers() async throws -> [User]
 
-        @GET("/users/{id}")
+        @GET(.path("/users/{id}"))
         func getUser(id: String) async throws -> User
 
-        @POST("/users")
+        @POST(.path("/users"))
         func createUser(@Body user: User) async throws -> User
 
-        @PUT("/users/{id}")
+        @PUT(.path("/users/{id}"))
         func updateUser(id: String, @Body user: User) async throws -> User
 
-        @DELETE("/users/{id}")
+        @DELETE(.path("/users/{id}"))
         func deleteUser(id: String) async throws -> Void
       }
       """
     } diagnostics: {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func listUsers() async throws -> [User]
 
-        @GET("/users/{id}")
+        @GET(.path("/users/{id}"))
         func getUser(id: String) async throws -> User
 
-        @POST("/users")
-        ┬──────────────
+        @POST(.path("/users"))
+        ┬─────────────────────
         ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
         func createUser(@Body user: User) async throws -> User
 
-        @PUT("/users/{id}")
-        ┬──────────────────
+        @PUT(.path("/users/{id}"))
+        ┬─────────────────────────
         ╰─ 🛑 @PUT requires a body parameter. Use @Body("paramName") macro.
         func updateUser(id: String, @Body user: User) async throws -> User
 
-        @DELETE("/users/{id}")
+        @DELETE(.path("/users/{id}"))
         func deleteUser(id: String) async throws -> Void
       }
       """
@@ -79,26 +79,26 @@ final class IntegrationTests: XCTestCase {
   func testAuthenticatedAPIPattern() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
-      @DefaultHeaders(["Authorization": "Bearer token"])
+      @API(baseURL: .absolute("https://api.example.com"))
+      @DefaultHeaders([.named("Authorization"): .literal("Bearer token")])
       protocol SecureAPI {
-        @GET("/profile")
+        @GET(.path("/profile"))
         func getProfile() async throws -> Profile
 
-        @POST("/logout")
+        @POST(.path("/logout"))
         func logout(@Body request: LogoutRequest) async throws -> Void
       }
       """
     } diagnostics: {
       """
-      @API(baseURL: "https://api.example.com")
-      @DefaultHeaders(["Authorization": "Bearer token"])
+      @API(baseURL: .absolute("https://api.example.com"))
+      @DefaultHeaders([.named("Authorization"): .literal("Bearer token")])
       protocol SecureAPI {
-        @GET("/profile")
+        @GET(.path("/profile"))
         func getProfile() async throws -> Profile
 
-        @POST("/logout")
-        ┬───────────────
+        @POST(.path("/logout"))
+        ┬──────────────────────
         ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
         func logout(@Body request: LogoutRequest) async throws -> Void
       }
@@ -109,47 +109,47 @@ final class IntegrationTests: XCTestCase {
   func testRESTfulResourcePattern() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
-      @Timeout(30.0)
+      @API(baseURL: .absolute("https://api.example.com"))
+      @Timeout(.seconds(30.0))
       protocol PostAPI {
-        @GET("/posts")
+        @GET(.path("/posts"))
         func listPosts() async throws -> [Post]
 
-        @GET("/posts/{id}")
+        @GET(.path("/posts/{id}"))
         func getPost(id: String) async throws -> Post
 
-        @POST("/posts")
+        @POST(.path("/posts"))
         func createPost(@Body post: Post) async throws -> Post
 
-        @PUT("/posts/{id}")
+        @PUT(.path("/posts/{id}"))
         func updatePost(id: String, @Body post: Post) async throws -> Post
 
-        @DELETE("/posts/{id}")
+        @DELETE(.path("/posts/{id}"))
         func deletePost(id: String) async throws -> Void
       }
       """
     } diagnostics: {
       """
-      @API(baseURL: "https://api.example.com")
-      @Timeout(30.0)
+      @API(baseURL: .absolute("https://api.example.com"))
+      @Timeout(.seconds(30.0))
       protocol PostAPI {
-        @GET("/posts")
+        @GET(.path("/posts"))
         func listPosts() async throws -> [Post]
 
-        @GET("/posts/{id}")
+        @GET(.path("/posts/{id}"))
         func getPost(id: String) async throws -> Post
 
-        @POST("/posts")
-        ┬──────────────
+        @POST(.path("/posts"))
+        ┬─────────────────────
         ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
         func createPost(@Body post: Post) async throws -> Post
 
-        @PUT("/posts/{id}")
-        ┬──────────────────
+        @PUT(.path("/posts/{id}"))
+        ┬─────────────────────────
         ╰─ 🛑 @PUT requires a body parameter. Use @Body("paramName") macro.
         func updatePost(id: String, @Body post: Post) async throws -> Post
 
-        @DELETE("/posts/{id}")
+        @DELETE(.path("/posts/{id}"))
         func deletePost(id: String) async throws -> Void
       }
       """
@@ -161,7 +161,7 @@ final class IntegrationTests: XCTestCase {
   func testNestedPathParameters() {
     assertMacro {
       """
-      @GET("/users/{userId}/posts/{postId}/comments/{commentId}")
+      @GET(.path("/users/{userId}/posts/{postId}/comments/{commentId}"))
       func getComment(userId: String, postId: String, commentId: String) async throws -> Comment
       """
     } expansion: {
@@ -181,7 +181,7 @@ final class IntegrationTests: XCTestCase {
   func testQueryParameterCombinations() {
     assertMacro {
       """
-      @GET("/search", query: ["q", "page", "limit"])
+      @GET(.path("/search"), query: [.parameter("q"), .parameter("page"), .parameter("limit")])
       func search(q: String, page: Int, limit: Int) async throws -> SearchResults
       """
     } expansion: {
@@ -201,13 +201,13 @@ final class IntegrationTests: XCTestCase {
   func testMixedBodyAndQueryParams() {
     assertMacro {
       """
-      @POST("/users/search", query: ["includeDeleted"])
+      @POST(.path("/users/search"), query: [.parameter("includeDeleted")])
       func searchUsers(@Body criteria: SearchCriteria, includeDeleted: Bool) async throws -> [User]
       """
     } diagnostics: {
       """
-      @POST("/users/search", query: ["includeDeleted"])
-      ┬────────────────────────────────────────────────
+      @POST(.path("/users/search"), query: [.parameter("includeDeleted")])
+      ┬───────────────────────────────────────────────────────────────────
       ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
       func searchUsers(@Body criteria: SearchCriteria, includeDeleted: Bool) async throws -> [User]
       """

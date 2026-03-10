@@ -12,53 +12,27 @@ public struct BodyMacro: PeerMacro {
     providingPeersOf declaration: some DeclSyntaxProtocol,
     in context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
-    // 1. Validate macro is applied to a function
     guard let funcDecl = declaration.as(FunctionDeclSyntax.self) else {
       throw MacroExpansionError.invalidMacroApplication(
         "@Body can only be applied to functions"
       )
     }
 
-    // 2. Extract parameter name from macro argument
     guard let paramName = extractBodyParameterName(from: node) else {
       throw MacroExpansionError.missingMacroArgument(
-        "@Body requires parameter name: @Body(\"parameterName\")"
+        "@Body requires parameter name: @Body(.parameter(\"parameterName\"))"
       )
     }
 
-    // 3. Get all parameter names from function signature
-    let parameters = funcDecl.signature.parameterClause.parameters
-    let paramNames = parameters.map { param in
-      // Use secondName (internal name) if available, otherwise firstName (external name)
-      param.secondName?.text ?? param.firstName.text
-    }
+    try validateBodyParameter(named: paramName, in: funcDecl)
 
-    // 4. Validate parameter exists in function signature
-    guard paramNames.contains(paramName) else {
-      throw MacroExpansionError.bodyParameterNotFound(
-        paramName,
-        available: paramNames
-      )
-    }
-
-    // 5. Check for multiple @Body macros on same function
-    let bodyMacroCount = funcDecl.attributes.filter { attr in
-      guard case .attribute(let attribute) = attr,
-        let identType = attribute.attributeName.as(IdentifierTypeSyntax.self)
-      else {
-        return false
-      }
-      return identType.name.text == "Body"
-    }.count
-
-    if bodyMacroCount > 1 {
+    let bodyMacroCount = countBodyMacros(on: funcDecl)
+    guard bodyMacroCount <= 1 else {
       throw MacroExpansionError.multipleBodyMacros(
         "Only one @Body macro allowed per function. Found \(bodyMacroCount)."
       )
     }
 
-    // 6. @Body is a marker macro - return empty array
-    // HTTP method macros will detect this attribute and use it
     return []
   }
 
@@ -66,13 +40,35 @@ public struct BodyMacro: PeerMacro {
   private static func extractBodyParameterName(from node: AttributeSyntax) -> String? {
     guard case .argumentList(let arguments) = node.arguments,
       let firstArg = arguments.first,
-      let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
-      let segment = stringLiteral.segments.first,
-      case .stringSegment(let text) = segment
+      let parameterName = BoundaryExpressionParser.string(from: firstArg.expression)
     else {
       return nil
     }
-    return text.content.text
+    return parameterName
+  }
+
+  private static func validateBodyParameter(
+    named paramName: String,
+    in function: FunctionDeclSyntax
+  ) throws {
+    let paramNames = MacroHelpers.extractParameterNames(from: function)
+    guard paramNames.contains(paramName) else {
+      throw MacroExpansionError.bodyParameterNotFound(
+        ParameterReference(paramName),
+        available: paramNames.map { ParameterReference($0) }
+      )
+    }
+  }
+
+  private static func countBodyMacros(on function: FunctionDeclSyntax) -> Int {
+    function.attributes.count { attribute in
+      guard case .attribute(let bodyAttribute) = attribute,
+        let identType = bodyAttribute.attributeName.as(IdentifierTypeSyntax.self)
+      else {
+        return false
+      }
+      return identType.name.text == "Body"
+    }
   }
 }
 
@@ -81,14 +77,47 @@ public struct BodyMacro: PeerMacro {
 extension MacroExpansionError {
   static func invalidMacroApplication(_ message: String) -> MacroExpansionError {
     // Reuse existing error type or create inline
-    .invalidPathTemplate(message, suggestion: nil)
+    .invalidPathTemplate(EndpointPath(message), suggestion: nil)
   }
 
   static func missingMacroArgument(_ message: String) -> MacroExpansionError {
-    .invalidPathTemplate(message, suggestion: nil)
+    .invalidPathTemplate(EndpointPath(message), suggestion: nil)
   }
 
   static func multipleBodyMacros(_ message: String) -> MacroExpansionError {
-    .invalidPathTemplate(message, suggestion: nil)
+    .invalidPathTemplate(EndpointPath(message), suggestion: nil)
+  }
+}
+
+extension AttributeSyntax {
+  func macroArgument(labeled label: String) -> LabeledExprSyntax? {
+    guard let arguments = arguments?.as(LabeledExprListSyntax.self) else {
+      return nil
+    }
+
+    return arguments.first { argument in
+      argument.label?.text == label
+    }
+  }
+
+  func macroIntegerValue(labeled label: String) -> String? {
+    guard let argument = macroArgument(labeled: label),
+      let value = BoundaryExpressionParser.integer(from: argument.expression)
+    else { return nil }
+    return String(value)
+  }
+
+  func macroMemberValue(labeled label: String) -> String? {
+    guard let argument = macroArgument(labeled: label),
+      let memberAccess = argument.expression.as(MemberAccessExprSyntax.self)
+    else {
+      return nil
+    }
+    return memberAccess.declName.baseName.text
+  }
+
+  func macroStringValue(labeled label: String) -> String? {
+    guard let argument = macroArgument(labeled: label) else { return nil }
+    return BoundaryExpressionParser.string(from: argument.expression)
   }
 }

@@ -18,13 +18,13 @@ final class PUTMacroTests: XCTestCase {
   func testBasicPUTExpansion() {
     assertMacro {
       """
-      @PUT("/users/{id}")
-      @Body("user")
+      @PUT(.path("/users/{id}"))
+      @Body(.parameter("user"))
       func updateUser(id: String, user: User) async throws -> User
       """
     } expansion: {
       #"""
-      @Body("user")
+      @Body(.parameter("user"))
       func updateUser(id: String, user: User) async throws -> User
 
       func updateUser(id: String user: User) async throws -> User {
@@ -43,13 +43,13 @@ final class PUTMacroTests: XCTestCase {
   func testPUTWithMultiplePathParameters() {
     assertMacro {
       """
-      @PUT("/projects/{projectId}/tasks/{taskId}")
-      @Body("task")
+      @PUT(.path("/projects/{projectId}/tasks/{taskId}"))
+      @Body(.parameter("task"))
       func updateTask(projectId: String, taskId: String, task: Task) async throws -> Task
       """
     } expansion: {
       #"""
-      @Body("task")
+      @Body(.parameter("task"))
       func updateTask(projectId: String, taskId: String, task: Task) async throws -> Task
 
       func updateTask(projectId: String taskId: String task: Task) async throws -> Task {
@@ -68,13 +68,13 @@ final class PUTMacroTests: XCTestCase {
   func testPUTWithAllParameters() {
     assertMacro {
       """
-      @PUT("/users/{id}", query: ["notify"])
-      @Body("user")
+      @PUT(.path("/users/{id}"), query: [.parameter("notify")])
+      @Body(.parameter("user"))
       func updateUser(id: String, user: User, notify: Bool) async throws -> User
       """
     } expansion: {
       #"""
-      @Body("user")
+      @Body(.parameter("user"))
       func updateUser(id: String, user: User, notify: Bool) async throws -> User
 
       func updateUser(id: String user: User notify: Bool) async throws -> User {
@@ -95,13 +95,13 @@ final class PUTMacroTests: XCTestCase {
   func testPUTRequiresBody() {
     assertMacro {
       """
-      @PUT("/users/{id}")
+      @PUT(.path("/users/{id}"))
       func updateUser(id: String, user: User) async throws -> User
       """
     } diagnostics: {
       """
-      @PUT("/users/{id}")
-      ┬──────────────────
+      @PUT(.path("/users/{id}"))
+      ┬─────────────────────────
       ╰─ 🛑 @PUT requires a body parameter. Use @Body("paramName") macro.
       func updateUser(id: String, user: User) async throws -> User
       """
@@ -111,16 +111,16 @@ final class PUTMacroTests: XCTestCase {
   func testPUTRequiresAsyncThrows() {
     assertMacro {
       """
-      @PUT("/users/{id}")
-      @Body("user")
+      @PUT(.path("/users/{id}"))
+      @Body(.parameter("user"))
       func updateUser(id: String, user: User) -> User
       """
     } diagnostics: {
       """
-      @PUT("/users/{id}")
-      ┬──────────────────
+      @PUT(.path("/users/{id}"))
+      ┬─────────────────────────
       ╰─ 🛑 Function 'updateUser' must be marked 'async'
-      @Body("user")
+      @Body(.parameter("user"))
       func updateUser(id: String, user: User) -> User
       """
     }

@@ -23,7 +23,7 @@ public struct TypedHTTPTemplate<Method: HTTPMethodWithBodyConstraint>: Sendable 
   public let template: Template<Void>
 
   /// The HTTP method name.
-  public static var methodName: String { Method.methodName }
+  public static var methodName: HTTPMethodName { Method.methodName }
 
   /// Creates an empty typed template.
   public init() {
@@ -55,19 +55,22 @@ extension TypedHTTPTemplate {
   }
 
   /// Sets the URL from a string literal.
-  public func withURL(_ urlString: String) -> TypedHTTPTemplate<Method> {
-    withURL(.literal(.string(urlString)))
+  public func withURL(_ url: TemplateURL) -> TypedHTTPTemplate<Method> {
+    withURL(.literal(.string(url.rawValue)))
   }
 
   /// Adds a header to the request.
-  public func withHeader(name: String, value: Template<Void>) -> TypedHTTPTemplate<Method> {
+  public func withHeader(
+    name: HeaderName,
+    value: Template<Void>
+  ) -> TypedHTTPTemplate<Method> {
     TypedHTTPTemplate(
       template: mergeTemplates(
         template,
         .functionCall(
           function: "header",
           arguments: [
-            (label: "name", value: .literal(.string(name))),
+            (label: "name", value: .literal(.string(name.rawValue))),
             (label: "value", value: value),
           ]
         )
@@ -76,8 +79,11 @@ extension TypedHTTPTemplate {
   }
 
   /// Adds a header with string value.
-  public func withHeader(name: String, value: String) -> TypedHTTPTemplate<Method> {
-    withHeader(name: name, value: .literal(.string(value)))
+  public func withHeader(
+    name: HeaderName,
+    value: HeaderValueReference
+  ) -> TypedHTTPTemplate<Method> {
+    withHeader(name: name, value: .literal(.string(value.rawValue)))
   }
 }
 
@@ -99,11 +105,11 @@ extension TypedHTTPTemplate where Method.Body: BodyAllowedProtocol {
   }
 
   /// Sets the request body from encodable type name.
-  public func withEncodableBody(_ typeName: String) -> TypedHTTPTemplate<Method> {
+  public func withEncodableBody(_ bodyParameter: ParameterReference) -> TypedHTTPTemplate<Method> {
     withBody(
       .functionCall(
         function: "encode",
-        arguments: [(label: nil, value: .variable(typeName, payload: ()))]
+        arguments: [(label: nil, value: .variable(bodyParameter.rawValue, payload: ()))]
       )
     )
   }
@@ -113,14 +119,17 @@ extension TypedHTTPTemplate where Method.Body: BodyAllowedProtocol {
 
 extension TypedHTTPTemplate {
   /// Adds a query parameter.
-  public func withQuery(name: String, value: Template<Void>) -> TypedHTTPTemplate<Method> {
+  public func withQuery(
+    name: QueryParameterName,
+    value: Template<Void>
+  ) -> TypedHTTPTemplate<Method> {
     TypedHTTPTemplate(
       template: mergeTemplates(
         template,
         .functionCall(
           function: "query",
           arguments: [
-            (label: "name", value: .literal(.string(name))),
+            (label: "name", value: .literal(.string(name.rawValue))),
             (label: "value", value: value),
           ]
         )

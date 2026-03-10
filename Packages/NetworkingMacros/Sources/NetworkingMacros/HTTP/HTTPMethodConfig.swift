@@ -14,52 +14,64 @@ import Foundation
 /// ```
 public struct HTTPMethodConfig: Sendable {
   /// The HTTP method name (e.g., "GET", "POST", "PUT", "PATCH", "DELETE").
-  public let method: String
+  public let methodName: HTTPMethodName
 
   /// Whether this HTTP method requires a request body.
   ///
   /// - `true` for POST, PUT, PATCH (body required)
   /// - `false` for GET, DELETE (body not allowed)
-  public let requiresBody: Bool
+  public let requestBodyRequired: RequestBodyRequiredFlag
 
   /// Whether this HTTP method allows Void return type.
   ///
   /// - `true` for DELETE (fire-and-forget allowed)
   /// - `false` for GET, POST, PUT, PATCH (must return response)
-  public let allowsVoidReturn: Bool
+  public let voidReturnAllowed: VoidReturnAllowedFlag
+
+  package var method: String {
+    methodName.rawValue
+  }
+
+  package var requiresBody: Bool {
+    requestBodyRequired.rawValue
+  }
+
+  package var allowsVoidReturn: Bool {
+    voidReturnAllowed.rawValue
+  }
 
   /// Configuration for GET requests.
   public static let get = Self(
-    method: "GET",
-    requiresBody: false,
-    allowsVoidReturn: false
+    methodName: .named("GET"),
+    requestBodyRequired: .notRequired,
+    voidReturnAllowed: .disallowed
   )
 
   /// Configuration for POST requests.
   public static let post = Self(
-    method: "POST",
-    requiresBody: true,
-    allowsVoidReturn: false
+    methodName: .named("POST"),
+    requestBodyRequired: .required,
+    voidReturnAllowed: .disallowed
   )
 
   /// Configuration for PUT requests.
   public static let put = Self(
-    method: "PUT",
-    requiresBody: true,
-    allowsVoidReturn: false
+    methodName: .named("PUT"),
+    requestBodyRequired: .required,
+    voidReturnAllowed: .disallowed
   )
 
   /// Configuration for PATCH requests.
   public static let patch = Self(
-    method: "PATCH",
-    requiresBody: true,
-    allowsVoidReturn: false
+    methodName: .named("PATCH"),
+    requestBodyRequired: .required,
+    voidReturnAllowed: .disallowed
   )
 
   /// Configuration for DELETE requests.
   public static let delete = Self(
-    method: "DELETE",
-    requiresBody: false,
-    allowsVoidReturn: true
+    methodName: .named("DELETE"),
+    requestBodyRequired: .notRequired,
+    voidReturnAllowed: .allowed
   )
 }

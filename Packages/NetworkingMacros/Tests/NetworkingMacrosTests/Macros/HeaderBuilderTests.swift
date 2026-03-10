@@ -30,7 +30,7 @@ final class HeaderBuilderTests: XCTestCase {
       """
       @Headers
       ┬───────
-      ╰─ 🛑 @Headers requires result builder closure: @Headers { H("name", "value") }
+      ╰─ 🛑 @Headers requires result builder closure: @Headers { H(.named("name"), .literal("value")) }
       func getUser() async throws -> User
       """
     }

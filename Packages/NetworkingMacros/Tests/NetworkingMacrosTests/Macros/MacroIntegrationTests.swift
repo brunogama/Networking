@@ -38,13 +38,13 @@ final class MacroIntegrationTests: XCTestCase {
   func testBodyMacroWithPOST() {
     assertMacro {
       """
-      @POST("/users")
+      @POST(.path("/users"))
       func createUser(@Body user: User) async throws -> User
       """
     } diagnostics: {
       """
-      @POST("/users")
-      ┬──────────────
+      @POST(.path("/users"))
+      ┬─────────────────────
       ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
       func createUser(@Body user: User) async throws -> User
       """
@@ -54,7 +54,7 @@ final class MacroIntegrationTests: XCTestCase {
   func testHeadersWithGET() {
     assertMacro {
       """
-      @GET("/users")
+      @GET(.path("/users"))
       func getUsers(@Headers headers: [String: String]) async throws -> [User]
       """
     } expansion: {
@@ -74,10 +74,10 @@ final class MacroIntegrationTests: XCTestCase {
   func testInterceptorOrderPreserved() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       @Interceptors([AuthInterceptor(), LoggingInterceptor(), RetryInterceptor()])
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
       }
       """
@@ -114,7 +114,7 @@ final class MacroIntegrationTests: XCTestCase {
       """
       @API
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
       }
       """
@@ -124,7 +124,7 @@ final class MacroIntegrationTests: XCTestCase {
       ┬───
       ╰─ 🛑 @API requires a baseURL argument
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
       }
       """
@@ -134,7 +134,7 @@ final class MacroIntegrationTests: XCTestCase {
   func testEmptyPathExpansion() {
     assertMacro {
       """
-      @GET("")
+      @GET(.path(""))
       func getUsers() async throws -> [User]
       """
     } expansion: {
@@ -154,13 +154,13 @@ final class MacroIntegrationTests: XCTestCase {
   func testPOSTWithoutBodyParameter() {
     assertMacro {
       """
-      @POST("/users")
+      @POST(.path("/users"))
       func createUser(user: User) async throws -> User
       """
     } diagnostics: {
       """
-      @POST("/users")
-      ┬──────────────
+      @POST(.path("/users"))
+      ┬─────────────────────
       ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
       func createUser(user: User) async throws -> User
       """

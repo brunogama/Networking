@@ -70,7 +70,7 @@ public struct DefaultHeadersMacro: MemberMacro {
   ) -> [String: String]? {
     guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
       let firstArg = arguments.first,
-      let dictExpr = firstArg.expression.as(DictionaryExprSyntax.self)
+      let headers = BoundaryExpressionParser.dictionaryOfStrings(from: firstArg.expression)
     else {
       MacroHelpers.emitError(
         "@DefaultHeaders requires a dictionary argument",
@@ -78,18 +78,6 @@ public struct DefaultHeadersMacro: MemberMacro {
         context: context
       )
       return nil
-    }
-
-    var headers: [String: String] = [:]
-
-    for element in dictExpr.content.as(DictionaryElementListSyntax.self) ?? [] {
-      if let keyString = element.key.as(StringLiteralExprSyntax.self),
-        let keySegment = keyString.segments.first?.as(StringSegmentSyntax.self),
-        let valueString = element.value.as(StringLiteralExprSyntax.self),
-        let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self)
-      {
-        headers[keySegment.content.text] = valueSegment.content.text
-      }
     }
 
     return headers
@@ -113,20 +101,8 @@ public struct DefaultHeadersMacro: MemberMacro {
         // Extract headers from this attribute
         if let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
           let firstArg = arguments.first,
-          let dictExpr = firstArg.expression.as(DictionaryExprSyntax.self)
+          let headers = BoundaryExpressionParser.dictionaryOfStrings(from: firstArg.expression)
         {
-          var headers: [String: String] = [:]
-
-          for element in dictExpr.content.as(DictionaryElementListSyntax.self) ?? [] {
-            if let keyString = element.key.as(StringLiteralExprSyntax.self),
-              let keySegment = keyString.segments.first?.as(StringSegmentSyntax.self),
-              let valueString = element.value.as(StringLiteralExprSyntax.self),
-              let valueSegment = valueString.segments.first?.as(StringSegmentSyntax.self)
-            {
-              headers[keySegment.content.text] = valueSegment.content.text
-            }
-          }
-
           return headers
         }
       }

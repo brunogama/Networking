@@ -31,9 +31,9 @@ final class AttachedMacroIntegrationTests: XCTestCase {
   func testAPIWithSingleGET() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
       }
       """
@@ -64,31 +64,31 @@ final class AttachedMacroIntegrationTests: XCTestCase {
   func testAPIWithMultipleHTTPMethods() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
 
-        @POST("/users")
+        @POST(.path("/users"))
         func createUser(@Body user: User) async throws -> User
 
-        @DELETE("/users/{id}")
+        @DELETE(.path("/users/{id}"))
         func deleteUser(id: String) async throws -> Void
       }
       """
     } diagnostics: {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
 
-        @POST("/users")
-        ┬──────────────
+        @POST(.path("/users"))
+        ┬─────────────────────
         ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
         func createUser(@Body user: User) async throws -> User
 
-        @DELETE("/users/{id}")
+        @DELETE(.path("/users/{id}"))
         func deleteUser(id: String) async throws -> Void
       }
       """
@@ -98,9 +98,9 @@ final class AttachedMacroIntegrationTests: XCTestCase {
   func testAPIWithPathParameters() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol UserAPI {
-        @GET("/users/{id}")
+        @GET(.path("/users/{id}"))
         func getUser(id: String) async throws -> User
       }
       """
@@ -133,13 +133,10 @@ final class AttachedMacroIntegrationTests: XCTestCase {
   func testAPIWithDefaultHeaders() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
-      @DefaultHeaders([
-        "Authorization": "Bearer token",
-        "Content-Type": "application/json"
-      ])
+      @API(baseURL: .absolute("https://api.example.com"))
+      @DefaultHeaders([.named("Authorization"): .literal("Bearer token"), .named("Content-Type"): .literal("application/json")])
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
       }
       """
@@ -171,10 +168,10 @@ final class AttachedMacroIntegrationTests: XCTestCase {
   func testAPIWithTimeout() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
-      @Timeout(30.0)
+      @API(baseURL: .absolute("https://api.example.com"))
+      @Timeout(.seconds(30.0))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
       }
       """
@@ -206,10 +203,10 @@ final class AttachedMacroIntegrationTests: XCTestCase {
   func testAPIWithCacheableProtocol() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
-      @Cacheable(duration: 300)
+      @API(baseURL: .absolute("https://api.example.com"))
+      @Cacheable(duration: .seconds(300))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
       }
       """
@@ -237,7 +234,7 @@ final class AttachedMacroIntegrationTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(300), policy nil .standard)
+            return CacheConfiguration(duration ttl(Duration.seconds(300)), policy nil .standard)
           }
         }
       }
@@ -250,30 +247,30 @@ final class AttachedMacroIntegrationTests: XCTestCase {
   func testFullAPIWithAllFeatures() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       @Interceptors([AuthInterceptor(), LoggingInterceptor()])
-      @DefaultHeaders(["Content-Type": "application/json"])
-      @Timeout(30.0)
+      @DefaultHeaders([.named("Content-Type"): .literal("application/json")])
+      @Timeout(.seconds(30.0))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
 
-        @POST("/users")
+        @POST(.path("/users"))
         func createUser(@Body user: User) async throws -> User
       }
       """
     } diagnostics: {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       @Interceptors([AuthInterceptor(), LoggingInterceptor()])
-      @DefaultHeaders(["Content-Type": "application/json"])
-      @Timeout(30.0)
+      @DefaultHeaders([.named("Content-Type"): .literal("application/json")])
+      @Timeout(.seconds(30.0))
       protocol UserAPI {
-        @GET("/users")
+        @GET(.path("/users"))
         func getUsers() async throws -> [User]
 
-        @POST("/users")
-        ┬──────────────
+        @POST(.path("/users"))
+        ┬─────────────────────
         ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
         func createUser(@Body user: User) async throws -> User
       }

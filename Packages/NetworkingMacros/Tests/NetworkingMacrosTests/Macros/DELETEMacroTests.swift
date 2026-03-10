@@ -18,7 +18,7 @@ final class DELETEMacroTests: XCTestCase {
   func testBasicDELETEExpansion() {
     assertMacro {
       """
-      @DELETE("/users/{id}")
+      @DELETE(.path("/users/{id}"))
       func deleteUser(id: String) async throws
       """
     } expansion: {
@@ -38,7 +38,7 @@ final class DELETEMacroTests: XCTestCase {
   func testDELETEWithPathParameter() {
     assertMacro {
       """
-      @DELETE("/projects/{projectId}/tasks/{taskId}")
+      @DELETE(.path("/projects/{projectId}/tasks/{taskId}"))
       func deleteTask(projectId: String, taskId: String) async throws
       """
     } expansion: {
@@ -58,7 +58,7 @@ final class DELETEMacroTests: XCTestCase {
   func testDELETEVoidReturn() {
     assertMacro {
       """
-      @DELETE("/cache")
+      @DELETE(.path("/cache"))
       func clearCache() async throws
       """
     } expansion: {
@@ -96,13 +96,13 @@ final class DELETEMacroTests: XCTestCase {
   func testDELETERequiresAsyncThrows() {
     assertMacro {
       """
-      @DELETE("/users/{id}")
+      @DELETE(.path("/users/{id}"))
       func deleteUser(id: String)
       """
     } diagnostics: {
       """
-      @DELETE("/users/{id}")
-      ┬─────────────────────
+      @DELETE(.path("/users/{id}"))
+      ┬────────────────────────────
       ╰─ 🛑 Function 'deleteUser' must be marked 'async'
       func deleteUser(id: String)
       """
@@ -112,13 +112,13 @@ final class DELETEMacroTests: XCTestCase {
   func testDELETEValidatesPathParameters() {
     assertMacro {
       """
-      @DELETE("/users/{userId}")
+      @DELETE(.path("/users/{userId}"))
       func deleteUser(id: String) async throws
       """
     } diagnostics: {
       """
-      @DELETE("/users/{userId}")
-      ┬─────────────────────────
+      @DELETE(.path("/users/{userId}"))
+      ┬────────────────────────────────
       ╰─ 🛑 Path parameter mismatch in '/users/{userId}': function has parameters [id], but path requires [userId]
       func deleteUser(id: String) async throws
       """

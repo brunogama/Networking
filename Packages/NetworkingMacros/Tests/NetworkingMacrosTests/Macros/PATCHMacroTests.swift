@@ -18,13 +18,13 @@ final class PATCHMacroTests: XCTestCase {
   func testBasicPATCHExpansion() {
     assertMacro {
       """
-      @PATCH("/users/{id}")
-      @Body("patch")
+      @PATCH(.path("/users/{id}"))
+      @Body(.parameter("patch"))
       func patchUser(id: String, patch: UserPatch) async throws -> User
       """
     } expansion: {
       #"""
-      @Body("patch")
+      @Body(.parameter("patch"))
       func patchUser(id: String, patch: UserPatch) async throws -> User
 
       func patchUser(id: String patch: UserPatch) async throws -> User {
@@ -43,13 +43,13 @@ final class PATCHMacroTests: XCTestCase {
   func testPATCHWithMultiplePathParameters() {
     assertMacro {
       """
-      @PATCH("/projects/{projectId}/tasks/{taskId}")
-      @Body("update")
+      @PATCH(.path("/projects/{projectId}/tasks/{taskId}"))
+      @Body(.parameter("update"))
       func patchTask(projectId: String, taskId: String, update: TaskPatch) async throws -> Task
       """
     } expansion: {
       #"""
-      @Body("update")
+      @Body(.parameter("update"))
       func patchTask(projectId: String, taskId: String, update: TaskPatch) async throws -> Task
 
       func patchTask(projectId: String taskId: String update: TaskPatch) async throws -> Task {
@@ -68,13 +68,13 @@ final class PATCHMacroTests: XCTestCase {
   func testPATCHPartialUpdate() {
     assertMacro {
       """
-      @PATCH("/settings/{key}")
-      @Body("value")
+      @PATCH(.path("/settings/{key}"))
+      @Body(.parameter("value"))
       func updateSetting(key: String, value: SettingValue) async throws -> Setting
       """
     } expansion: {
       #"""
-      @Body("value")
+      @Body(.parameter("value"))
       func updateSetting(key: String, value: SettingValue) async throws -> Setting
 
       func updateSetting(key: String value: SettingValue) async throws -> Setting {
@@ -95,13 +95,13 @@ final class PATCHMacroTests: XCTestCase {
   func testPATCHRequiresBody() {
     assertMacro {
       """
-      @PATCH("/users/{id}")
+      @PATCH(.path("/users/{id}"))
       func patchUser(id: String, patch: UserPatch) async throws -> User
       """
     } diagnostics: {
       """
-      @PATCH("/users/{id}")
-      ┬────────────────────
+      @PATCH(.path("/users/{id}"))
+      ┬───────────────────────────
       ╰─ 🛑 @PATCH requires a body parameter. Use @Body("paramName") macro.
       func patchUser(id: String, patch: UserPatch) async throws -> User
       """
@@ -111,16 +111,16 @@ final class PATCHMacroTests: XCTestCase {
   func testPATCHRequiresAsyncThrows() {
     assertMacro {
       """
-      @PATCH("/users/{id}")
-      @Body("patch")
+      @PATCH(.path("/users/{id}"))
+      @Body(.parameter("patch"))
       func patchUser(id: String, patch: UserPatch) -> User
       """
     } diagnostics: {
       """
-      @PATCH("/users/{id}")
-      ┬────────────────────
+      @PATCH(.path("/users/{id}"))
+      ┬───────────────────────────
       ╰─ 🛑 Function 'patchUser' must be marked 'async'
-      @Body("patch")
+      @Body(.parameter("patch"))
       func patchUser(id: String, patch: UserPatch) -> User
       """
     }

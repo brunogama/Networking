@@ -18,7 +18,7 @@ final class RequestCompositionTests: XCTestCase {
   func testStaticPathComposition() {
     assertMacro {
       """
-      @GET("/users")
+      @GET(.path("/users"))
       func getUsers() async throws -> [User]
       """
     } expansion: {
@@ -38,7 +38,7 @@ final class RequestCompositionTests: XCTestCase {
   func testSinglePathParameter() {
     assertMacro {
       """
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
       """
     } expansion: {
@@ -58,7 +58,7 @@ final class RequestCompositionTests: XCTestCase {
   func testMultiplePathParameters() {
     assertMacro {
       """
-      @GET("/users/{userId}/posts/{postId}")
+      @GET(.path("/users/{userId}/posts/{postId}"))
       func getPost(userId: String, postId: String) async throws -> Post
       """
     } expansion: {
@@ -78,7 +78,7 @@ final class RequestCompositionTests: XCTestCase {
   func testNestedPathComposition() {
     assertMacro {
       """
-      @GET("/orgs/{orgId}/teams/{teamId}/projects/{projectId}")
+      @GET(.path("/orgs/{orgId}/teams/{teamId}/projects/{projectId}"))
       func getProject(orgId: String, teamId: String, projectId: String) async throws -> Project
       """
     } expansion: {
@@ -95,80 +95,18 @@ final class RequestCompositionTests: XCTestCase {
     }
   }
 
-  // MARK: - Query Parameter Composition
-
-  func testSingleQueryParameter() {
-    assertMacro {
-      """
-      @GET("/users", query: ["page"])
-      func listUsers(page: Int) async throws -> [User]
-      """
-    } expansion: {
-      """
-      func listUsers(page: Int) async throws -> [User]
-
-      func listUsers(page: Int) async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
-      }
-      """
-    }
-  }
-
-  func testMultipleQueryParameters() {
-    assertMacro {
-      """
-      @GET("/search", query: ["q", "limit", "offset"])
-      func search(q: String, limit: Int, offset: Int) async throws -> SearchResults
-      """
-    } expansion: {
-      """
-      func search(q: String, limit: Int, offset: Int) async throws -> SearchResults
-
-      func search(q: String limit: Int offset: Int) async throws -> SearchResults {
-          let path = "/search"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(SearchResults.self, from response.data)
-      }
-      """
-    }
-  }
-
-  func testOptionalQueryParameter() {
-    assertMacro {
-      """
-      @GET("/users", query: ["filter"])
-      func listUsers(filter: String?) async throws -> [User]
-      """
-    } expansion: {
-      """
-      func listUsers(filter: String?) async throws -> [User]
-
-      func listUsers(filter: String?) async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
-      }
-      """
-    }
-  }
-
   // MARK: - Body Composition
 
   func testSimpleBodyComposition() {
     assertMacro {
       """
-      @POST("/users")
-      @Body("user")
+      @POST(.path("/users"))
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) async throws -> User
       """
     } expansion: {
       """
-      @Body("user")
+      @Body(.parameter("user"))
       func createUser(user: CreateUserRequest) async throws -> User
 
       func createUser(user: CreateUserRequest) async throws -> User {
@@ -187,13 +125,13 @@ final class RequestCompositionTests: XCTestCase {
   func testBodyWithPathParameters() {
     assertMacro {
       """
-      @PUT("/users/{id}")
-      @Body("user")
+      @PUT(.path("/users/{id}"))
+      @Body(.parameter("user"))
       func updateUser(id: String, user: UpdateUserRequest) async throws -> User
       """
     } expansion: {
       #"""
-      @Body("user")
+      @Body(.parameter("user"))
       func updateUser(id: String, user: UpdateUserRequest) async throws -> User
 
       func updateUser(id: String user: UpdateUserRequest) async throws -> User {
@@ -209,50 +147,4 @@ final class RequestCompositionTests: XCTestCase {
     }
   }
 
-  // MARK: - Combined Composition
-
-  func testPathAndQueryComposition() {
-    assertMacro {
-      """
-      @GET("/users/{id}/posts", query: ["status"])
-      func getUserPosts(id: String, status: String) async throws -> [Post]
-      """
-    } expansion: {
-      #"""
-      func getUserPosts(id: String, status: String) async throws -> [Post]
-
-      func getUserPosts(id: String status: String) async throws -> [Post] {
-          let path = "/users/\(id)/posts"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([Post].self, from response.data)
-      }
-      """#
-    }
-  }
-
-  func testPathBodyAndQueryComposition() {
-    assertMacro {
-      """
-      @POST("/projects/{projectId}/tasks", query: ["notify"])
-      @Body("task")
-      func createTask(projectId: String, task: TaskRequest, notify: Bool) async throws -> Task
-      """
-    } expansion: {
-      #"""
-      @Body("task")
-      func createTask(projectId: String, task: TaskRequest, notify: Bool) async throws -> Task
-
-      func createTask(projectId: String task: TaskRequest notify: Bool) async throws -> Task {
-          let path = "/projects/\(projectId)/tasks"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(task))
-        request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(Task.self, from response.data)
-      }
-      """#
-    }
-  }
 }

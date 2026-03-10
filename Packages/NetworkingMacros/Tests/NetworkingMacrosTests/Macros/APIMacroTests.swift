@@ -18,7 +18,7 @@ final class APIMacroTests: XCTestCase {
   func testAPIBasicExpansion() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol UserAPI {
       }
       """
@@ -41,7 +41,7 @@ final class APIMacroTests: XCTestCase {
   func testAPIWithComplexProtocolName() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       protocol MyComplexAPIServiceProtocol {
       }
       """
@@ -66,14 +66,14 @@ final class APIMacroTests: XCTestCase {
   func testAPIRequiresProtocol() {
     assertMacro {
       """
-      @API(baseURL: "https://api.example.com")
+      @API(baseURL: .absolute("https://api.example.com"))
       struct UserAPI {
       }
       """
     } diagnostics: {
       """
-      @API(baseURL: "https://api.example.com")
-      ┬───────────────────────────────────────
+      @API(baseURL: .absolute("https://api.example.com"))
+      ┬──────────────────────────────────────────────────
       ╰─ 🛑 @API can only be applied to protocols
       struct UserAPI {
       }
@@ -102,14 +102,14 @@ final class APIMacroTests: XCTestCase {
   func testAPIEmptyBaseURL() {
     assertMacro {
       """
-      @API(baseURL: "")
+      @API(baseURL: .absolute(""))
       protocol UserAPI {
       }
       """
     } diagnostics: {
       """
-      @API(baseURL: "")
-      ┬────────────────
+      @API(baseURL: .absolute(""))
+      ┬───────────────────────────
       ╰─ 🛑 Base URL cannot be empty
       protocol UserAPI {
       }

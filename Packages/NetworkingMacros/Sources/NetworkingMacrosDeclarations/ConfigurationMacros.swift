@@ -17,12 +17,12 @@ public enum CachingPolicy: Sendable {
   case none
   case standard
   case aggressive
-  case custom(maxAge: TimeInterval, revalidate: Bool)
+  case custom(maxAge: CacheAgeLimit, revalidate: CacheRevalidationFlag)
 }
 
 /// Cache duration options for macro-generated cache configuration.
 public enum CacheDuration: Sendable {
-  case ttl(TimeInterval)
+  case ttl(CacheAgeLimit)
   case until(Date)
   case session
   case forever
@@ -63,7 +63,7 @@ public enum CacheDuration: Sendable {
 /// - Note: Method-level headers (specified via `@GET(headers:)` etc.) take
 ///   precedence over default headers when there are conflicts.
 @attached(member)
-public macro DefaultHeaders(_ headers: [String: String]) =
+public macro DefaultHeaders(_ headers: DefaultHeaderMap) =
   #externalMacro(module: "NetworkingMacrosPlugin", type: "DefaultHeadersMacro")
 
 /// Sets the default timeout for all endpoints in an API protocol.
@@ -97,7 +97,7 @@ public macro DefaultHeaders(_ headers: [String: String]) =
 /// - Note: Individual methods can override this timeout by specifying
 ///   their own timeout configuration.
 @attached(member)
-public macro Timeout(_ seconds: Double) =
+public macro Timeout(_ seconds: TimeoutDuration) =
   #externalMacro(module: "NetworkingMacrosPlugin", type: "TimeoutMacro")
 
 /// Configures request/response interceptors for all endpoints in an API protocol.
@@ -214,7 +214,7 @@ public macro Interceptors(_ interceptors: [Any]) =
 /// - Note: This macro can only be applied to protocol declarations.
 @attached(peer, names: arbitrary)
 public macro Cacheable(
-  duration: TimeInterval,
+  duration: CacheAgeLimit,
   policy: CachingPolicy = .standard
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "CacheableMacro")
 
@@ -248,7 +248,7 @@ public macro Cacheable(
 /// - Note: This macro can only be applied to function declarations.
 @attached(peer, names: suffixed(_measured))
 public macro Measured(
-  name: String? = nil
+  name: MeasuredOperationName? = nil
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "MeasuredMacro")
 
 // MARK: - Supporting Types for Macro-Generated Code
@@ -275,11 +275,11 @@ public final class Metrics: @unchecked Sendable {
   /// - Parameters:
   ///   - duration: Time interval in seconds
   ///   - operation: Operation identifier
-  public func record(duration: TimeInterval, operation: String) {
+  public func record(duration: MeasuredDuration, operation: MeasuredOperationName) {
     // LIFECYCLE: Fire-and-forget metrics recording
     // In production, this would send to observability system
     #if DEBUG
-    print("[\(operation)] Duration: \(duration)s")
+    debugPrint("[\(operation)] Duration: \(duration)")
     #endif
   }
 }
