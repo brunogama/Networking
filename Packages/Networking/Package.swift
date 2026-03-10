@@ -3,6 +3,8 @@
 
 import PackageDescription
 
+// swiftlint:disable file_length
+
 let strictConcurrencySettings: [SwiftSetting] = [
   .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
 ]
@@ -10,7 +12,7 @@ let strictConcurrencySettings: [SwiftSetting] = [
 let libraryProducts = [
   "Networking", "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
   "NetworkingInterceptorsCompat", "NetworkingObservability", "NetworkingObservabilityOTLP",
-  "NetworkingTesting", "NetworkingBDD",
+  "NetworkingTesting", "NetworkingBDD", "NetworkingSSE",
 ].map { Product.library(name: $0, targets: [$0]) }
 
 let openTelemetryHTTPExporter: Target.Dependency = .product(
@@ -24,7 +26,7 @@ let openTelemetrySDK: Target.Dependency = .product(
 let swiftCheck: Target.Dependency = .product(name: "SwiftCheck", package: "SwiftCheck")
 let networkingDependencies: [Target.Dependency] = [
   "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
-  "NetworkingInterceptorsCompat", "NetworkingObservability",
+  "NetworkingInterceptorsCompat", "NetworkingObservability", "NetworkingSSE",
 ]
 let runtimeTestDependencies: [Target.Dependency] = [
   "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL", "NetworkingTesting", swiftCheck,
@@ -40,6 +42,9 @@ let observabilityTestDependencies: [Target.Dependency] = [
 let testingTestDependencies: [Target.Dependency] = [
   "NetworkingTesting", "NetworkingRuntime", "NetworkingObservability", "NetworkingDSL",
   "NetworkingRuntimeDSL",
+]
+let sseTestDependencies: [Target.Dependency] = [
+  "NetworkingSSE"
 ]
 
 func libraryTarget(
@@ -150,6 +155,14 @@ let package = Package(
       ],
       path: "Sources/NetworkingBDD"
     ),
+    libraryTarget(
+      "NetworkingSSE",
+      dependencies: [
+        "NetworkingCore",
+        "NetworkingRuntime",
+      ],
+      path: "Sources/NetworkingSSE"
+    ),
     testTarget(
       "NetworkingCoreTests",
       dependencies: [
@@ -198,6 +211,11 @@ let package = Package(
       path: "Tests/NetworkingBDDTests"
     ),
     testTarget(
+      "NetworkingSSETests",
+      dependencies: sseTestDependencies,
+      path: "Tests/NetworkingSSETests"
+    ),
+    testTarget(
       "NetworkingTests",
       dependencies: [
         "Networking",
@@ -209,3 +227,5 @@ let package = Package(
     ),
   ]
 )
+
+// swiftlint:enable file_length
