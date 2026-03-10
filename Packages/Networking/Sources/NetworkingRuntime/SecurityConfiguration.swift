@@ -33,7 +33,7 @@ public struct CertificatePinningConfiguration: Sendable {
   /// Domains to apply certificate pinning to
   public let domains: Set<PinnedDomain>
 
-  /// Whether to allow backup certificates (for certificate rotation)
+  /// Whether non-leaf certificates in the chain may satisfy the configured pins.
   public let allowBackupCertificates: BackupCertificateAllowance
 
   /// Action to take when certificate validation fails
@@ -126,8 +126,6 @@ public struct TLSConfiguration: Sendable {
 
   // swiftlint:disable identifier_name
   public enum TLSVersion: Sendable {
-    case v1_0
-    case v1_1
     case v1_2
     case v1_3
   }

@@ -8,6 +8,12 @@ import FoundationNetworking
 #if canImport(Security)
 import Security
 
+enum SSLPinningValidationDecision: Equatable {
+  case useCredential
+  case performDefaultHandling
+  case rejectProtectionSpace
+}
+
 /// SSL Pinning Validator that handles certificate and public key validation.
 public final class SSLPinningValidator: NSObject, URLSessionDelegate {
   let securityConfiguration: SecurityConfiguration
@@ -41,40 +47,32 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
 
     let host = challenge.protectionSpace.host
 
-    if handlePinning(
-      serverTrust: serverTrust,
-      host: host,
-      completionHandler: completionHandler
-    ) {
-      return
-    }
-
-    if !validateTLSConfiguration(serverTrust: serverTrust) {
-      completionHandler(.rejectProtectionSpace, nil)
-      return
-    }
-
-    completionHandler(.performDefaultHandling, nil)
+    let decision = validationDecision(serverTrust: serverTrust, host: host)
+    complete(decision, serverTrust: serverTrust, completionHandler: completionHandler)
   }
 
-  private func handlePinning(
+  func validationDecision(
     serverTrust: SecTrust,
-    host: String,
-    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-  ) -> Bool {
-    if handleCertificatePinning(
-      serverTrust: serverTrust,
-      host: host,
-      completionHandler: completionHandler
-    ) {
-      return true
+    host: String
+  ) -> SSLPinningValidationDecision {
+    if let certificateConfiguration = certificatePinningConfiguration(for: host) {
+      return validationDecisionForCertificatePinning(
+        serverTrust: serverTrust,
+        host: host,
+        configuration: certificateConfiguration
+      )
     }
 
-    return handlePublicKeyPinning(
-      serverTrust: serverTrust,
-      host: host,
-      completionHandler: completionHandler
-    )
+    if let publicKeyConfiguration = publicKeyPinningConfiguration(for: host) {
+      return validationDecisionForPublicKeyPinning(
+        serverTrust: serverTrust,
+        host: host,
+        configuration: publicKeyConfiguration
+      )
+    }
+
+    return validateTLSConfiguration(serverTrust: serverTrust, host: host)
+      ? .performDefaultHandling : .rejectProtectionSpace
   }
 
   private func serverTrust(
@@ -89,57 +87,79 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
     return serverTrust
   }
 
-  private func handleCertificatePinning(
+  private func validationDecisionForCertificatePinning(
     serverTrust: SecTrust,
     host: String,
-    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-  ) -> Bool {
-    guard let configuration = securityConfiguration.certificatePinning,
-      configuration.domains.contains(PinnedDomain(host))
-    else {
-      return false
+    configuration: CertificatePinningConfiguration
+  ) -> SSLPinningValidationDecision {
+    if securityConfiguration.tlsConfiguration.validateCertificateChain.rawValue,
+      !validateTLSConfiguration(serverTrust: serverTrust, host: host)
+    {
+      return .rejectProtectionSpace
     }
 
     if validateCertificatePinning(serverTrust: serverTrust, configuration: configuration) {
-      completeWithCredential(serverTrust: serverTrust, completionHandler: completionHandler)
-    } else {
-      handleValidationFailure(
-        action: configuration.validationFailureAction,
-        completionHandler: completionHandler
-      )
+      return .useCredential
     }
 
-    return true
+    return validationFailureDecision(for: configuration.validationFailureAction)
   }
 
-  private func handlePublicKeyPinning(
+  private func validationDecisionForPublicKeyPinning(
     serverTrust: SecTrust,
     host: String,
-    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-  ) -> Bool {
-    guard let configuration = securityConfiguration.publicKeyPinning,
-      configuration.domains.contains(PinnedDomain(host))
-    else {
-      return false
+    configuration: PublicKeyPinningConfiguration
+  ) -> SSLPinningValidationDecision {
+    if securityConfiguration.tlsConfiguration.validateCertificateChain.rawValue,
+      !validateTLSConfiguration(serverTrust: serverTrust, host: host)
+    {
+      return .rejectProtectionSpace
     }
 
     if validatePublicKeyPinning(serverTrust: serverTrust, configuration: configuration) {
-      completeWithCredential(serverTrust: serverTrust, completionHandler: completionHandler)
-    } else {
-      handleValidationFailure(
-        action: configuration.validationFailureAction,
-        completionHandler: completionHandler
-      )
+      return .useCredential
     }
 
-    return true
+    return validationFailureDecision(for: configuration.validationFailureAction)
   }
 
-  private func completeWithCredential(
+  private func certificatePinningConfiguration(
+    for host: String
+  ) -> CertificatePinningConfiguration? {
+    guard let configuration = securityConfiguration.certificatePinning,
+      configuration.domains.contains(PinnedDomain(host))
+    else {
+      return nil
+    }
+
+    return configuration
+  }
+
+  private func publicKeyPinningConfiguration(
+    for host: String
+  ) -> PublicKeyPinningConfiguration? {
+    guard let configuration = securityConfiguration.publicKeyPinning,
+      configuration.domains.contains(PinnedDomain(host))
+    else {
+      return nil
+    }
+
+    return configuration
+  }
+
+  private func complete(
+    _ decision: SSLPinningValidationDecision,
     serverTrust: SecTrust,
     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
   ) {
-    completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    switch decision {
+    case .useCredential:
+      completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    case .performDefaultHandling:
+      completionHandler(.performDefaultHandling, nil)
+    case .rejectProtectionSpace:
+      completionHandler(.rejectProtectionSpace, nil)
+    }
   }
 }
 

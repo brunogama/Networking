@@ -5,6 +5,10 @@ import NetworkingCore
 import FoundationNetworking
 #endif
 
+#if canImport(Network)
+import Network
+#endif
+
 public struct SessionConfiguration: Sendable {
   public let timeout: SessionRequestTimeout
   public let allowsCellularAccess: SessionAllowsCellularAccess
@@ -47,7 +51,9 @@ public struct SessionConfiguration: Sendable {
   public func createURLSession(
     securityConfiguration: SecurityConfiguration? = nil
   ) -> URLSession {
-    let configuration = configuredURLSessionConfiguration()
+    let configuration = configuredURLSessionConfiguration(
+      securityConfiguration: securityConfiguration
+    )
 
     #if canImport(Security)
     if let securityConfiguration {
@@ -59,7 +65,9 @@ public struct SessionConfiguration: Sendable {
     return URLSession(configuration: configuration)
   }
 
-  private func configuredURLSessionConfiguration() -> URLSessionConfiguration {
+  func configuredURLSessionConfiguration(
+    securityConfiguration: SecurityConfiguration? = nil
+  ) -> URLSessionConfiguration {
     let configuration = URLSessionConfiguration.default
     configuration.timeoutIntervalForRequest = timeout.rawValue
     configuration.allowsCellularAccess = allowsCellularAccess.rawValue
@@ -71,6 +79,37 @@ public struct SessionConfiguration: Sendable {
     configuration.httpMaximumConnectionsPerHost = httpMaximumConnectionsPerHost.rawValue
     configuration.requestCachePolicy = requestCachePolicy
     configuration.protocolClasses = protocolClasses
+    if let securityConfiguration {
+      applyTLSConfiguration(
+        securityConfiguration.tlsConfiguration,
+        to: configuration
+      )
+    }
     return configuration
   }
+
+  private func applyTLSConfiguration(
+    _ tlsConfiguration: TLSConfiguration,
+    to configuration: URLSessionConfiguration
+  ) {
+    #if canImport(Network)
+    configuration.tlsMinimumSupportedProtocolVersion =
+      tlsProtocolVersion(for: tlsConfiguration.minimumTLSVersion)
+    configuration.tlsMaximumSupportedProtocolVersion =
+      tlsProtocolVersion(for: tlsConfiguration.maximumTLSVersion)
+    #endif
+  }
+
+  #if canImport(Network)
+  private func tlsProtocolVersion(
+    for version: TLSConfiguration.TLSVersion
+  ) -> tls_protocol_version_t {
+    switch version {
+    case .v1_2:
+      return .TLSv12
+    case .v1_3:
+      return .TLSv13
+    }
+  }
+  #endif
 }
