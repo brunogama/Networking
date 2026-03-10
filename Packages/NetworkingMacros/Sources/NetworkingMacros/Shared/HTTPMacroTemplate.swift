@@ -5,7 +5,7 @@ import SwiftSyntaxBuilder
 /// Shared template helpers for HTTP macro implementations.
 ///
 /// Provides reusable Template builders for common HTTP macro patterns.
-public enum HTTPMacroTemplate {
+enum HTTPMacroTemplate {
 
   // MARK: - URL Construction
 
@@ -15,7 +15,7 @@ public enum HTTPMacroTemplate {
   ///   - baseURL: Base URL identifier
   ///   - pathSegments: Array of path segment templates
   /// - Returns: URL construction template
-  public static func buildURL(
+  static func buildURL(
     baseURL: Template<Void>,
     pathSegments: [Template<Void>]
   ) -> Template<Void> {
@@ -39,7 +39,7 @@ public enum HTTPMacroTemplate {
   ///   - method: HTTP method name
   ///   - url: URL template
   /// - Returns: Request initialization template
-  public static func buildRequest(
+  static func buildRequest(
     method: String,
     url: Template<Void>
   ) -> Template<Void> {
@@ -60,7 +60,7 @@ public enum HTTPMacroTemplate {
   ///   - name: Header name
   ///   - value: Header value template
   /// - Returns: Add header method call template
-  public static func addHeader(
+  static func addHeader(
     name: String,
     value: Template<Void>
   ) -> Template<Void> {
@@ -81,7 +81,7 @@ public enum HTTPMacroTemplate {
   ///   - name: Parameter name
   ///   - value: Parameter value template
   /// - Returns: Add query parameter method call template
-  public static func addQueryParameter(
+  static func addQueryParameter(
     name: String,
     value: Template<Void>
   ) -> Template<Void> {
@@ -100,7 +100,7 @@ public enum HTTPMacroTemplate {
   ///
   /// - Parameter parameterName: Name of the parameter to encode
   /// - Returns: JSON encoding template
-  public static func encodeJSONBody(
+  static func encodeJSONBody(
     parameterName: String
   ) -> Template<Void> {
     .functionCall(
@@ -117,7 +117,7 @@ public enum HTTPMacroTemplate {
   ///   - typeName: Type to decode to
   ///   - data: Data template to decode from
   /// - Returns: Decoding template
-  public static func decodeJSON(
+  static func decodeJSON(
     typeName: String,
     from data: Template<Void>
   ) -> Template<Void> {
@@ -142,7 +142,7 @@ public enum HTTPMacroTemplate {
   ///
   /// - Parameter template: Template to render
   /// - Returns: SwiftSyntax expression
-  public static func render(_ template: Template<Void>) -> ExprSyntax {
+  static func render(_ template: Template<Void>) -> ExprSyntax {
     Renderer.render(template)
   }
 
@@ -150,7 +150,7 @@ public enum HTTPMacroTemplate {
   ///
   /// - Parameter template: Typed template to render
   /// - Returns: SwiftSyntax expression
-  public static func render<M: HTTPMethodWithBodyConstraint>(
+  static func render<M: HTTPMethodWithBodyConstraint>(
     _ template: TypedHTTPTemplate<M>
   ) -> ExprSyntax {
     template.render()
