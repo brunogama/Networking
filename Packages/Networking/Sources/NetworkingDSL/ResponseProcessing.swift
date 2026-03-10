@@ -26,10 +26,10 @@ public enum ValidationResult: Sendable {
   case success
   case failure(HTTPError)
 
-  public var isValid: Bool {
+  public var isValid: ValidationFlag {
     switch self {
-    case .success: return true
-    case .failure: return false
+    case .success: return ValidationFlag(rawValue: true)
+    case .failure: return ValidationFlag(rawValue: false)
     }
   }
 }
@@ -42,14 +42,18 @@ public protocol ResponseValidator: Sendable {
 // MARK: - Status Code Validator
 
 public struct StatusValidator: ResponseValidator {
-  private let validStatuses: Set<Int>
+  private let validStatuses: Set<HTTPStatusCode>
 
-  public init(validStatuses: Set<Int>) {
+  public init(validStatuses: Set<HTTPStatusCode>) {
     self.validStatuses = validStatuses
   }
 
-  public static let successStatus = Self(validStatuses: Set(200..<300))
-  public static let anyStatus = Self(validStatuses: Set(100..<600))
+  public static let successStatus = Self(
+    validStatuses: Set((200..<300).map { HTTPStatusCode(rawValue: $0) })
+  )
+  public static let anyStatus = Self(
+    validStatuses: Set((100..<600).map { HTTPStatusCode(rawValue: $0) })
+  )
 
   public func validate(_ response: HTTPResponse) -> ValidationResult {
     if validStatuses.contains(response.status.rawValue) {
@@ -65,14 +69,18 @@ public struct StatusValidator: ResponseValidator {
 // MARK: - Content Type Validator
 
 public struct ContentTypeValidator: ResponseValidator {
-  private let expectedContentTypes: Set<String>
+  private let expectedContentTypes: Set<HTTPMediaType>
 
-  public init(_ contentTypes: String...) {
-    self.expectedContentTypes = Set(contentTypes.map { $0.lowercased() })
+  public init(_ contentTypes: HTTPMediaType...) {
+    self.expectedContentTypes = Set(contentTypes.map { HTTPMediaType($0.lowercased()) })
   }
 
-  public init(_ contentTypes: Set<String>) {
-    self.expectedContentTypes = Set(contentTypes.map { $0.lowercased() })
+  public init(_ contentTypes: Set<HTTPMediaType>) {
+    self.expectedContentTypes = Set(contentTypes.map { HTTPMediaType($0.lowercased()) })
+  }
+
+  package init(_ contentTypes: String...) {
+    self.expectedContentTypes = Set(contentTypes.map { HTTPMediaType($0.lowercased()) })
   }
 
   public static func json() -> Self {
@@ -91,7 +99,7 @@ public struct ContentTypeValidator: ResponseValidator {
     guard let contentType = response.headers["Content-Type"]?.lowercased() else {
       return .failure(
         HTTPError(
-          category: .configuration("Missing Content-Type header"),
+          category: .configuration(HTTPErrorDetail(rawValue: "Missing Content-Type header")),
           request: response.request,
           response: response
         )
@@ -102,13 +110,16 @@ public struct ContentTypeValidator: ResponseValidator {
       contentType.components(separatedBy: ";").first?.trimmingCharacters(in: .whitespaces)
       ?? contentType
 
-    if expectedContentTypes.contains(actualContentType) {
+    if expectedContentTypes.contains(HTTPMediaType(actualContentType)) {
       return .success
     } else {
       return .failure(
         HTTPError(
           category: .configuration(
-            "Expected Content-Type \(expectedContentTypes), got \(actualContentType)"
+            HTTPErrorDetail(
+              rawValue:
+                "Expected Content-Type \(expectedContentTypes.map { $0.rawValue }), got \(actualContentType)"
+            )
           ),
           request: response.request,
           response: response
@@ -131,7 +142,7 @@ public protocol ResponseTransformer<Input, Output>: Sendable {
 // MARK: - JSON Decoder Transformer
 
 public struct JSONDecoderTransformer<T: Decodable & Sendable>: ResponseTransformer {
-  public typealias Input = Data
+  public typealias Input = HTTPBody
   public typealias Output = T
 
   private let decoder: JSONDecoder
@@ -142,12 +153,14 @@ public struct JSONDecoderTransformer<T: Decodable & Sendable>: ResponseTransform
     self.decoder = decoder
   }
 
-  public func transform(_ input: Data) throws -> T {
+  public func transform(_ input: HTTPBody) throws -> T {
     do {
       return try decoder.decode(type, from: input)
     } catch {
       throw HTTPError(
-        category: .decoding("Failed to decode \(type): \(error.localizedDescription)"),
+        category: .decoding(
+          HTTPErrorDetail(rawValue: "Failed to decode \(type): \(error.localizedDescription)")
+        ),
         underlyingError: error
       )
     }
@@ -157,44 +170,62 @@ public struct JSONDecoderTransformer<T: Decodable & Sendable>: ResponseTransform
 // MARK: - String Transformer
 
 public struct StringTransformer: ResponseTransformer {
-  public typealias Input = Data
-  public typealias Output = String
+  public typealias Input = HTTPBody
+  public typealias Output = HTTPResponseText
 
-  private let encoding: String.Encoding
+  private let encoding: HTTPTextEncoding
 
-  public init(encoding: String.Encoding = .utf8) {
+  public init(encoding: HTTPTextEncoding = .utf8) {
     self.encoding = encoding
   }
 
-  public func transform(_ input: Data) throws -> String {
-    guard let string = String(data: input, encoding: encoding) else {
+  public func transform(_ input: HTTPBody) throws -> HTTPResponseText {
+    guard let resolvedEncoding = encoding.foundationEncoding else {
       throw HTTPError(
-        category: .decoding("Failed to convert data to string using \(encoding) encoding")
+        category: .configuration(
+          HTTPErrorDetail(rawValue: "Unsupported text encoding: \(encoding)")
+        )
       )
     }
-    return string
+
+    guard let string = String(data: input, encoding: resolvedEncoding) else {
+      throw HTTPError(
+        category: .decoding(
+          HTTPErrorDetail(rawValue: "Failed to convert data to string using \(encoding) encoding")
+        )
+      )
+    }
+    return HTTPResponseText(string)
   }
 }
 
 // MARK: - Response Cache Duration
 
 public struct ResponseCacheDuration: Sendable {
-  public let seconds: TimeInterval
+  public let seconds: NetworkingCore.RequestTimeout
 
-  public static func seconds(_ value: TimeInterval) -> Self {
+  public init(seconds: NetworkingCore.RequestTimeout) {
+    self.seconds = seconds
+  }
+
+  package init(seconds: TimeInterval) {
+    self.seconds = NetworkingCore.RequestTimeout(seconds)
+  }
+
+  public static func seconds(_ value: NetworkingCore.RequestTimeout) -> Self {
     Self(seconds: value)
   }
 
-  public static func minutes(_ value: TimeInterval) -> Self {
-    Self(seconds: value * 60)
+  public static func minutes(_ value: NetworkingCore.RequestTimeout) -> Self {
+    Self(seconds: NetworkingCore.RequestTimeout(value.rawValue * 60))
   }
 
-  public static func hours(_ value: TimeInterval) -> Self {
-    Self(seconds: value * 3600)
+  public static func hours(_ value: NetworkingCore.RequestTimeout) -> Self {
+    Self(seconds: NetworkingCore.RequestTimeout(value.rawValue * 3600))
   }
 
-  public static func days(_ value: TimeInterval) -> Self {
-    Self(seconds: value * 86_400)
+  public static func days(_ value: NetworkingCore.RequestTimeout) -> Self {
+    Self(seconds: NetworkingCore.RequestTimeout(value.rawValue * 86_400))
   }
 }
 
@@ -216,8 +247,8 @@ public struct ProcessedCachedResponse<T: Sendable>: Sendable {
     self.cacheExpiry = cacheExpiry
   }
 
-  public var isCacheValid: Bool {
-    Date() < cacheExpiry
+  public var isCacheValid: CacheValidityFlag {
+    CacheValidityFlag(Date() < cacheExpiry)
   }
 }
 
@@ -225,289 +256,4 @@ public struct ProcessedCachedResponse<T: Sendable>: Sendable {
 public struct TransformedResponse<T: Sendable>: Sendable {
   public let response: HTTPResponse
   public let value: T
-}
-
-// MARK: - HTTPResponse Method Chaining Extensions
-
-extension HTTPResponse {
-  /// Starts a response processing chain
-  /// - Returns: A ResponseChain wrapping this response
-  public func chain() -> ResponseChain<HTTPResponse> {
-    ResponseChain(response: self, value: self)
-  }
-
-  /// Validates the response and returns a validated response chain
-  /// - Parameter validator: The validator to use
-  /// - Returns: A new ResponseChain with validation applied
-  /// - Throws: HTTPError if validation fails
-  public func validate(_ validator: any ResponseValidator) throws -> ResponseChain<HTTPResponse> {
-    let result = validator.validate(self)
-    switch result {
-    case .success:
-      return chain()
-
-    case .failure(let error):
-      throw error
-    }
-  }
-
-  /// Convenience method to validate with success status codes (200-299)
-  /// - Returns: A ResponseChain with this response
-  /// - Throws: HTTPError if validation fails
-  public func validateSuccess() throws -> ResponseChain<HTTPResponse> {
-    try validate(StatusValidator.successStatus)
-  }
-
-  /// Caches the response for the specified duration
-  /// - Parameter duration: How long to cache the response
-  /// - Returns: A ProcessedCachedResponse with cache metadata
-  public func cache(for duration: ResponseCacheDuration) -> ProcessedCachedResponse<HTTPResponse> {
-    let expiry = Date().addingTimeInterval(duration.seconds)
-    return ProcessedCachedResponse(response: self, value: self, cacheExpiry: expiry)
-  }
-
-  /// Transforms the response using the provided transformer
-  /// - Parameter transformer: The transformer to use
-  /// - Returns: A TransformedResponse with the transformed value
-  /// - Throws: HTTPError if transformation fails
-  public func transform<T: Sendable>(
-    _ transformer: some ResponseTransformer<HTTPResponse, T>
-  ) throws -> TransformedResponse<T> {
-    let transformedValue = try transformer.transform(self)
-    return TransformedResponse(response: self, value: transformedValue)
-  }
-
-  /// Validates the response status code.
-  /// - Throws: HTTPError if the status indicates an error
-  @available(*, deprecated, message: "Use chain().validate(.successStatus) instead")
-  public func validateStatus() throws {
-    if status.isClientError || status.isServerError {
-      throw HTTPError.http(status: status, request: request, response: self)
-    }
-  }
-
-  /// Decodes the response body as JSON.
-  /// - Parameters:
-  ///   - type: The type to decode to
-  ///   - decoder: The JSON decoder to use (optional)
-  /// - Returns: The decoded value
-  /// - Throws: HTTPError if decoding fails
-  @available(*, deprecated, message: "Use chain().decode(_:using:) instead")
-  public func decode<T: Decodable>(
-    _ type: T.Type,
-    using decoder: JSONDecoder = JSONDecoder()
-  ) throws -> T {
-    guard let body = body else {
-      throw HTTPError(
-        category: .decoding("Response body is empty"),
-        request: request,
-        response: self
-      )
-    }
-
-    do {
-      return try decoder.decode(type, from: body)
-    } catch {
-      throw HTTPError(
-        category: .decoding("Failed to decode \(type): \(error.localizedDescription)"),
-        request: request,
-        response: self,
-        underlyingError: error
-      )
-    }
-  }
-
-  /// Gets the response body as a string.
-  /// - Parameter encoding: The string encoding to use (default: UTF-8)
-  /// - Returns: The response body as a string, or nil if conversion fails
-  @available(*, deprecated, message: "Use chain().transform(StringTransformer()) instead")
-  public func bodyAsString(encoding: String.Encoding = .utf8) -> String? {
-    guard let body = body else { return nil }
-    return String(data: body, encoding: encoding)
-  }
-}
-
-// MARK: - ResponseChain Method Chaining Extensions
-
-extension ResponseChain {
-  /// Validates the response using the provided validator
-  /// - Parameter validator: The validator to use
-  /// - Returns: A new ResponseChain with validation applied
-  /// - Throws: HTTPError if validation fails
-  public func validate(_ validator: any ResponseValidator) throws -> ResponseChain<T> {
-    let result = validator.validate(response)
-    switch result {
-    case .success:
-      return self
-
-    case .failure(let error):
-      throw error
-    }
-  }
-
-  /// Convenience method to validate with success status codes (200-299)
-  /// - Returns: A ValidatedResponse
-  /// - Throws: HTTPError if validation fails
-  public func validateSuccess() throws -> ValidatedResponse<T> {
-    let result = StatusValidator.successStatus.validate(response)
-    switch result {
-    case .success:
-      return ValidatedResponse(response: response, value: value)
-
-    case .failure(let error):
-      throw error
-    }
-  }
-}
-
-extension ResponseChain where T == HTTPResponse {
-  /// Decodes the response body using the provided transformer
-  /// - Parameter transformer: The transformer to use for decoding
-  /// - Returns: A new ResponseChain with the decoded value
-  /// - Throws: HTTPError if decoding fails
-  public func decode<U>(
-    _ transformer: some ResponseTransformer<Data, U>
-  ) throws -> ResponseChain<U> {
-    guard let body = response.body else {
-      throw HTTPError(
-        category: .decoding("Response body is empty"),
-        request: response.request,
-        response: response
-      )
-    }
-
-    let decodedValue = try transformer.transform(body)
-    return ResponseChain<U>(response: response, value: decodedValue)
-  }
-
-  // The decode method that returns DecodableResponse is now available through the enhanced ValidatedResponse system
-
-  /// Transforms the response body to a string
-  /// - Parameter encoding: The string encoding to use
-  /// - Returns: A TransformedResponse with the string value
-  /// - Throws: HTTPError if transformation fails
-  public func asString(encoding: String.Encoding = .utf8) throws -> TransformedResponse<String> {
-    guard let body = response.body else {
-      throw HTTPError(
-        category: .decoding("Response body is empty"),
-        request: response.request,
-        response: response
-      )
-    }
-
-    let transformer = StringTransformer(encoding: encoding)
-    let stringValue = try transformer.transform(body)
-    return TransformedResponse(response: response, value: stringValue)
-  }
-}
-
-extension ResponseChain {
-  /// Transforms the current value using the provided transformer
-  /// - Parameter transformer: The transformer to use
-  /// - Returns: A new ResponseChain with the transformed value
-  /// - Throws: HTTPError if transformation fails
-  public func transform<U>(
-    _ transformer: some ResponseTransformer<T, U>
-  ) throws -> ResponseChain<U> {
-    let transformedValue = try transformer.transform(value)
-    return ResponseChain<U>(response: response, value: transformedValue)
-  }
-
-  /// Caches the response for the specified duration
-  /// - Parameter duration: How long to cache the response
-  /// - Returns: A ProcessedCachedResponse with cache metadata
-  public func cache(for duration: ResponseCacheDuration) -> ProcessedCachedResponse<T> {
-    let expiry = Date().addingTimeInterval(duration.seconds)
-    return ProcessedCachedResponse(response: response, value: value, cacheExpiry: expiry)
-  }
-
-  /// Applies a custom transformation using a closure
-  /// - Parameter transform: The transformation closure
-  /// - Returns: A new ResponseChain with the transformed value
-  /// - Throws: Any error thrown by the transformation closure
-  public func map<U>(_ transform: (T) throws -> U) throws -> ResponseChain<U> {
-    let transformedValue = try transform(value)
-    return ResponseChain<U>(response: response, value: transformedValue)
-  }
-
-  /// Applies error recovery if the chain fails
-  /// - Parameter recovery: The recovery closure
-  /// - Returns: A new ResponseChain with the recovered value or rethrows the error
-  public func recover(_ recovery: (HTTPError) throws -> T) throws -> ResponseChain<T> {
-    // This method provides a hook for error recovery in method chains
-    // The actual error handling would be implemented by wrapping other chain operations
-    self
-  }
-
-  /// Extracts the final value from the chain
-  /// - Returns: The processed value
-  public func extractValue() -> T {
-    value
-  }
-
-  /// Extracts both the response and the processed value
-  /// - Returns: A tuple containing the response and the processed value
-  public func result() -> (response: HTTPResponse, value: T) {
-    (response: response, value: value)
-  }
-}
-
-// MARK: - Error Recovery Extensions
-
-extension ResponseChain {
-  /// Provides error recovery for the entire chain operation
-  /// - Parameter operation: The chain operation that might fail
-  /// - Parameter recovery: The recovery strategy to use on failure
-  /// - Returns: A ResponseChain with either the successful result or recovered value
-  public static func withRecovery<U>(
-    _ operation: () throws -> ResponseChain<U>,
-    recovery: (HTTPError) throws -> ResponseChain<U>
-  ) throws -> ResponseChain<U> {
-    do {
-      return try operation()
-    } catch let error as HTTPError {
-      return try recovery(error)
-    }
-  }
-}
-
-// MARK: - Convenience Validation Methods
-
-extension ResponseValidator where Self == StatusValidator {
-  /// Validates success status codes (200-299)
-  public static var successStatus: StatusValidator {
-    StatusValidator.successStatus
-  }
-
-  /// Validates any status code
-  public static var anyStatus: StatusValidator {
-    StatusValidator.anyStatus
-  }
-
-  /// Validates specific status codes
-  public static func status(_ codes: Int...) -> StatusValidator {
-    StatusValidator(validStatuses: Set(codes))
-  }
-}
-
-extension ResponseValidator where Self == ContentTypeValidator {
-  /// Validates JSON content type
-  public static func contentType(_ type: String) -> ContentTypeValidator {
-    ContentTypeValidator(type)
-  }
-
-  /// Validates JSON content type
-  public static var json: ContentTypeValidator {
-    ContentTypeValidator.json()
-  }
-
-  /// Validates XML content type
-  public static var xml: ContentTypeValidator {
-    ContentTypeValidator.xml()
-  }
-
-  /// Validates plain text content type
-  public static var plainText: ContentTypeValidator {
-    ContentTypeValidator.plainText()
-  }
 }

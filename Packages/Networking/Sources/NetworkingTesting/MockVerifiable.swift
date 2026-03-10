@@ -12,13 +12,13 @@ import FoundationNetworking
 /// Provides structured error reporting for mock expectations and stubbing issues.
 public enum MockError: Error, Equatable, CustomStringConvertible {
   /// Thrown when a stubbed value is required but not set
-  case notStubbed(String)
+  case notStubbed(ExpectationDescriptionText)
 
   /// Thrown when verification fails due to unexpected call count
-  case unexpectedCallCount(expected: Int, actual: Int)
+  case unexpectedCallCount(expected: MockVerificationCount, actual: MockVerificationCount)
 
   /// Thrown when a mock receives an argument it doesn't expect
-  case unexpectedArgument(description: String)
+  case unexpectedArgument(description: ExpectationDescriptionText)
 
   public var description: String {
     switch self {
@@ -90,7 +90,7 @@ public protocol MockVerifiable {
   /// - For actor-based mocks: Use `nonisolated` with `get async` to expose actor state safely
   ///
   /// - Note: All implementations should use `get async` for Swift 6 concurrency compliance
-  var callCount: Int { get async }
+  var callCount: MockVerificationCount { get async }
 }
 
 // MARK: - Default Verification Methods (Async)
@@ -107,7 +107,7 @@ extension MockVerifiable {
   ///
   /// - Parameter times: Expected number of calls
   /// - Throws: `MockError.unexpectedCallCount` if actual count doesn't match
-  public func verifyCalledExactly(_ times: Int) async throws {
+  public func verifyCalledExactly(_ times: MockVerificationCount) async throws {
     let actual = await callCount
     guard actual == times else {
       throw MockError.unexpectedCallCount(expected: times, actual: actual)
@@ -125,7 +125,7 @@ extension MockVerifiable {
   ///
   /// - Parameter times: Minimum expected number of calls
   /// - Throws: `MockError.unexpectedCallCount` if actual count is less than minimum
-  public func verifyCalledAtLeast(_ times: Int) async throws {
+  public func verifyCalledAtLeast(_ times: MockVerificationCount) async throws {
     let actual = await callCount
     guard actual >= times else {
       throw MockError.unexpectedCallCount(expected: times, actual: actual)

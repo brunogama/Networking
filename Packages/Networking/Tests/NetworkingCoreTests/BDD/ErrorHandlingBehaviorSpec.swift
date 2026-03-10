@@ -84,7 +84,7 @@ struct ErrorHandlingBehaviorTests {
     let error = HTTPError(category: .http(status))
 
     #expect(status == expectation.expected)
-    #expect(status.isClientError)
+    #expect(status.isClientError.rawValue)
     #expect(status.isServerError == expectation.isServerError)
 
     guard case .http(let errorStatus) = error.category else {
@@ -109,7 +109,7 @@ struct ErrorHandlingBehaviorTests {
 
     #expect(status == expectation.expected)
     #expect(status.isServerError == expectation.isServerError)
-    #expect(!status.isClientError)
+    #expect(status.isClientError.rawValue == false)
   }
 
   @Test("Recognizes retryable recovery cases", arguments: RetryableErrorExpectation.allCases)
@@ -164,7 +164,7 @@ struct ErrorHandlingBehaviorTests {
     }
 
     #expect(status == expectation.expected)
-    #expect(status.isClientError)
+    #expect(status.isClientError.rawValue)
     #expect(error.request?.url.path == expectation.path)
   }
 
@@ -184,7 +184,7 @@ struct ErrorHandlingBehaviorTests {
       return
     }
 
-    #expect(preservedRequest.url == url)
+    #expect(preservedRequest.url.rawValue == url)
     #expect(preservedRequest.method == .post)
   }
 
@@ -198,7 +198,7 @@ struct ErrorHandlingBehaviorTests {
     }
 
     #expect(errorStatus.rawValue == 502)
-    #expect(errorStatus.isServerError)
+    #expect(errorStatus.isServerError.rawValue)
   }
 
   @Test("Distinguishes network errors from HTTP errors")

@@ -6,6 +6,42 @@ import Foundation
 #if canImport(OSLog)
 import OSLog
 
+public struct ObservabilityEventPredicate: Sendable {
+  private let evaluator:
+    @Sendable (NetworkObservabilityMiddleware.ObservabilityEvent)
+      -> MockPredicateMatchFlag
+
+  public init(
+    _ evaluator:
+      @escaping @Sendable (NetworkObservabilityMiddleware.ObservabilityEvent)
+      -> MockPredicateMatchFlag
+  ) {
+    self.evaluator = evaluator
+  }
+
+  func matches(_ event: NetworkObservabilityMiddleware.ObservabilityEvent) -> Bool {
+    evaluator(event).rawValue
+  }
+}
+
+public struct PerformanceMetricsPredicate: Sendable {
+  private let evaluator:
+    @Sendable (NetworkObservabilityMiddleware.PerformanceMetrics)
+      -> MockPredicateMatchFlag
+
+  public init(
+    _ evaluator:
+      @escaping @Sendable (NetworkObservabilityMiddleware.PerformanceMetrics)
+      -> MockPredicateMatchFlag
+  ) {
+    self.evaluator = evaluator
+  }
+
+  func matches(_ metrics: NetworkObservabilityMiddleware.PerformanceMetrics) -> Bool {
+    evaluator(metrics).rawValue
+  }
+}
+
 /// Mock implementation of MetricsCollector for testing observability functionality.
 ///
 /// Provides state tracking, inspection, and verification capabilities for testing
@@ -62,9 +98,9 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   // MARK: - MockVerifiable Protocol
 
   /// Total number of calls to both recordEvent and recordPerformanceMetrics
-  nonisolated public var callCount: Int {
+  nonisolated public var callCount: MockVerificationCount {
     get async {
-      await eventCallCount + metricsCallCount
+      MockVerificationCount(await eventCallCount + metricsCallCount)
     }
   }
 
@@ -76,8 +112,8 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   }
 
   /// Returns the number of recorded events
-  public func getEventCount() -> Int {
-    recordedEvents.count
+  public func getEventCount() -> MockVerificationCount {
+    MockVerificationCount(recordedEvents.count)
   }
 
   /// Returns all recorded performance metrics
@@ -86,8 +122,8 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   }
 
   /// Returns the number of recorded performance metrics
-  public func getMetricsCount() -> Int {
-    recordedMetrics.count
+  public func getMetricsCount() -> MockVerificationCount {
+    MockVerificationCount(recordedMetrics.count)
   }
 
   /// Returns events matching the specified predicate
@@ -95,9 +131,9 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   /// - Parameter predicate: Closure that returns true for matching events
   /// - Returns: Array of events that match the predicate
   public func getEventsMatching(
-    _ predicate: (NetworkObservabilityMiddleware.ObservabilityEvent) -> Bool
+    _ predicate: ObservabilityEventPredicate
   ) -> [NetworkObservabilityMiddleware.ObservabilityEvent] {
-    recordedEvents.filter(predicate)
+    recordedEvents.filter(predicate.matches)
   }
 
   /// Returns metrics matching the specified predicate
@@ -105,9 +141,9 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   /// - Parameter predicate: Closure that returns true for matching metrics
   /// - Returns: Array of metrics that match the predicate
   public func getMetricsMatching(
-    _ predicate: (NetworkObservabilityMiddleware.PerformanceMetrics) -> Bool
+    _ predicate: PerformanceMetricsPredicate
   ) -> [NetworkObservabilityMiddleware.PerformanceMetrics] {
-    recordedMetrics.filter(predicate)
+    recordedMetrics.filter(predicate.matches)
   }
 
   // MARK: - Verification Methods
@@ -117,9 +153,9 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   /// - Parameter predicate: Closure that returns true for matching events
   /// - Throws: `MockError.unexpectedArgument` if no matching event found
   public func verifyEventRecorded(
-    matching predicate: (NetworkObservabilityMiddleware.ObservabilityEvent) -> Bool
+    matching predicate: ObservabilityEventPredicate
   ) throws {
-    guard recordedEvents.contains(where: predicate) else {
+    guard recordedEvents.contains(where: predicate.matches) else {
       throw MockError.unexpectedArgument(description: "No matching event found")
     }
   }
@@ -129,9 +165,9 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   /// - Parameter predicate: Closure that returns true for matching metrics
   /// - Throws: `MockError.unexpectedArgument` if no matching metric found
   public func verifyMetricRecorded(
-    matching predicate: (NetworkObservabilityMiddleware.PerformanceMetrics) -> Bool
+    matching predicate: PerformanceMetricsPredicate
   ) throws {
-    guard recordedMetrics.contains(where: predicate) else {
+    guard recordedMetrics.contains(where: predicate.matches) else {
       throw MockError.unexpectedArgument(description: "No matching metric found")
     }
   }
@@ -141,7 +177,10 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   /// - Throws: `MockError.unexpectedCallCount` if any events were recorded
   public func verifyNoEventsRecorded() throws {
     guard recordedEvents.isEmpty else {
-      throw MockError.unexpectedCallCount(expected: 0, actual: recordedEvents.count)
+      throw MockError.unexpectedCallCount(
+        expected: 0,
+        actual: MockVerificationCount(recordedEvents.count)
+      )
     }
   }
 
@@ -150,7 +189,10 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   /// - Throws: `MockError.unexpectedCallCount` if any metrics were recorded
   public func verifyNoMetricsRecorded() throws {
     guard recordedMetrics.isEmpty else {
-      throw MockError.unexpectedCallCount(expected: 0, actual: recordedMetrics.count)
+      throw MockError.unexpectedCallCount(
+        expected: 0,
+        actual: MockVerificationCount(recordedMetrics.count)
+      )
     }
   }
 
@@ -158,9 +200,13 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   ///
   /// - Parameter count: Expected number of events
   /// - Throws: `MockError.unexpectedCallCount` if count doesn't match
-  public func verifyEventCount(_ count: Int) throws {
-    guard recordedEvents.count == count else {
-      throw MockError.unexpectedCallCount(expected: count, actual: recordedEvents.count)
+  public func verifyEventCount(_ count: MockVerificationCount) throws {
+    let actualCount = MockVerificationCount(recordedEvents.count)
+    guard actualCount == count else {
+      throw MockError.unexpectedCallCount(
+        expected: count,
+        actual: actualCount
+      )
     }
   }
 
@@ -168,9 +214,13 @@ public actor MockMetricsCollector: MetricsCollector, MockVerifiable {
   ///
   /// - Parameter count: Expected number of metrics
   /// - Throws: `MockError.unexpectedCallCount` if count doesn't match
-  public func verifyMetricsCount(_ count: Int) throws {
-    guard recordedMetrics.count == count else {
-      throw MockError.unexpectedCallCount(expected: count, actual: recordedMetrics.count)
+  public func verifyMetricsCount(_ count: MockVerificationCount) throws {
+    let actualCount = MockVerificationCount(recordedMetrics.count)
+    guard actualCount == count else {
+      throw MockError.unexpectedCallCount(
+        expected: count,
+        actual: actualCount
+      )
     }
   }
 

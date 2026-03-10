@@ -11,14 +11,14 @@ public struct CachedResponse<T: Sendable>: ValidatedResponseProtocol, Sendable {
   public let value: T
   public let validationResults: [ValidationResult]
   public let cacheMetadata: CacheMetadata
-  public let isCacheHit: Bool
+  public let isCacheHit: CacheHitFlag
   public let cacheTimestamp: Date
 
   public init(
     response: HTTPResponse,
     value: T,
     cacheMetadata: CacheMetadata,
-    isCacheHit: Bool = false,
+    isCacheHit: CacheHitFlag = false,
     cacheTimestamp: Date = Date(),
     validationResults: [ValidationResult] = [.success]
   ) {
@@ -31,18 +31,18 @@ public struct CachedResponse<T: Sendable>: ValidatedResponseProtocol, Sendable {
   }
 
   /// Cache age since the response was first cached
-  public var cacheAge: TimeInterval {
-    Date().timeIntervalSince(cacheTimestamp)
+  public var cacheAge: NetworkingCore.RequestTimeout {
+    NetworkingCore.RequestTimeout(Date().timeIntervalSince(cacheTimestamp))
   }
 
   /// Whether the cached response is still fresh (within TTL)
-  public var isFresh: Bool {
-    guard let ttl = cacheMetadata.ttl else { return true }
-    return cacheAge < ttl
+  public var isFresh: CacheFreshnessFlag {
+    guard let ttl = cacheMetadata.ttl else { return CacheFreshnessFlag(true) }
+    return CacheFreshnessFlag(cacheAge < ttl)
   }
 
   /// Whether the response needs revalidation
-  public var needsRevalidation: Bool {
-    !isFresh || cacheMetadata.tags.isEmpty
+  public var needsRevalidation: CacheRevalidationRequiredFlag {
+    CacheRevalidationRequiredFlag(!isFresh.rawValue || cacheMetadata.tags.isEmpty)
   }
 }

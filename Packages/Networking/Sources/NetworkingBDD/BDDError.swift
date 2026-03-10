@@ -9,27 +9,31 @@ public enum BDDError: Error, LocalizedError, Sendable {
   // MARK: - Step Execution Errors
 
   /// No step definition found for the given step text.
-  case undefinedStep(String)
+  case undefinedStep(BDDStepText)
 
   /// Multiple step definitions match the given step text.
-  case ambiguousStep(String, matchCount: Int)
+  case ambiguousStep(BDDStepText, matchCount: RequestCount)
 
   /// Step execution failed with an error.
-  case stepExecutionFailed(step: String, underlyingError: Error)
+  case stepExecutionFailed(step: BDDStepText, underlyingError: Error)
 
   /// Step timed out during execution.
-  case stepTimeout(step: String, duration: TimeInterval)
+  case stepTimeout(step: BDDStepText, duration: MeasurementDuration)
 
   /// Step was skipped (pending implementation).
-  case pendingStep(String)
+  case pendingStep(BDDStepText)
 
   // MARK: - Context Errors
 
   /// Required context value is missing.
-  case missingContextValue(key: String)
+  case missingContextValue(key: BDDContextKeyName)
 
   /// Context value has wrong type.
-  case invalidContextType(key: String, expected: String, actual: String)
+  case invalidContextType(
+    key: BDDContextKeyName,
+    expected: UserMessageText,
+    actual: UserMessageText
+  )
 
   /// No response available in context.
   case noResponse
@@ -43,22 +47,26 @@ public enum BDDError: Error, LocalizedError, Sendable {
   // MARK: - Assertion Errors
 
   /// Status code mismatch.
-  case statusMismatch(expected: Int, actual: Int)
+  case statusMismatch(expected: HTTPStatusCode, actual: HTTPStatusCode)
 
   /// Response was not successful (2xx).
-  case notSuccessful(status: Int)
+  case notSuccessful(status: HTTPStatusCode)
 
   /// Missing header in response.
-  case missingHeader(String)
+  case missingHeader(HTTPHeaderName)
 
   /// Header value mismatch.
-  case headerValueMismatch(header: String, expected: String, actual: String)
+  case headerValueMismatch(
+    header: HTTPHeaderName,
+    expected: HTTPHeaderValue,
+    actual: HTTPHeaderValue
+  )
 
   /// Body does not contain expected content.
-  case bodyDoesNotContain(String)
+  case bodyDoesNotContain(HTTPResponseText)
 
   /// Body decode mismatch.
-  case bodyDecodeMismatch(expected: String, actual: String)
+  case bodyDecodeMismatch(expected: UserMessageText, actual: UserMessageText)
 
   /// Expected an error but none occurred.
   case expectedError(HTTPError.Category)
@@ -72,7 +80,11 @@ public enum BDDError: Error, LocalizedError, Sendable {
   // MARK: - Parser Errors
 
   /// Unexpected token during parsing.
-  case unexpectedToken(expected: String, found: String, location: GherkinSourceLocation)
+  case unexpectedToken(
+    expected: UserMessageText,
+    found: UserMessageText,
+    location: GherkinSourceLocation
+  )
 
   /// Unterminated doc string.
   case unterminatedDocString(location: GherkinSourceLocation)
@@ -87,32 +99,32 @@ public enum BDDError: Error, LocalizedError, Sendable {
   case duplicateBackground(location: GherkinSourceLocation)
 
   /// Invalid examples section.
-  case invalidExamples(reason: String, location: GherkinSourceLocation)
+  case invalidExamples(reason: UserMessageText, location: GherkinSourceLocation)
 
   /// General syntax error.
-  case syntaxError(message: String, location: GherkinSourceLocation)
+  case syntaxError(message: UserMessageText, location: GherkinSourceLocation)
 
   /// File not found.
-  case fileNotFound(path: String)
+  case fileNotFound(path: BDDSourceFilePath)
 
   /// Failed to read file.
-  case fileReadError(path: String, underlyingError: Error)
+  case fileReadError(path: BDDSourceFilePath, underlyingError: Error)
 
   // MARK: - Registry Errors
 
   /// Invalid step pattern regex.
-  case invalidStepPattern(pattern: String, error: String)
+  case invalidStepPattern(pattern: BDDStepPattern, error: UserMessageText)
 
   /// Step definition already registered.
-  case duplicateStepDefinition(pattern: String)
+  case duplicateStepDefinition(pattern: BDDStepPattern)
 
   // MARK: - Configuration Errors
 
   /// Missing required configuration.
-  case missingConfiguration(String)
+  case missingConfiguration(UserMessageText)
 
   /// Invalid configuration value.
-  case invalidConfiguration(key: String, reason: String)
+  case invalidConfiguration(key: UserMessageText, reason: UserMessageText)
 
   // MARK: - Scenario Errors
 
@@ -120,7 +132,7 @@ public enum BDDError: Error, LocalizedError, Sendable {
   case noScenarios
 
   /// Scenario was filtered out by tags.
-  case scenarioSkipped(name: String, reason: String)
+  case scenarioSkipped(name: BDDScenarioName, reason: UserMessageText)
 
   // MARK: - Doc String Errors
 
@@ -130,32 +142,33 @@ public enum BDDError: Error, LocalizedError, Sendable {
   // MARK: - Reporting Errors
 
   /// Report generation failed.
-  case reportGenerationFailed(reason: String)
+  case reportGenerationFailed(reason: UserMessageText)
 
   // MARK: - LocalizedError
 
   public var errorDescription: String? {
     switch self {
     case .undefinedStep(let text):
-      return "Undefined step: '\(text)'. No matching step definition found."
+      return "Undefined step: '\(text.rawValue)'. No matching step definition found."
 
     case .ambiguousStep(let text, let count):
-      return "Ambiguous step: '\(text)' matches \(count) step definitions."
+      return "Ambiguous step: '\(text.rawValue)' matches \(count.rawValue) step definitions."
 
     case .stepExecutionFailed(let step, let error):
-      return "Step '\(step)' failed: \(error.localizedDescription)"
+      return "Step '\(step.rawValue)' failed: \(error.localizedDescription)"
 
     case .stepTimeout(let step, let duration):
-      return "Step '\(step)' timed out after \(duration) seconds."
+      return "Step '\(step.rawValue)' timed out after \(duration.rawValue) seconds."
 
     case .pendingStep(let text):
-      return "Pending step: '\(text)' is not yet implemented."
+      return "Pending step: '\(text.rawValue)' is not yet implemented."
 
     case .missingContextValue(let key):
-      return "Missing context value for key: '\(key)'."
+      return "Missing context value for key: '\(key.rawValue)'."
 
     case .invalidContextType(let key, let expected, let actual):
-      return "Invalid type for context key '\(key)': expected \(expected), got \(actual)."
+      return
+        "Invalid type for context key '\(key.rawValue)': expected \(expected.rawValue), got \(actual.rawValue)."
 
     case .noResponse:
       return "No response available. Ensure a request has been executed."
@@ -167,22 +180,24 @@ public enum BDDError: Error, LocalizedError, Sendable {
       return "Response has no body."
 
     case .statusMismatch(let expected, let actual):
-      return "Status mismatch: expected \(expected), got \(actual)."
+      return "Status mismatch: expected \(expected.rawValue), got \(actual.rawValue)."
 
     case .notSuccessful(let status):
-      return "Response was not successful: status \(status)."
+      return "Response was not successful: status \(status.rawValue)."
 
     case .missingHeader(let name):
-      return "Missing header: '\(name)'."
+      return "Missing header: '\(name.rawValue)'."
 
     case .headerValueMismatch(let header, let expected, let actual):
-      return "Header '\(header)' mismatch: expected '\(expected)', got '\(actual)'."
+      return
+        "Header '\(header.rawValue)' mismatch: expected '\(expected.rawValue)', got '\(actual.rawValue)'."
 
     case .bodyDoesNotContain(let content):
-      return "Body does not contain: '\(content)'."
+      return "Body does not contain: '\(content.rawValue)'."
 
     case .bodyDecodeMismatch(let expected, let actual):
-      return "Decoded body mismatch: expected '\(expected)', got '\(actual)'."
+      return
+        "Decoded body mismatch: expected '\(expected.rawValue)', got '\(actual.rawValue)'."
 
     case .expectedError(let category):
       return "Expected error with category: \(category)."
@@ -194,7 +209,8 @@ public enum BDDError: Error, LocalizedError, Sendable {
       return "Expected a timeout error."
 
     case .unexpectedToken(let expected, let found, let location):
-      return "Unexpected token at \(location.description): expected \(expected), found '\(found)'."
+      return
+        "Unexpected token at \(location.description): expected \(expected.rawValue), found '\(found.rawValue)'."
 
     case .unterminatedDocString(let location):
       return "Unterminated doc string at \(location.description)."
@@ -210,40 +226,40 @@ public enum BDDError: Error, LocalizedError, Sendable {
         "Duplicate Background at \(location.description). Only one Background per Feature is allowed."
 
     case .invalidExamples(let reason, let location):
-      return "Invalid Examples at \(location.description): \(reason)."
+      return "Invalid Examples at \(location.description): \(reason.rawValue)."
 
     case .syntaxError(let message, let location):
-      return "Syntax error at \(location.description): \(message)."
+      return "Syntax error at \(location.description): \(message.rawValue)."
 
     case .fileNotFound(let path):
-      return "File not found: '\(path)'."
+      return "File not found: '\(path.rawValue)'."
 
     case .fileReadError(let path, let error):
-      return "Failed to read file '\(path)': \(error.localizedDescription)."
+      return "Failed to read file '\(path.rawValue)': \(error.localizedDescription)."
 
     case .invalidStepPattern(let pattern, let error):
-      return "Invalid step pattern '\(pattern)': \(error)."
+      return "Invalid step pattern '\(pattern.rawValue)': \(error.rawValue)."
 
     case .duplicateStepDefinition(let pattern):
-      return "Duplicate step definition for pattern: '\(pattern)'."
+      return "Duplicate step definition for pattern: '\(pattern.rawValue)'."
 
     case .missingConfiguration(let key):
-      return "Missing required configuration: '\(key)'."
+      return "Missing required configuration: '\(key.rawValue)'."
 
     case .invalidConfiguration(let key, let reason):
-      return "Invalid configuration '\(key)': \(reason)."
+      return "Invalid configuration '\(key.rawValue)': \(reason.rawValue)."
 
     case .noScenarios:
       return "No scenarios found in feature."
 
     case .scenarioSkipped(let name, let reason):
-      return "Scenario '\(name)' skipped: \(reason)."
+      return "Scenario '\(name.rawValue)' skipped: \(reason.rawValue)."
 
     case .missingDocString:
       return "Expected a doc string but none was provided."
 
     case .reportGenerationFailed(let reason):
-      return "Report generation failed: \(reason)."
+      return "Report generation failed: \(reason.rawValue)."
     }
   }
 
@@ -289,149 +305,5 @@ public enum BDDError: Error, LocalizedError, Sendable {
     default:
       return nil
     }
-  }
-}
-
-// MARK: - Step Result
-
-/// Result of executing a single step.
-public enum StepResult: Sendable {
-  /// Step passed successfully.
-  case passed(duration: TimeInterval)
-
-  /// Step failed with an error.
-  case failed(error: Error, duration: TimeInterval)
-
-  /// Step was skipped.
-  case skipped(reason: String)
-
-  /// Step is pending implementation.
-  case pending
-
-  /// Whether the step passed.
-  public var isPassed: Bool {
-    if case .passed = self { return true }
-    return false
-  }
-
-  /// Whether the step failed.
-  public var isFailed: Bool {
-    if case .failed = self { return true }
-    return false
-  }
-
-  /// The duration of step execution (if applicable).
-  public var duration: TimeInterval? {
-    switch self {
-    case .passed(let d): return d
-    case .failed(_, let d): return d
-    default: return nil
-    }
-  }
-
-  /// The error if the step failed.
-  public var error: Error? {
-    if case .failed(let error, _) = self { return error }
-    return nil
-  }
-}
-
-// MARK: - Scenario Result
-
-/// Result of executing a scenario.
-public struct ScenarioResult: Sendable {
-  /// The scenario that was executed.
-  public let scenario: GherkinScenario
-
-  /// Results for each step.
-  public let stepResults: [StepResultEntry]
-
-  /// Total duration.
-  public let duration: TimeInterval
-
-  /// Whether all steps passed.
-  public var passed: Bool {
-    stepResults.allSatisfy { $0.result.isPassed }
-  }
-
-  /// The first error encountered.
-  public var error: Error? {
-    stepResults.compactMap { $0.result.error }.first
-  }
-
-  /// Number of passed steps.
-  public var passedCount: Int {
-    stepResults.filter { $0.result.isPassed }.count
-  }
-
-  /// Number of failed steps.
-  public var failedCount: Int {
-    stepResults.filter { $0.result.isFailed }.count
-  }
-
-  /// Creates a new scenario result.
-  public init(
-    scenario: GherkinScenario,
-    stepResults: [StepResultEntry],
-    duration: TimeInterval
-  ) {
-    self.scenario = scenario
-    self.stepResults = stepResults
-    self.duration = duration
-  }
-}
-
-/// Entry linking a step to its result.
-public struct StepResultEntry: Sendable {
-  /// The step that was executed.
-  public let step: GherkinStep
-
-  /// The result of execution.
-  public let result: StepResult
-
-  /// Creates a new step result entry.
-  public init(step: GherkinStep, result: StepResult) {
-    self.step = step
-    self.result = result
-  }
-}
-
-// MARK: - Feature Result
-
-/// Result of executing a feature.
-public struct FeatureResult: Sendable {
-  /// The feature that was executed.
-  public let feature: GherkinFeature
-
-  /// Results for each scenario.
-  public let scenarioResults: [ScenarioResult]
-
-  /// Total duration.
-  public let duration: TimeInterval
-
-  /// Whether all scenarios passed.
-  public var passed: Bool {
-    scenarioResults.allSatisfy { $0.passed }
-  }
-
-  /// Number of passed scenarios.
-  public var passedCount: Int {
-    scenarioResults.filter { $0.passed }.count
-  }
-
-  /// Number of failed scenarios.
-  public var failedCount: Int {
-    scenarioResults.filter { !$0.passed }.count
-  }
-
-  /// Creates a new feature result.
-  public init(
-    feature: GherkinFeature,
-    scenarioResults: [ScenarioResult],
-    duration: TimeInterval
-  ) {
-    self.feature = feature
-    self.scenarioResults = scenarioResults
-    self.duration = duration
   }
 }

@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 import NetworkingCore
 
@@ -13,47 +14,49 @@ public enum TransferPhase: Sendable, Hashable {
 /// Progress information for upload or download operations.
 public struct TransferProgress: Sendable, Hashable {
   /// Total bytes expected to be transferred (nil if unknown)
-  public let totalBytes: Int64?
+  public let totalBytes: TransferByteCount?
 
   /// Number of bytes transferred so far
-  public let transferredBytes: Int64
+  public let transferredBytes: TransferByteCount
 
   /// Current transfer phase
   public let phase: TransferPhase
 
   /// Progress as a percentage (0.0 to 1.0)
-  public var progress: Double {
+  public var progress: TransferProgressFraction {
     guard let total = totalBytes, total > 0 else {
-      return phase == .completed ? 1.0 : 0.0
+      return phase == .completed ? 1 : 0
     }
-    return min(1.0, max(0.0, Double(transferredBytes) / Double(total)))
+    return TransferProgressFraction(
+      min(1.0, max(0.0, Double(transferredBytes.rawValue) / Double(total.rawValue)))
+    )
   }
 
   /// Transfer speed in bytes per second (nil if cannot be calculated)
-  public let bytesPerSecond: Double?
+  public let bytesPerSecond: TransferSpeed?
 
   /// Estimated time remaining in seconds (nil if cannot be calculated)
-  public var estimatedTimeRemaining: TimeInterval? {
+  public var estimatedTimeRemaining: TransferDuration? {
     guard let total = totalBytes,
       let speed = bytesPerSecond,
-      speed > 0,
+      speed.rawValue > 0,
       transferredBytes < total
     else {
       return nil
     }
 
-    let remainingBytes = total - transferredBytes
-    return Double(remainingBytes) / speed
+    let remainingBytes = total.rawValue - transferredBytes.rawValue
+    return TransferDuration(Double(remainingBytes) / speed.rawValue)
   }
 
   /// Timestamp when this progress was recorded
   public let timestamp: Date
 
   public init(
-    totalBytes: Int64?,
-    transferredBytes: Int64,
+    totalBytes: TransferByteCount?,
+    transferredBytes: TransferByteCount,
     phase: TransferPhase,
-    bytesPerSecond: Double? = nil,
+    bytesPerSecond: TransferSpeed? = nil,
     timestamp: Date = Date()
   ) {
     self.totalBytes = totalBytes
@@ -70,34 +73,34 @@ public typealias ProgressCallback = @Sendable (TransferProgress) -> Void
 /// Configuration for progress tracking middleware.
 public struct ProgressTrackingConfiguration: Sendable {
   /// Whether to track upload progress
-  public let trackUploadProgress: Bool
+  public let trackUploadProgress: UploadProgressTrackingFlag
 
   /// Whether to track download progress
-  public let trackDownloadProgress: Bool
+  public let trackDownloadProgress: DownloadProgressTrackingFlag
 
   /// Minimum bytes threshold to start tracking (avoids overhead for small transfers)
-  public let minimumBytesThreshold: Int64
+  public let minimumBytesThreshold: TransferByteCount
 
   /// Progress update interval in bytes (updates are throttled to avoid excessive callbacks)
-  public let updateIntervalBytes: Int64
+  public let updateIntervalBytes: TransferByteCount
 
   /// Maximum time interval between progress updates (ensures regular updates)
-  public let maxUpdateInterval: TimeInterval
+  public let maxUpdateInterval: TransferDuration
 
   /// Whether to enable chunked transfer support
-  public let enableChunkedTransfer: Bool
+  public let enableChunkedTransfer: ChunkedTransferSupportFlag
 
   /// Default chunk size for chunked transfers
-  public let defaultChunkSize: Int64
+  public let defaultChunkSize: ChunkSize
 
   public init(
-    trackUploadProgress: Bool = true,
-    trackDownloadProgress: Bool = true,
-    minimumBytesThreshold: Int64 = 1024,  // 1KB
-    updateIntervalBytes: Int64 = 8192,  // 8KB
-    maxUpdateInterval: TimeInterval = 0.1,  // 100ms
-    enableChunkedTransfer: Bool = true,
-    defaultChunkSize: Int64 = 65_536  // 64KB
+    trackUploadProgress: UploadProgressTrackingFlag = true,
+    trackDownloadProgress: DownloadProgressTrackingFlag = true,
+    minimumBytesThreshold: TransferByteCount = 1024,  // 1KB
+    updateIntervalBytes: TransferByteCount = 8192,  // 8KB
+    maxUpdateInterval: TransferDuration = 0.1,  // 100ms
+    enableChunkedTransfer: ChunkedTransferSupportFlag = true,
+    defaultChunkSize: ChunkSize = 65_536  // 64KB
   ) {
     self.trackUploadProgress = trackUploadProgress
     self.trackDownloadProgress = trackDownloadProgress
@@ -176,9 +179,12 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
   /// - Parameters:
   ///   - requestId: The ID of the request to track
   ///   - callback: The callback to invoke with progress updates
-  public func setProgressCallback(for requestId: UUID, callback: @escaping ProgressCallback) {
+  public func setProgressCallback(
+    for requestId: HTTPRequestID,
+    callback: @escaping ProgressCallback
+  ) {
     // This will be set when the request is processed
-    Task { self.registerCallback(for: requestId, callback: callback) }
+    Task { self.registerCallback(for: requestId.rawValue, callback: callback) }
   }
 
   private func registerCallback(for requestId: UUID, callback: @escaping ProgressCallback) {
@@ -194,12 +200,12 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
     }
 
     // Set up tracking state for upload if applicable
-    if hasUploadBody(request) && configuration.trackUploadProgress {
+    if hasUploadBody(request) && configuration.trackUploadProgress.rawValue {
       let transferState = TransferState(
         callback: nil,  // Will be set by client
         transferType: .upload
       )
-      activeTransfers[request.id] = transferState
+      activeTransfers[request.id.rawValue] = transferState
     }
 
     return request
@@ -212,12 +218,12 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
     for request: HTTPRequest
   ) async throws -> HTTPResponse {
     // Handle download progress tracking
-    if configuration.trackDownloadProgress && shouldTrackDownloadResponse(response) {
+    if configuration.trackDownloadProgress.rawValue && shouldTrackDownloadResponse(response) {
       return try await processDownloadResponse(response, for: request)
     }
 
     // Mark transfer as completed
-    await completeTransfer(for: request.id)
+    await completeTransfer(for: request.id.rawValue)
 
     return response
   }
@@ -226,12 +232,12 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
 
   private func shouldTrackRequest(_ request: HTTPRequest) -> Bool {
     // Check if request has body for upload tracking
-    if configuration.trackUploadProgress && hasUploadBody(request) {
+    if configuration.trackUploadProgress.rawValue && hasUploadBody(request) {
       return true
     }
 
     // Always track GET requests for download progress
-    if configuration.trackDownloadProgress && request.method == .get {
+    if configuration.trackDownloadProgress.rawValue && request.method == .get {
       return true
     }
 
@@ -240,7 +246,7 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
 
   private func hasUploadBody(_ request: HTTPRequest) -> Bool {
     guard let body = request.body else { return false }
-    return Int64(body.count) >= configuration.minimumBytesThreshold
+    return Int64(body.count.rawValue) >= configuration.minimumBytesThreshold.rawValue
   }
 
   private func shouldTrackDownloadResponse(_ response: HTTPResponse) -> Bool {
@@ -250,7 +256,7 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
       return false
     }
 
-    return length >= configuration.minimumBytesThreshold
+    return length >= configuration.minimumBytesThreshold.rawValue
   }
 
   private func processDownloadResponse(
@@ -262,32 +268,32 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
 
     guard let body = response.body else { return response }
 
-    let contentLength = Int64(body.count)
+    let contentLength = Int64(body.count.rawValue)
     let transferState = TransferState(
-      callback: activeTransfers[request.id]?.callback,
+      callback: activeTransfers[request.id.rawValue]?.callback,
       transferType: .download
     )
 
-    activeTransfers[request.id] = transferState
+    activeTransfers[request.id.rawValue] = transferState
 
     // Simulate chunked download progress
     await simulateDownloadProgress(
-      requestId: request.id,
-      totalBytes: contentLength,
-      data: body
+      requestId: TransferIdentifier(request.id.rawValue),
+      totalBytes: TransferByteCount(contentLength),
+      data: body.rawValue
     )
 
     return response
   }
 
   private func simulateDownloadProgress(
-    requestId: UUID,
-    totalBytes: Int64,
+    requestId: TransferIdentifier,
+    totalBytes: TransferByteCount,
     data: Data
   ) async {
-    guard var transferState = activeTransfers[requestId] else { return }
+    guard var transferState = activeTransfers[requestId.rawValue] else { return }
 
-    let chunkSize = min(configuration.defaultChunkSize, Int64(data.count))
+    let chunkSize = min(configuration.defaultChunkSize.rawValue, Int64(data.count))
     var bytesProcessed: Int64 = 0
 
     // Report initial progress
@@ -302,8 +308,8 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
     )
 
     // Simulate chunked processing
-    while bytesProcessed < totalBytes {
-      let remainingBytes = totalBytes - bytesProcessed
+    while bytesProcessed < totalBytes.rawValue {
+      let remainingBytes = totalBytes.rawValue - bytesProcessed
       let currentChunkSize = min(chunkSize, remainingBytes)
 
       // Simulate processing delay
@@ -317,9 +323,9 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
 
       let progress = TransferProgress(
         totalBytes: totalBytes,
-        transferredBytes: bytesProcessed,
-        phase: bytesProcessed >= totalBytes ? .completed : .downloading,
-        bytesPerSecond: speed
+        transferredBytes: TransferByteCount(bytesProcessed),
+        phase: bytesProcessed >= totalBytes.rawValue ? .completed : .downloading,
+        bytesPerSecond: speed.map { TransferSpeed($0) }
       )
 
       await reportProgress(for: requestId, progress: progress)
@@ -327,12 +333,12 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
       // Update state
       transferState.lastUpdateBytes = bytesProcessed
       transferState.lastUpdateTime = Date()
-      activeTransfers[requestId] = transferState
+      activeTransfers[requestId.rawValue] = transferState
     }
   }
 
-  private func reportProgress(for requestId: UUID, progress: TransferProgress) async {
-    guard let transferState = activeTransfers[requestId],
+  private func reportProgress(for requestId: TransferIdentifier, progress: TransferProgress) async {
+    guard let transferState = activeTransfers[requestId.rawValue],
       let callback = transferState.callback
     else {
       return
@@ -340,12 +346,12 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
 
     // Check throttling conditions
     let timeSinceLastUpdate = Date().timeIntervalSince(transferState.lastUpdateTime)
-    let bytesSinceLastUpdate = progress.transferredBytes - transferState.lastUpdateBytes
+    let bytesSinceLastUpdate = progress.transferredBytes.rawValue - transferState.lastUpdateBytes
 
     let shouldUpdate =
       progress.phase == .completed || progress.phase == .failed
-      || timeSinceLastUpdate >= configuration.maxUpdateInterval
-      || bytesSinceLastUpdate >= configuration.updateIntervalBytes
+      || timeSinceLastUpdate >= configuration.maxUpdateInterval.rawValue
+      || bytesSinceLastUpdate >= configuration.updateIntervalBytes.rawValue
 
     if shouldUpdate {
       callback(progress)
@@ -372,7 +378,7 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
     if let transferState = activeTransfers[requestId] {
       let failedProgress = TransferProgress(
         totalBytes: nil,
-        transferredBytes: transferState.lastUpdateBytes,
+        transferredBytes: TransferByteCount(transferState.lastUpdateBytes),
         phase: .failed
       )
 
@@ -390,35 +396,35 @@ public actor ProgressTrackingMiddleware: HTTPRequestMiddleware, HTTPResponseMidd
 /// Protocol for resumable transfer operations.
 public protocol ResumableTransfer: Sendable {
   /// The unique identifier for this transfer
-  var transferId: UUID { get }
+  var transferId: TransferIdentifier { get }
 
   /// The total expected bytes for the transfer
-  var totalBytes: Int64? { get }
+  var totalBytes: TransferByteCount? { get }
 
   /// The number of bytes already transferred
-  var resumeOffset: Int64 { get }
+  var resumeOffset: TransferOffset { get }
 
   /// Whether this transfer can be resumed
-  var canResume: Bool { get }
+  var canResume: ResumableTransferFlag { get }
 
   /// Resume data that can be used to continue the transfer
-  var resumeData: Data? { get }
+  var resumeData: TransferResumeData? { get }
 }
 
 /// Default implementation of resumable transfer.
 public struct DefaultResumableTransfer: ResumableTransfer {
-  public let transferId: UUID
-  public let totalBytes: Int64?
-  public let resumeOffset: Int64
-  public let canResume: Bool
-  public let resumeData: Data?
+  public let transferId: TransferIdentifier
+  public let totalBytes: TransferByteCount?
+  public let resumeOffset: TransferOffset
+  public let canResume: ResumableTransferFlag
+  public let resumeData: TransferResumeData?
 
   public init(
-    transferId: UUID = UUID(),
-    totalBytes: Int64? = nil,
-    resumeOffset: Int64 = 0,
-    canResume: Bool = true,
-    resumeData: Data? = nil
+    transferId: TransferIdentifier = TransferIdentifier(),
+    totalBytes: TransferByteCount? = nil,
+    resumeOffset: TransferOffset = 0,
+    canResume: ResumableTransferFlag = true,
+    resumeData: TransferResumeData? = nil
   ) {
     self.transferId = transferId
     self.totalBytes = totalBytes
@@ -433,17 +439,17 @@ public struct DefaultResumableTransfer: ResumableTransfer {
 /// Configuration for chunked transfer operations.
 public struct ChunkedTransferConfiguration: Sendable {
   /// Size of each chunk in bytes
-  public let chunkSize: Int64
+  public let chunkSize: ChunkSize
 
   /// Maximum number of concurrent chunks
-  public let maxConcurrentChunks: Int
+  public let maxConcurrentChunks: ChunkCount
 
   /// Retry configuration for failed chunks
   public let retryConfiguration: ChunkRetryConfiguration
 
   public init(
-    chunkSize: Int64 = 65_536,  // 64KB
-    maxConcurrentChunks: Int = 4,
+    chunkSize: ChunkSize = 65_536,  // 64KB
+    maxConcurrentChunks: ChunkCount = 4,
     retryConfiguration: ChunkRetryConfiguration = .default
   ) {
     self.chunkSize = chunkSize
@@ -457,18 +463,18 @@ public struct ChunkedTransferConfiguration: Sendable {
 /// Retry configuration for chunk operations.
 public struct ChunkRetryConfiguration: Sendable {
   /// Maximum number of retry attempts per chunk
-  public let maxRetries: Int
+  public let maxRetries: TransferRetryCount
 
   /// Base delay between retries
-  public let baseDelay: TimeInterval
+  public let baseDelay: RetryDelay
 
   /// Backoff multiplier for exponential backoff
-  public let backoffMultiplier: Double
+  public let backoffMultiplier: BackoffMultiplier
 
   public init(
-    maxRetries: Int = 3,
-    baseDelay: TimeInterval = 1.0,
-    backoffMultiplier: Double = 2.0
+    maxRetries: TransferRetryCount = 3,
+    baseDelay: RetryDelay = 1.0,
+    backoffMultiplier: BackoffMultiplier = 2.0
   ) {
     self.maxRetries = maxRetries
     self.baseDelay = baseDelay
@@ -488,7 +494,7 @@ extension ProgressTrackingMiddleware {
   ///   - configuration: Optional custom configuration
   /// - Returns: Configured middleware instance
   public static func withCallback(
-    for requestId: UUID,
+    for requestId: HTTPRequestID,
     callback: @escaping ProgressCallback,
     configuration: ProgressTrackingConfiguration = .default
   ) -> ProgressTrackingMiddleware {
@@ -504,7 +510,7 @@ extension ProgressTrackingMiddleware {
 
 /// Utility for aggregating progress from multiple concurrent transfers.
 public actor ProgressAggregator {
-  private var activeTransfers: [UUID: TransferProgress] = [:]
+  private var activeTransfers: [TransferIdentifier: TransferProgress] = [:]
   private let callback: ProgressCallback
 
   public init(callback: @escaping ProgressCallback) {
@@ -515,7 +521,7 @@ public actor ProgressAggregator {
   /// - Parameters:
   ///   - transferId: The transfer identifier
   ///   - progress: The current progress
-  public func updateProgress(for transferId: UUID, progress: TransferProgress) {
+  public func updateProgress(for transferId: TransferIdentifier, progress: TransferProgress) {
     activeTransfers[transferId] = progress
 
     // Calculate aggregate progress
@@ -535,8 +541,8 @@ public actor ProgressAggregator {
       return TransferProgress(totalBytes: 0, transferredBytes: 0, phase: .completed)
     }
 
-    let totalBytes = transfers.compactMap { $0.totalBytes }.reduce(0, +)
-    let transferredBytes = transfers.map { $0.transferredBytes }.reduce(0, +)
+    let totalBytes = transfers.compactMap { $0.totalBytes?.rawValue }.reduce(Int64(0), +)
+    let transferredBytes = transfers.map { $0.transferredBytes.rawValue }.reduce(Int64(0), +)
 
     let hasTotal = totalBytes > 0
     let allCompleted = transfers.allSatisfy { $0.phase == .completed }
@@ -553,11 +559,14 @@ public actor ProgressAggregator {
 
     // Calculate average speed
     let speeds = transfers.compactMap { $0.bytesPerSecond }
-    let averageSpeed = speeds.isEmpty ? nil : speeds.reduce(0, +) / Double(speeds.count)
+    let averageSpeed =
+      speeds.isEmpty
+      ? nil
+      : TransferSpeed(speeds.map(\.rawValue).reduce(0, +) / Double(speeds.count))
 
     return TransferProgress(
-      totalBytes: hasTotal ? totalBytes : nil,
-      transferredBytes: transferredBytes,
+      totalBytes: hasTotal ? TransferByteCount(totalBytes) : nil,
+      transferredBytes: TransferByteCount(transferredBytes),
       phase: phase,
       bytesPerSecond: averageSpeed
     )

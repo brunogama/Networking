@@ -5,325 +5,327 @@ import NetworkingDSL
 import NetworkingTesting
 import XCTest
 
+// swiftlint:disable file_length
+
 /// Thread-safe log collector for testing using NSLock for synchronous access
 final class LogCollector: @unchecked Sendable {
-    private var messages: [String] = []
-    private let lock = NSLock()
+  private var messages: [String] = []
+  private let lock = NSLock()
 
-    func append(_ message: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        messages.append(message)
-    }
+  func append(_ message: String) {
+    lock.lock()
+    defer { lock.unlock() }
+    messages.append(message)
+  }
 
-    func getMessages() -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        return messages
-    }
+  func getMessages() -> [String] {
+    lock.lock()
+    defer { lock.unlock() }
+    return messages
+  }
 
-    func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        messages.removeAll()
-    }
+  func reset() {
+    lock.lock()
+    defer { lock.unlock() }
+    messages.removeAll()
+  }
 }
 
 /// Tests for LoggingInterceptor
-final class LoggingInterceptorTests: XCTestCase {
-    // MARK: - Log Level Tests
+final class LoggingInterceptorTests: XCTestCase {  // swiftlint:disable:this type_body_length
+  // MARK: - Log Level Tests
 
-    func testNoneLevelDoesNotLog() async throws {
-        // Given: An interceptor with .none level
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .none) { message in
-            collector.append(message)
-        }
-
-        // When: Intercepting a request and response
-        var request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
-        let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
-
-        _ = try await interceptor.intercept(request: &request, context: context)
-
-        let response = HTTPResponse(
-            request: request,
-            status: .ok,
-            headers: [:],
-            body: nil
-        )
-        _ = try await interceptor.intercept(response: response, context: context)
-
-        // Then: No messages logged
-        XCTAssertTrue(collector.getMessages().isEmpty)
+  func testNoneLevelDoesNotLog() async throws {
+    // Given: An interceptor with .none level
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .none) { message in
+      collector.append(message)
     }
 
-    func testBasicLevelLogsRequestAndResponse() async throws {
-        // Given: An interceptor with .basic level
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .basic) { message in
-            collector.append(message)
-        }
+    // When: Intercepting a request and response
+    var request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
+    let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
 
-        // When: Intercepting a request and response
-        var request = HTTPRequest(method: .post, path: "/users", baseURL: "https://api.com")
-        let context = InterceptorContext(path: "/users", method: .post, metadata: [:])
+    _ = try await interceptor.intercept(request: &request, context: context)
 
-        _ = try await interceptor.intercept(request: &request, context: context)
+    let response = HTTPResponse(
+      request: request,
+      status: .ok,
+      headers: [:],
+      body: nil
+    )
+    _ = try await interceptor.intercept(response: response, context: context)
 
-        let response = HTTPResponse(
-            request: request,
-            status: .created,
-            headers: [:],
-            body: nil
-        )
-        _ = try await interceptor.intercept(response: response, context: context)
+    // Then: No messages logged
+    XCTAssertTrue(collector.getMessages().isEmpty)
+  }
 
-        // Then: Request and response logged
-        let messages = collector.getMessages()
-        XCTAssertEqual(messages.count, 2)
-        XCTAssertTrue(messages[0].contains("[REQUEST] POST /users"))
-        XCTAssertTrue(messages[1].contains("[RESPONSE] POST /users - 201"))
+  func testBasicLevelLogsRequestAndResponse() async throws {
+    // Given: An interceptor with .basic level
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .basic) { message in
+      collector.append(message)
     }
 
-    func testHeadersLevelIncludesHeaders() async throws {
-        // Given: An interceptor with .headers level
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .headers) { message in
-            collector.append(message)
-        }
+    // When: Intercepting a request and response
+    var request = HTTPRequest(method: .post, path: "/users", baseURL: "https://api.com")
+    let context = InterceptorContext(path: "/users", method: .post, metadata: [:])
 
-        // When: Intercepting a request with headers
-        var request = HTTPRequest(method: .get, path: "/data", baseURL: "https://api.com")
-        request.addHeader(name: "Content-Type", value: "application/json")
-        request.addHeader(name: "Accept", value: "application/json")
+    _ = try await interceptor.intercept(request: &request, context: context)
 
-        let context = InterceptorContext(path: "/data", method: .get, metadata: [:])
+    let response = HTTPResponse(
+      request: request,
+      status: .created,
+      headers: [:],
+      body: nil
+    )
+    _ = try await interceptor.intercept(response: response, context: context)
 
-        _ = try await interceptor.intercept(request: &request, context: context)
+    // Then: Request and response logged
+    let messages = collector.getMessages()
+    XCTAssertEqual(messages.count, 2)
+    XCTAssertTrue(messages[0].contains("[REQUEST] POST /users"))
+    XCTAssertTrue(messages[1].contains("[RESPONSE] POST /users - 201"))
+  }
 
-        // Then: Headers are logged
-        let messages = collector.getMessages()
-        XCTAssertEqual(messages.count, 1)
-        XCTAssertTrue(messages[0].contains("Headers:"))
-        XCTAssertTrue(messages[0].contains("Content-Type"))
-        XCTAssertTrue(messages[0].contains("application/json"))
+  func testHeadersLevelIncludesHeaders() async throws {
+    // Given: An interceptor with .headers level
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .headers) { message in
+      collector.append(message)
     }
 
-    func testVerboseLevelIncludesBodySize() async throws {
-        // Given: An interceptor with .verbose level
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .verbose) { message in
-            collector.append(message)
-        }
+    // When: Intercepting a request with headers
+    var request = HTTPRequest(method: .get, path: "/data", baseURL: "https://api.com")
+    request.addHeader(name: "Content-Type", value: "application/json")
+    request.addHeader(name: "Accept", value: "application/json")
 
-        // When: Intercepting a request with body
-        var request = HTTPRequest(method: .post, path: "/upload", baseURL: "https://api.com")
-        let bodyData = Data(repeating: 0, count: 1234)
-        request.setBody(bodyData)
+    let context = InterceptorContext(path: "/data", method: .get, metadata: [:])
 
-        let context = InterceptorContext(path: "/upload", method: .post, metadata: [:])
+    _ = try await interceptor.intercept(request: &request, context: context)
 
-        _ = try await interceptor.intercept(request: &request, context: context)
+    // Then: Headers are logged
+    let messages = collector.getMessages()
+    XCTAssertEqual(messages.count, 1)
+    XCTAssertTrue(messages[0].contains("Headers:"))
+    XCTAssertTrue(messages[0].contains("Content-Type"))
+    XCTAssertTrue(messages[0].contains("application/json"))
+  }
 
-        // Then: Body size is logged
-        let messages = collector.getMessages()
-        XCTAssertEqual(messages.count, 1)
-        XCTAssertTrue(messages[0].contains("Body: 1234 bytes"))
+  func testVerboseLevelIncludesBodySize() async throws {
+    // Given: An interceptor with .verbose level
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .verbose) { message in
+      collector.append(message)
     }
 
-    // MARK: - Error Logging
+    // When: Intercepting a request with body
+    var request = HTTPRequest(method: .post, path: "/upload", baseURL: "https://api.com")
+    let bodyData = Data(repeating: 0, count: 1234)
+    request.setBody(HTTPBody(bodyData))
 
-    func testErrorLevelOnlyLogsErrors() async throws {
-        // Given: An interceptor with .error level
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .error) { message in
-            collector.append(message)
-        }
+    let context = InterceptorContext(path: "/upload", method: .post, metadata: [:])
 
-        let request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
-        let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
+    _ = try await interceptor.intercept(request: &request, context: context)
 
-        // When: Intercepting successful response
-        let successResponse = HTTPResponse(
-            request: request,
-            status: .ok,
-            headers: [:],
-            body: nil
-        )
-        _ = try await interceptor.intercept(response: successResponse, context: context)
+    // Then: Body size is logged
+    let messages = collector.getMessages()
+    XCTAssertEqual(messages.count, 1)
+    XCTAssertTrue(messages[0].contains("Body: 1234 bytes"))
+  }
 
-        // Then: No log for success
-        XCTAssertTrue(collector.getMessages().isEmpty)
+  // MARK: - Error Logging
 
-        // When: Intercepting error response
-        let errorResponse = HTTPResponse(
-            request: request,
-            status: .notFound,
-            headers: [:],
-            body: nil
-        )
-        _ = try await interceptor.intercept(response: errorResponse, context: context)
-
-        // Then: Error is logged
-        let messages = collector.getMessages()
-        XCTAssertEqual(messages.count, 1)
-        XCTAssertTrue(messages[0].contains("404"))
-        XCTAssertTrue(messages[0].contains("❌"))
+  func testErrorLevelOnlyLogsErrors() async throws {
+    // Given: An interceptor with .error level
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .error) { message in
+      collector.append(message)
     }
 
-    func testErrorIndicatorFor4xxAnd5xx() async throws {
-        // Given: An interceptor with basic level
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .basic) { message in
-            collector.append(message)
-        }
+    let request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
+    let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
 
-        let request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
-        let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
+    // When: Intercepting successful response
+    let successResponse = HTTPResponse(
+      request: request,
+      status: .ok,
+      headers: [:],
+      body: nil
+    )
+    _ = try await interceptor.intercept(response: successResponse, context: context)
 
-        // When: Logging 4xx error
-        let clientError = HTTPResponse(
-            request: request,
-            status: .badRequest,
-            headers: [:],
-            body: nil
-        )
-        _ = try await interceptor.intercept(response: clientError, context: context)
+    // Then: No log for success
+    XCTAssertTrue(collector.getMessages().isEmpty)
 
-        // When: Logging 5xx error
-        let serverError = HTTPResponse(
-            request: request,
-            status: .internalServerError,
-            headers: [:],
-            body: nil
-        )
-        _ = try await interceptor.intercept(response: serverError, context: context)
+    // When: Intercepting error response
+    let errorResponse = HTTPResponse(
+      request: request,
+      status: .notFound,
+      headers: [:],
+      body: nil
+    )
+    _ = try await interceptor.intercept(response: errorResponse, context: context)
 
-        // Then: Both have error indicator
-        let messages = collector.getMessages()
-        XCTAssertEqual(messages.count, 2)
-        XCTAssertTrue(messages[0].contains("❌"))
-        XCTAssertTrue(messages[1].contains("❌"))
+    // Then: Error is logged
+    let messages = collector.getMessages()
+    XCTAssertEqual(messages.count, 1)
+    XCTAssertTrue(messages[0].contains("404"))
+    XCTAssertTrue(messages[0].contains("❌"))
+  }
+
+  func testErrorIndicatorFor4xxAnd5xx() async throws {
+    // Given: An interceptor with basic level
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .basic) { message in
+      collector.append(message)
     }
 
-    // MARK: - Sensitive Header Redaction
+    let request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
+    let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
 
-    func testRedactsSensitiveHeaders() async throws {
-        // Given: An interceptor with headers level
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .headers) { message in
-            collector.append(message)
-        }
+    // When: Logging 4xx error
+    let clientError = HTTPResponse(
+      request: request,
+      status: .badRequest,
+      headers: [:],
+      body: nil
+    )
+    _ = try await interceptor.intercept(response: clientError, context: context)
 
-        // When: Intercepting request with sensitive headers
-        var request = HTTPRequest(method: .get, path: "/secure", baseURL: "https://api.com")
-        request.addHeader(name: "Authorization", value: "Bearer secret-token")
-        request.addHeader(name: "Api-Key", value: "secret-key-123")
-        request.addHeader(name: "Content-Type", value: "application/json")
+    // When: Logging 5xx error
+    let serverError = HTTPResponse(
+      request: request,
+      status: .internalServerError,
+      headers: [:],
+      body: nil
+    )
+    _ = try await interceptor.intercept(response: serverError, context: context)
 
-        let context = InterceptorContext(path: "/secure", method: .get, metadata: [:])
+    // Then: Both have error indicator
+    let messages = collector.getMessages()
+    XCTAssertEqual(messages.count, 2)
+    XCTAssertTrue(messages[0].contains("❌"))
+    XCTAssertTrue(messages[1].contains("❌"))
+  }
 
-        _ = try await interceptor.intercept(request: &request, context: context)
+  // MARK: - Sensitive Header Redaction
 
-        // Then: Sensitive headers are redacted
-        let messages = collector.getMessages()
-        XCTAssertEqual(messages.count, 1)
-        XCTAssertTrue(messages[0].contains("[REDACTED]"))
-        XCTAssertFalse(messages[0].contains("secret-token"))
-        XCTAssertFalse(messages[0].contains("secret-key-123"))
-        XCTAssertTrue(messages[0].contains("application/json")) // Non-sensitive header preserved
+  func testRedactsSensitiveHeaders() async throws {
+    // Given: An interceptor with headers level
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .headers) { message in
+      collector.append(message)
     }
 
-    func testRedactsAuthorizationCookieAndApiKeys() async throws {
-        // Given: Response with sensitive headers
-        let collector = LogCollector()
-        let interceptor = LoggingInterceptor(level: .headers) { message in
-            collector.append(message)
-        }
+    // When: Intercepting request with sensitive headers
+    var request = HTTPRequest(method: .get, path: "/secure", baseURL: "https://api.com")
+    request.addHeader(name: "Authorization", value: "Bearer secret-token")
+    request.addHeader(name: "Api-Key", value: "secret-key-123")
+    request.addHeader(name: "Content-Type", value: "application/json")
 
-        let request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
-        let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
+    let context = InterceptorContext(path: "/secure", method: .get, metadata: [:])
 
-        let response = HTTPResponse(
-            request: request,
-            status: .ok,
-            headers: [
-                "Authorization": "Bearer token",
-                "Cookie": "session=abc123",
-                "X-API-Key": "key-value",
-                "Content-Type": "text/html",
-            ],
-            body: nil
-        )
+    _ = try await interceptor.intercept(request: &request, context: context)
 
-        // When: Logging response
-        _ = try await interceptor.intercept(response: response, context: context)
+    // Then: Sensitive headers are redacted
+    let messages = collector.getMessages()
+    XCTAssertEqual(messages.count, 1)
+    XCTAssertTrue(messages[0].contains("[REDACTED]"))
+    XCTAssertFalse(messages[0].contains("secret-token"))
+    XCTAssertFalse(messages[0].contains("secret-key-123"))
+    XCTAssertTrue(messages[0].contains("application/json"))  // Non-sensitive header preserved
+  }
 
-        // Then: All sensitive headers redacted
-        let messages = collector.getMessages()
-        XCTAssertEqual(messages.count, 1)
-        let log = messages[0]
-        XCTAssertTrue(log.contains("[REDACTED]"))
-        XCTAssertFalse(log.contains("token"))
-        XCTAssertFalse(log.contains("abc123"))
-        XCTAssertFalse(log.contains("key-value"))
-        XCTAssertTrue(log.contains("text/html"))
+  func testRedactsAuthorizationCookieAndApiKeys() async throws {
+    // Given: Response with sensitive headers
+    let collector = LogCollector()
+    let interceptor = LoggingInterceptor(level: .headers) { message in
+      collector.append(message)
     }
 
-    // MARK: - Convenience Constructors
+    let request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.com")
+    let context = InterceptorContext(path: "/test", method: .get, metadata: [:])
 
-    func testConvenienceConstructors() {
-        let errorOnly = LoggingInterceptor.errorsOnly
-        XCTAssertEqual(errorOnly.level, .error)
+    let response = HTTPResponse(
+      request: request,
+      status: .ok,
+      headers: [
+        "Authorization": "Bearer token",
+        "Cookie": "session=abc123",
+        "X-API-Key": "key-value",
+        "Content-Type": "text/html",
+      ],
+      body: nil
+    )
 
-        let basic = LoggingInterceptor.basic
-        XCTAssertEqual(basic.level, .basic)
+    // When: Logging response
+    _ = try await interceptor.intercept(response: response, context: context)
 
-        let withHeaders = LoggingInterceptor.withHeaders
-        XCTAssertEqual(withHeaders.level, .headers)
+    // Then: All sensitive headers redacted
+    let messages = collector.getMessages()
+    XCTAssertEqual(messages.count, 1)
+    let log = messages[0]
+    XCTAssertTrue(log.contains("[REDACTED]"))
+    XCTAssertFalse(log.contains("token"))
+    XCTAssertFalse(log.contains("abc123"))
+    XCTAssertFalse(log.contains("key-value"))
+    XCTAssertTrue(log.contains("text/html"))
+  }
 
-        let verbose = LoggingInterceptor.verbose
-        XCTAssertEqual(verbose.level, .verbose)
+  // MARK: - Convenience Constructors
+
+  func testConvenienceConstructors() {
+    let errorOnly = LoggingInterceptor.errorsOnly
+    XCTAssertEqual(errorOnly.level, .error)
+
+    let basic = LoggingInterceptor.basic
+    XCTAssertEqual(basic.level, .basic)
+
+    let withHeaders = LoggingInterceptor.withHeaders
+    XCTAssertEqual(withHeaders.level, .headers)
+
+    let verbose = LoggingInterceptor.verbose
+    XCTAssertEqual(verbose.level, .verbose)
+  }
+
+  // MARK: - Integration with InterceptorChain
+
+  func testLoggingInInterceptorChain() async throws {
+    // Given: A chain with logging interceptor
+    let collector = LogCollector()
+    let logger = LoggingInterceptor(level: .basic) { message in
+      collector.append(message)
     }
 
-    // MARK: - Integration with InterceptorChain
+    let chain = InterceptorChain(
+      requestInterceptors: [logger],
+      responseInterceptors: [logger]
+    )
 
-    func testLoggingInInterceptorChain() async throws {
-        // Given: A chain with logging interceptor
-        let collector = LogCollector()
-        let logger = LoggingInterceptor(level: .basic) { message in
-            collector.append(message)
-        }
+    // When: Executing interceptor chain
+    var request = HTTPRequest(method: .get, path: "/api/data", baseURL: "https://example.com")
+    let context = InterceptorContext(path: "/api/data", method: .get, metadata: [:])
 
-        let chain = InterceptorChain(
-            requestInterceptors: [logger],
-            responseInterceptors: [logger]
-        )
+    _ = try await chain.executeRequestInterceptors(request: &request, context: context)
 
-        // When: Executing interceptor chain
-        var request = HTTPRequest(method: .get, path: "/api/data", baseURL: "https://example.com")
-        let context = InterceptorContext(path: "/api/data", method: .get, metadata: [:])
+    let response = HTTPResponse(
+      request: request,
+      status: .ok,
+      headers: [:],
+      body: nil
+    )
 
-        _ = try await chain.executeRequestInterceptors(request: &request, context: context)
+    _ = try await chain.executeResponseInterceptors(response: response, context: context)
 
-        let response = HTTPResponse(
-            request: request,
-            status: .ok,
-            headers: [:],
-            body: nil
-        )
+    // Then: Both request and response are logged
+    let messages = collector.getMessages()
+    let requestLogs = messages.filter { $0.contains("[REQUEST]") }
+    let responseLogs = messages.filter { $0.contains("[RESPONSE]") }
 
-        _ = try await chain.executeResponseInterceptors(response: response, context: context)
-
-        // Then: Both request and response are logged
-        let messages = collector.getMessages()
-        let requestLogs = messages.filter { $0.contains("[REQUEST]") }
-        let responseLogs = messages.filter { $0.contains("[RESPONSE]") }
-
-        XCTAssertEqual(requestLogs.count, 1)
-        XCTAssertEqual(responseLogs.count, 1)
-        XCTAssertTrue(requestLogs[0].contains("GET /api/data"))
-        XCTAssertTrue(responseLogs[0].contains("200"))
-    }
+    XCTAssertEqual(requestLogs.count, 1)
+    XCTAssertEqual(responseLogs.count, 1)
+    XCTAssertTrue(requestLogs[0].contains("GET /api/data"))
+    XCTAssertTrue(responseLogs[0].contains("200"))
+  }
 }

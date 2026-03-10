@@ -1,6 +1,7 @@
 import NetworkingRuntime
 import NetworkingInterceptorsCompat
 import NetworkingObservability
+import NetworkingCore
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -33,15 +34,15 @@ import FoundationNetworking
 public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   // MARK: - State
 
-  private var storage: [String: CachingMiddleware.CacheEntry] = [:]
-  private var getCalls: [String] = []
-  private var setCalls: [(key: String, entry: CachingMiddleware.CacheEntry)] = []
-  private var removeCalls: [String] = []
+  private var storage: [CacheKey: CachingMiddleware.CacheEntry] = [:]
+  private var getCalls: [CacheKey] = []
+  private var setCalls: [(key: CacheKey, entry: CachingMiddleware.CacheEntry)] = []
+  private var removeCalls: [CacheKey] = []
   private var removeAllCallCount: Int = 0
   private var removeExpiredCallCount: Int = 0
-  private var removeByTagsCalls: [[String]] = []
-  private var removeByPatternCalls: [String] = []
-  private var removeByKeysCalls: [[String]] = []
+  private var removeByTagsCalls: [[CacheTagName]] = []
+  private var removeByPatternCalls: [CacheInvalidationPattern] = []
+  private var removeByKeysCalls: [[CacheKey]] = []
 
   // MARK: - Initialization
 
@@ -49,17 +50,17 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
 
   // MARK: - CacheStorage Conformance
 
-  public func get(_ key: String) async -> CachingMiddleware.CacheEntry? {
+  public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     getCalls.append(key)
     return storage[key]
   }
 
-  public func set(_ key: String, entry: CachingMiddleware.CacheEntry) async {
+  public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
     setCalls.append((key: key, entry: entry))
     storage[key] = entry
   }
 
-  public func remove(_ key: String) async {
+  public func remove(_ key: CacheKey) async {
     removeCalls.append(key)
     storage.removeValue(forKey: key)
   }
@@ -77,19 +78,19 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
     }
   }
 
-  public func removeByTags(_ tags: [String]) async {
+  public func removeByTags(_ tags: [CacheTagName]) async {
     removeByTagsCalls.append(tags)
     // Note: Basic mock doesn't track tag metadata
     // In real implementation, would filter by tags
   }
 
-  public func removeByPattern(_ pattern: String) async {
+  public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
     removeByPatternCalls.append(pattern)
     // Simple pattern matching
     let regex: NSRegularExpression?
     do {
       let regexPattern =
-        pattern
+        pattern.rawValue
         .replacingOccurrences(of: "*", with: ".*")
         .replacingOccurrences(of: "?", with: ".")
       regex = try NSRegularExpression(pattern: regexPattern, options: [])
@@ -100,8 +101,8 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
     guard let regex = regex else { return }
 
     let keysToRemove = storage.keys.filter { key in
-      let range = NSRange(location: 0, length: key.utf16.count)
-      return regex.firstMatch(in: key, options: [], range: range) != nil
+      let range = NSRange(location: 0, length: key.rawValue.utf16.count)
+      return regex.firstMatch(in: key.rawValue, options: [], range: range) != nil
     }
 
     for key in keysToRemove {
@@ -109,7 +110,7 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
     }
   }
 
-  public func removeByKeys(_ keys: [String]) async {
+  public func removeByKeys(_ keys: [CacheKey]) async {
     removeByKeysCalls.append(keys)
     for key in keys {
       storage.removeValue(forKey: key)
@@ -123,7 +124,7 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   /// - Parameters:
   ///   - key: Cache key
   ///   - entry: Cache entry to store
-  public func stub(key: String, entry: CachingMiddleware.CacheEntry) {
+  public func stub(key: CacheKey, entry: CachingMiddleware.CacheEntry) {
     storage[key] = entry
   }
 
@@ -137,16 +138,18 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   /// Total number of calls across all operations
   ///
   /// - Note: nonisolated to allow synchronous access from test assertions
-  nonisolated public var callCount: Int {
+  nonisolated public var callCount: MockVerificationCount {
     get async {
-      await getCalls.count
-        + setCalls.count
-        + removeCalls.count
-        + removeAllCallCount
-        + removeExpiredCallCount
-        + removeByTagsCalls.count
-        + removeByPatternCalls.count
-        + removeByKeysCalls.count
+      MockVerificationCount(
+        await getCalls.count
+          + setCalls.count
+          + removeCalls.count
+          + removeAllCallCount
+          + removeExpiredCallCount
+          + removeByTagsCalls.count
+          + removeByPatternCalls.count
+          + removeByKeysCalls.count
+      )
     }
   }
 
@@ -158,10 +161,16 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   ///   - key: Cache key to verify
   ///   - times: Expected number of calls
   /// - Throws: MockError if call count doesn't match
-  public func verifyGet(_ key: String, times: Int = 1) throws {
-    let actualCount = getCalls.filter { $0 == key }.count
+  public func verifyGet(
+    _ key: CacheKey,
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actualCount = MockVerificationCount(getCalls.filter { $0 == key }.count)
     guard actualCount == times else {
-      throw MockError.unexpectedCallCount(expected: times, actual: actualCount)
+      throw MockError.unexpectedCallCount(
+        expected: times,
+        actual: actualCount
+      )
     }
   }
 
@@ -171,10 +180,16 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   ///   - key: Cache key to verify
   ///   - times: Expected number of calls
   /// - Throws: MockError if call count doesn't match
-  public func verifySet(_ key: String, times: Int = 1) throws {
-    let actualCount = setCalls.filter { $0.key == key }.count
+  public func verifySet(
+    _ key: CacheKey,
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actualCount = MockVerificationCount(setCalls.filter { $0.key == key }.count)
     guard actualCount == times else {
-      throw MockError.unexpectedCallCount(expected: times, actual: actualCount)
+      throw MockError.unexpectedCallCount(
+        expected: times,
+        actual: actualCount
+      )
     }
   }
 
@@ -184,10 +199,16 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   ///   - key: Cache key to verify
   ///   - times: Expected number of calls
   /// - Throws: MockError if call count doesn't match
-  public func verifyRemove(_ key: String, times: Int = 1) throws {
-    let actualCount = removeCalls.filter { $0 == key }.count
+  public func verifyRemove(
+    _ key: CacheKey,
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actualCount = MockVerificationCount(removeCalls.filter { $0 == key }.count)
     guard actualCount == times else {
-      throw MockError.unexpectedCallCount(expected: times, actual: actualCount)
+      throw MockError.unexpectedCallCount(
+        expected: times,
+        actual: actualCount
+      )
     }
   }
 
@@ -195,9 +216,15 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   ///
   /// - Parameter times: Expected number of calls
   /// - Throws: MockError if call count doesn't match
-  public func verifyRemoveAll(times: Int = 1) throws {
-    guard removeAllCallCount == times else {
-      throw MockError.unexpectedCallCount(expected: times, actual: removeAllCallCount)
+  public func verifyRemoveAll(
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actualCount = MockVerificationCount(removeAllCallCount)
+    guard actualCount == times else {
+      throw MockError.unexpectedCallCount(
+        expected: times,
+        actual: actualCount
+      )
     }
   }
 
@@ -205,9 +232,15 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   ///
   /// - Parameter times: Expected number of calls
   /// - Throws: MockError if call count doesn't match
-  public func verifyRemoveExpired(times: Int = 1) throws {
-    guard removeExpiredCallCount == times else {
-      throw MockError.unexpectedCallCount(expected: times, actual: removeExpiredCallCount)
+  public func verifyRemoveExpired(
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actualCount = MockVerificationCount(removeExpiredCallCount)
+    guard actualCount == times else {
+      throw MockError.unexpectedCallCount(
+        expected: times,
+        actual: actualCount
+      )
     }
   }
 
@@ -216,35 +249,35 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
   /// Get all currently stored keys
   ///
   /// - Returns: Array of cache keys currently in storage
-  public func getStoredKeys() -> [String] {
+  public func getStoredKeys() -> [CacheKey] {
     Array(storage.keys)
   }
 
   /// Get the number of entries currently stored
   ///
   /// - Returns: Number of cache entries
-  public func getStorageCount() -> Int {
-    storage.count
+  public func getStorageCount() -> CacheEntryCount {
+    CacheEntryCount(storage.count)
   }
 
   /// Get all get call history
   ///
   /// - Returns: Array of keys that were requested via get()
-  public func getGetCalls() -> [String] {
+  public func getGetCalls() -> [CacheKey] {
     getCalls
   }
 
   /// Get all set call history
   ///
   /// - Returns: Array of tuples with keys and entries that were set
-  public func getSetCalls() -> [(key: String, entry: CachingMiddleware.CacheEntry)] {
+  public func getSetCalls() -> [(key: CacheKey, entry: CachingMiddleware.CacheEntry)] {
     setCalls
   }
 
   /// Get all remove call history
   ///
   /// - Returns: Array of keys that were removed via remove()
-  public func getRemoveCalls() -> [String] {
+  public func getRemoveCalls() -> [CacheKey] {
     removeCalls
   }
 

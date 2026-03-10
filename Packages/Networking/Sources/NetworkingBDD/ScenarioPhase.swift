@@ -34,28 +34,40 @@ public enum ScenarioPhase {
   ///
   /// In this phase, only `.given()` is available.
   public enum Initial: ScenarioPhaseProtocol {
-    public static var phaseName: String { "Initial" }
+    public static var phaseName: BDDPhaseName { .initial }
+    public static var phaseDescription: BDDDescriptionText {
+      "Define Given steps to set up preconditions"
+    }
   }
 
   /// Phase after Given steps are defined.
   ///
   /// In this phase, only `.when()` is available.
   public enum GivenDefined: ScenarioPhaseProtocol {
-    public static var phaseName: String { "GivenDefined" }
+    public static var phaseName: BDDPhaseName { .givenDefined }
+    public static var phaseDescription: BDDDescriptionText {
+      "Define When steps to perform actions"
+    }
   }
 
   /// Phase after When steps are defined.
   ///
   /// In this phase, only `.then()` is available.
   public enum WhenDefined: ScenarioPhaseProtocol {
-    public static var phaseName: String { "WhenDefined" }
+    public static var phaseName: BDDPhaseName { .whenDefined }
+    public static var phaseDescription: BDDDescriptionText {
+      "Define Then steps to verify outcomes"
+    }
   }
 
   /// Final phase after Then steps are defined.
   ///
   /// In this phase, the scenario is complete and can be run.
   public enum Complete: ScenarioPhaseProtocol {
-    public static var phaseName: String { "Complete" }
+    public static var phaseName: BDDPhaseName { .complete }
+    public static var phaseDescription: BDDDescriptionText {
+      "Scenario is complete and ready to run"
+    }
   }
 }
 
@@ -67,7 +79,9 @@ public enum ScenarioPhase {
 /// and provides debugging information.
 public protocol ScenarioPhaseProtocol {
   /// Human-readable name of this phase.
-  static var phaseName: String { get }
+  static var phaseName: BDDPhaseName { get }
+  /// Human-readable description of this phase.
+  static var phaseDescription: BDDDescriptionText { get }
 }
 
 // MARK: - Phase Transition Types
@@ -104,45 +118,38 @@ public protocol CanRun: ScenarioPhaseProtocol {}
 
 extension ScenarioPhase.Complete: CanRun {}
 
-// MARK: - Phase Description
-
-extension ScenarioPhaseProtocol {
-  /// Description of what can be done in this phase.
-  public static var phaseDescription: String {
-    switch phaseName {
-    case "Initial":
-      return "Define Given steps to set up preconditions"
-    case "GivenDefined":
-      return "Define When steps to perform actions"
-    case "WhenDefined":
-      return "Define Then steps to verify outcomes"
-    case "Complete":
-      return "Scenario is complete and ready to run"
-    default:
-      return "Unknown phase"
-    }
-  }
-}
-
 // MARK: - Step Type Markers
 
 /// Marker type for Given steps in type-safe builders.
 public enum GivenStepType: StepTypeMarker {
-  public static var stepName: String { "Given" }
+  public static var stepName: BDDStepKeywordName { .given }
 }
 
 /// Marker type for When steps in type-safe builders.
 public enum WhenStepType: StepTypeMarker {
-  public static var stepName: String { "When" }
+  public static var stepName: BDDStepKeywordName { .when }
 }
 
 /// Marker type for Then steps in type-safe builders.
 public enum ThenStepType: StepTypeMarker {
-  public static var stepName: String { "Then" }
+  public static var stepName: BDDStepKeywordName { .then }
 }
 
 /// Protocol for step type markers.
 public protocol StepTypeMarker {
   /// Human-readable name of this step type.
-  static var stepName: String { get }
+  static var stepName: BDDStepKeywordName { get }
+}
+
+public extension BDDPhaseName {
+  static let initial = Self(rawValue: "Initial")
+  static let givenDefined = Self(rawValue: "GivenDefined")
+  static let whenDefined = Self(rawValue: "WhenDefined")
+  static let complete = Self(rawValue: "Complete")
+}
+
+public extension BDDStepKeywordName {
+  static let given = Self(rawValue: "Given")
+  static let when = Self(rawValue: "When")
+  static let then = Self(rawValue: "Then")
 }

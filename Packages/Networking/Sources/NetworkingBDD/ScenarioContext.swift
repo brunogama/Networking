@@ -34,7 +34,17 @@ public final class ScenarioContext: @unchecked Sendable {
   // MARK: - Private State
 
   private let lock = NSLock()
-  private var storage: [ObjectIdentifier: Any] = [:]
+  private struct StorageKey: Hashable {
+    let name: String
+    let valueType: ObjectIdentifier
+
+    init<T>(_ key: ContextKey<T>) {
+      name = key.name.rawValue
+      valueType = ObjectIdentifier(T.self)
+    }
+  }
+
+  private var storage: [StorageKey: Any] = [:]
 
   // MARK: - Network State
 
@@ -107,7 +117,7 @@ public final class ScenarioContext: @unchecked Sendable {
   ///   - key: The context key
   public func set<T: Sendable>(_ value: T, for key: ContextKey<T>) {
     lock.withLock {
-      storage[ObjectIdentifier(key)] = value
+      storage[StorageKey(key)] = value
     }
   }
 
@@ -117,7 +127,7 @@ public final class ScenarioContext: @unchecked Sendable {
   /// - Returns: The value, or nil if not set
   public func get<T: Sendable>(_ key: ContextKey<T>) -> T? {
     lock.withLock {
-      storage[ObjectIdentifier(key)] as? T
+      storage[StorageKey(key)] as? T
     }
   }
 
@@ -139,16 +149,16 @@ public final class ScenarioContext: @unchecked Sendable {
   public func remove<T>(_ key: ContextKey<T>) {
     lock.lock()
     defer { lock.unlock() }
-    storage.removeValue(forKey: ObjectIdentifier(key))
+    storage.removeValue(forKey: StorageKey(key))
   }
 
   /// Checks if a value exists for a key.
   ///
   /// - Parameter key: The context key
   /// - Returns: True if a value is set
-  public func contains<T>(_ key: ContextKey<T>) -> Bool {
+  public func contains<T>(_ key: ContextKey<T>) -> ValidationFlag {
     lock.withLock {
-      storage[ObjectIdentifier(key)] != nil
+      ValidationFlag(storage[StorageKey(key)] != nil)
     }
   }
 
@@ -168,10 +178,10 @@ public final class ScenarioContext: @unchecked Sendable {
     }
   }
 
-  /// Dynamic subscript access for string keys.
+  /// Dynamic subscript access for named keys.
   ///
-  /// - Parameter key: String key name
-  public subscript<T: Sendable>(dynamicKey key: String) -> T? {
+  /// - Parameter key: Key name
+  public subscript<T: Sendable>(dynamicKey key: BDDContextKeyName) -> T? {
     get { getValue(forKey: key, as: T.self) }
     set {
       if let newValue = newValue {
@@ -180,25 +190,25 @@ public final class ScenarioContext: @unchecked Sendable {
     }
   }
 
-  // MARK: - String-Keyed Storage
+  // MARK: - Named Storage
 
-  /// Sets a value using a string key.
+  /// Sets a value using a named key.
   ///
   /// - Parameters:
   ///   - value: The value to store
-  ///   - key: String key name
-  public func setValue<T: Sendable>(_ value: T, forKey key: String) {
+  ///   - key: Key name
+  public func setValue<T: Sendable>(_ value: T, forKey key: BDDContextKeyName) {
     let contextKey = ContextKey<T>(key)
     set(value, for: contextKey)
   }
 
-  /// Gets a value using a string key.
+  /// Gets a value using a named key.
   ///
   /// - Parameters:
-  ///   - key: String key name
+  ///   - key: Key name
   ///   - type: The expected type
   /// - Returns: The value, or nil if not set or wrong type
-  public func getValue<T: Sendable>(forKey key: String, as type: T.Type = T.self) -> T? {
+  public func getValue<T: Sendable>(forKey key: BDDContextKeyName, as type: T.Type = T.self) -> T? {
     let contextKey = ContextKey<T>(key)
     return get(contextKey)
   }
@@ -261,7 +271,7 @@ public final class ScenarioContext: @unchecked Sendable {
   ///
   /// - Returns: The response body data
   /// - Throws: `BDDError.noResponse` or `BDDError.noBody`
-  public func requireBody() throws -> Data {
+  public func requireBody() throws -> HTTPBody {
     let response = try requireResponse()
     guard let body = response.body else {
       throw BDDError.noBody
@@ -272,14 +282,16 @@ public final class ScenarioContext: @unchecked Sendable {
   /// Gets the response body as a string.
   ///
   /// - Parameter encoding: String encoding (default: UTF-8)
-  /// - Returns: The body as a string
+  /// - Returns: The body as text
   /// - Throws: `BDDError.noResponse`, `BDDError.noBody`
-  public func requireBodyString(encoding: String.Encoding = .utf8) throws -> String {
+  public func requireBodyString(encoding: HTTPTextEncoding = .utf8) throws -> HTTPResponseText {
     let body = try requireBody()
-    guard let string = String(data: body, encoding: encoding) else {
+    guard let resolvedEncoding = encoding.foundationEncoding,
+      let string = String(data: body, encoding: resolvedEncoding)
+    else {
       throw BDDError.noBody
     }
-    return string
+    return HTTPResponseText(string)
   }
 
   /// Decodes the response body as JSON.
@@ -294,7 +306,7 @@ public final class ScenarioContext: @unchecked Sendable {
     using decoder: JSONDecoder = JSONDecoder()
   ) throws -> T {
     let body = try requireBody()
-    return try decoder.decode(type, from: body)
+    return try decoder.decode(type, from: body.rawValue)
   }
 
   // MARK: - Reset
@@ -321,101 +333,5 @@ public final class ScenarioContext: @unchecked Sendable {
       _requestHistory.removeAll()
       _responseHistory.removeAll()
     }
-  }
-}
-
-// MARK: - Context Key
-
-/// Type-safe key for storing values in ScenarioContext.
-///
-/// Context keys provide type safety when storing and retrieving
-/// values from the scenario context.
-///
-/// ## Usage
-///
-/// Define keys as static properties:
-///
-/// ```swift
-/// extension ContextKey {
-///   static var baseURL: ContextKey<URL> { ContextKey("baseURL") }
-///   static var authToken: ContextKey<String> { ContextKey("authToken") }
-/// }
-///
-/// // Use in steps:
-/// context.set(url, for: .baseURL)
-/// let token = context.get(.authToken)
-/// ```
-public final class ContextKey<Value: Sendable>: Sendable {
-  /// The key name for debugging.
-  public let name: String
-
-  /// Creates a new context key.
-  ///
-  /// - Parameter name: Descriptive name for the key
-  public init(_ name: String) {
-    self.name = name
-  }
-}
-
-// MARK: - Predefined Context Keys
-
-extension ContextKey where Value == URL {
-  /// Key for base URL.
-  public static var baseURL: ContextKey<URL> { ContextKey("baseURL") }
-}
-
-extension ContextKey where Value == String {
-  /// Key for authentication token.
-  public static var authToken: ContextKey<String> { ContextKey("authToken") }
-
-  /// Key for API key.
-  public static var apiKey: ContextKey<String> { ContextKey("apiKey") }
-
-  /// Key for username.
-  public static var username: ContextKey<String> { ContextKey("username") }
-
-  /// Key for password.
-  public static var password: ContextKey<String> { ContextKey("password") }
-}
-
-extension ContextKey where Value == Data {
-  /// Key for response data.
-  public static var responseData: ContextKey<Data> { ContextKey("responseData") }
-
-  /// Key for request body data.
-  public static var requestBody: ContextKey<Data> { ContextKey("requestBody") }
-}
-
-extension ContextKey where Value == [String: String] {
-  /// Key for custom headers.
-  public static var customHeaders: ContextKey<[String: String]> { ContextKey("customHeaders") }
-}
-
-extension ContextKey where Value == TimeInterval {
-  /// Key for timeout duration.
-  public static var timeout: ContextKey<TimeInterval> { ContextKey("timeout") }
-}
-
-extension ContextKey where Value == Int {
-  /// Key for retry count.
-  public static var retryCount: ContextKey<Int> { ContextKey("retryCount") }
-
-  /// Key for expected status code.
-  public static var expectedStatus: ContextKey<Int> { ContextKey("expectedStatus") }
-}
-
-extension ContextKey where Value == Bool {
-  /// Key for authentication required flag.
-  public static var requiresAuth: ContextKey<Bool> { ContextKey("requiresAuth") }
-}
-
-// MARK: - NSLock Extension
-
-extension NSLock {
-  /// Executes a closure while holding the lock.
-  func withLock<T>(_ body: () throws -> T) rethrows -> T {
-    lock()
-    defer { unlock() }
-    return try body()
   }
 }

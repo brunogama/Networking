@@ -52,7 +52,7 @@ extension HTTPRequest {
   /// - Returns: A new request with combined properties
   public static func + (lhs: HTTPRequest, rhs: HTTPRequest) -> HTTPRequest {
     // Determine final URL: if rhs has no host, combine paths
-    let finalURL: URL
+    let finalURL: HTTPRequestURL
     if rhs.url.host == nil {
       // Relative path: append rhs path to lhs base
       let lhsString = lhs.url.absoluteString
@@ -61,7 +61,7 @@ extension HTTPRequest {
       let trimmedLhs = lhsString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
       let trimmedRhs = rhsPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
       let combined = "\(trimmedLhs)\(separator)\(trimmedRhs)"
-      finalURL = URL(string: combined) ?? rhs.url
+      finalURL = URL(string: combined).map { HTTPRequestURL($0) } ?? rhs.url
     } else {
       // Absolute URL: rhs wins completely
       finalURL = rhs.url
@@ -95,7 +95,7 @@ extension HTTPRequest {
   /// - SeeAlso: ``+(_:_:)`` for detailed merge semantics
   public func merged(with other: HTTPRequest) -> HTTPRequest {
     // Determine final URL: if other has no host, combine paths
-    let finalURL: URL
+    let finalURL: HTTPRequestURL
     if other.url.host == nil {
       // Relative path: append other path to self base
       let lhsString = self.url.absoluteString
@@ -104,7 +104,7 @@ extension HTTPRequest {
       let trimmedLhs = lhsString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
       let trimmedRhs = rhsPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
       let combined = "\(trimmedLhs)\(separator)\(trimmedRhs)"
-      finalURL = URL(string: combined) ?? other.url
+      finalURL = URL(string: combined).map { HTTPRequestURL($0) } ?? other.url
     } else {
       // Absolute URL: other wins completely
       finalURL = other.url

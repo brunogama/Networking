@@ -11,7 +11,7 @@ final class AuthenticationInterceptorTests: XCTestCase {
     func testAddsAuthorizationHeaderWithBearerToken() async throws {
         // Given: An interceptor with a static token
         let token = "test-access-token-12345"
-        let interceptor = AuthenticationInterceptor.bearer(token)
+        let interceptor = AuthenticationInterceptor.bearer(BearerTokenValue(token))
 
         // When: Intercepting a request
         var request = HTTPRequest(method: .get, path: "/api/data", baseURL: "https://example.com")
@@ -35,7 +35,7 @@ final class AuthenticationInterceptorTests: XCTestCase {
     func testStaticTokenProvider() async throws {
         // Given: An interceptor with static token convenience initializer
         let token = "static-token"
-        let interceptor = AuthenticationInterceptor.bearer(token)
+        let interceptor = AuthenticationInterceptor.bearer(BearerTokenValue(token))
 
         // When: Intercepting a request
         var request = HTTPRequest(method: .get, path: "/test", baseURL: "https://api.example.com")
@@ -65,9 +65,9 @@ final class AuthenticationInterceptorTests: XCTestCase {
         }
 
         let counter = TokenCounter()
-        let interceptor = AuthenticationInterceptor {
+        let interceptor = AuthenticationInterceptor { () async throws -> BearerTokenValue in
             let count = await counter.next()
-            return "dynamic-token-\(count)"
+            return BearerTokenValue("dynamic-token-\(count)")
         }
 
         // When: Intercepting multiple requests
@@ -87,10 +87,10 @@ final class AuthenticationInterceptorTests: XCTestCase {
 
     func testAsyncTokenProvider() async throws {
         // Given: An interceptor with an async token provider
-        let interceptor = AuthenticationInterceptor {
+        let interceptor = AuthenticationInterceptor { () async throws -> BearerTokenValue in
             // Simulate async token fetch
             try await Task.sleep(nanoseconds: 10_000_000) // 10ms
-            return "async-fetched-token"
+            return BearerTokenValue("async-fetched-token")
         }
 
         // When: Intercepting a request
@@ -113,7 +113,7 @@ final class AuthenticationInterceptorTests: XCTestCase {
     func testTokenProviderErrorPropagates() async throws {
         // Given: An interceptor with a failing token provider
         struct TokenError: Error, Equatable {}
-        let interceptor = AuthenticationInterceptor {
+        let interceptor = AuthenticationInterceptor { () async throws -> BearerTokenValue in
             throw TokenError()
         }
 
@@ -138,7 +138,7 @@ final class AuthenticationInterceptorTests: XCTestCase {
     func testAuthInterceptorInChain() async throws {
         // Given: An interceptor chain with auth interceptor
         let token = "chain-test-token"
-        let authInterceptor = AuthenticationInterceptor.bearer(token)
+        let authInterceptor = AuthenticationInterceptor.bearer(BearerTokenValue(token))
 
         let chain = InterceptorChain(
             requestInterceptors: [authInterceptor],

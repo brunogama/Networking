@@ -39,10 +39,14 @@ import FoundationNetworking
 @available(
   *,
   deprecated,
-  message:
-    "MockRequestInterceptor exists to support the compatibility interceptor layer. Prefer mock middleware in new tests."
+  message: """
+    MockRequestInterceptor exists to support the compatibility interceptor layer.
+    Prefer mock middleware in new tests.
+    """
 )
-public final class MockRequestInterceptor: RequestInterceptor, MockVerifiable, @unchecked Sendable {
+public final class MockRequestInterceptor: RequestInterceptor, MockVerifiable,
+  @unchecked Sendable
+{
   // MARK: - State
 
   private let queue = DispatchQueue(
@@ -121,9 +125,9 @@ public final class MockRequestInterceptor: RequestInterceptor, MockVerifiable, @
 
   // MARK: - MockVerifiable Conformance
 
-  nonisolated public var callCount: Int {
+  nonisolated public var callCount: MockVerificationCount {
     get async {
-      queue.sync { _interceptCount }
+      MockVerificationCount(queue.sync { _interceptCount })
     }
   }
 
@@ -140,10 +144,11 @@ public final class MockRequestInterceptor: RequestInterceptor, MockVerifiable, @
   ///
   /// - Parameter index: Index of request to retrieve
   /// - Returns: Captured request at index, or nil if out of bounds
-  public func getRequest(at index: Int) -> HTTPRequest? {
+  public func getRequest(at index: MockRequestIndex) -> HTTPRequest? {
     queue.sync {
-      guard index >= 0 && index < _capturedRequests.count else { return nil }
-      return _capturedRequests[index]
+      let rawIndex = index.rawValue
+      guard rawIndex >= 0 && rawIndex < _capturedRequests.count else { return nil }
+      return _capturedRequests[rawIndex]
     }
   }
 

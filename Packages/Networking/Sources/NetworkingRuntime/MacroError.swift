@@ -16,58 +16,58 @@ public enum MacroExpansionError: Error, Sendable, LocalizedError, CustomStringCo
   ///
   /// Example: `@GET("/users/{userId}")` but function has parameter `id: String`
   case parameterMismatch(
-    path: String,
-    declared: [String],
-    required: [String]
+    path: EndpointPath,
+    declared: [ParameterReference],
+    required: [ParameterReference]
   )
 
   /// Path template syntax is invalid.
   ///
   /// Example: `/users/{id` (missing closing brace)
-  case invalidPathTemplate(String, suggestion: String?)
+  case invalidPathTemplate(EndpointPath, suggestion: MacroDiagnosticText?)
 
   /// Body parameter specified in macro not found in function signature.
   ///
   /// Example: `@POST("/users", body: "user")` but function has no `user` parameter
-  case bodyParameterNotFound(String, available: [String])
+  case bodyParameterNotFound(ParameterReference, available: [ParameterReference])
 
   /// Query parameter specified in macro not found in function signature.
   ///
   /// Example: `@GET("/search", queryParameters: ["q"])` but function has no `q` parameter
-  case queryParameterNotFound(String, available: [String])
+  case queryParameterNotFound(ParameterReference, available: [ParameterReference])
 
   /// Multiple HTTP method macros on same function.
   ///
   /// Example: Both `@GET` and `@POST` on same function
-  case multipleHTTPMethods(String, found: [String])
+  case multipleHTTPMethods(MacroFunctionName, found: [HTTPMethodName])
 
   /// Function missing required `async` keyword.
   ///
   /// All API methods must be `async throws`
-  case missingAsyncKeyword(String)
+  case missingAsyncKeyword(MacroFunctionName)
 
   /// Function missing required `throws` keyword.
   ///
   /// All API methods must be `async throws`
-  case missingThrowsKeyword(String)
+  case missingThrowsKeyword(MacroFunctionName)
 
   /// Return type doesn't conform to Decodable.
   ///
   /// All API method return types must be Decodable for JSON decoding
-  case nonDecodableReturnType(String)
+  case nonDecodableReturnType(MacroTypeReference)
 
   /// Body parameter type doesn't conform to Encodable.
   ///
   /// Request body types must be Encodable for JSON encoding
-  case nonEncodableBodyType(String)
+  case nonEncodableBodyType(MacroTypeReference)
 
   public var description: String {
     switch self {
     case .parameterMismatch(let path, let declared, let required):
       return """
         Path parameter mismatch in '\(path)':
-        - Function parameters: \(declared.joined(separator: ", "))
-        - Required path parameters: \(required.joined(separator: ", "))
+        - Function parameters: \(declared.map(\.rawValue).joined(separator: ", "))
+        - Required path parameters: \(required.map(\.rawValue).joined(separator: ", "))
         """
 
     case .invalidPathTemplate(let template, let suggestion):
@@ -80,19 +80,19 @@ public enum MacroExpansionError: Error, Sendable, LocalizedError, CustomStringCo
     case .bodyParameterNotFound(let name, let available):
       return """
         Body parameter '\(name)' not found in function signature.
-        Available parameters: \(available.joined(separator: ", "))
+        Available parameters: \(available.map(\.rawValue).joined(separator: ", "))
         """
 
     case .queryParameterNotFound(let name, let available):
       return """
         Query parameter '\(name)' not found in function signature.
-        Available parameters: \(available.joined(separator: ", "))
+        Available parameters: \(available.map(\.rawValue).joined(separator: ", "))
         """
 
     case .multipleHTTPMethods(let functionName, let found):
       return """
         Multiple HTTP method macros on '\(functionName)':
-        Found: \(found.joined(separator: ", "))
+        Found: \(found.map(\.rawValue).joined(separator: ", "))
         Only one HTTP method macro allowed per function.
         """
 
@@ -154,28 +154,28 @@ public enum MacroExpansionError: Error, Sendable, LocalizedError, CustomStringCo
 /// requests fail or responses can't be processed.
 public enum APIClientError: Error, Sendable, LocalizedError, CustomStringConvertible {
   /// HTTP request completed with error status code (4xx, 5xx).
-  case httpError(statusCode: Int, response: HTTPResponse)
+  case httpError(status: HTTPStatus, response: HTTPResponse)
 
   /// Network layer error (connectivity, timeout, etc).
-  case networkError(Error)
+  case networkError(UnderlyingErrorText)
 
   /// JSON decoding failed for response body.
-  case decodingError(Error, data: Data)
+  case decodingError(UnderlyingErrorText, data: HTTPBody)
 
   /// Request configuration is invalid (malformed URL, missing parameters).
-  case invalidRequest(String)
+  case invalidRequest(HTTPErrorDetail)
 
   public var description: String {
     switch self {
-    case .httpError(let statusCode, _):
+    case .httpError(let status, _):
       return
-        "HTTP error \(statusCode): \(HTTPURLResponse.localizedString(forStatusCode: statusCode))"
+        "HTTP error \(status.rawValue): \(HTTPURLResponse.localizedString(forStatusCode: status.rawValue.rawValue))"
 
     case .networkError(let error):
-      return "Network error: \(error.localizedDescription)"
+      return "Network error: \(error)"
 
     case .decodingError(let error, _):
-      return "Failed to decode response: \(error.localizedDescription)"
+      return "Failed to decode response: \(error)"
 
     case .invalidRequest(let message):
       return "Invalid request: \(message)"
@@ -188,12 +188,12 @@ public enum APIClientError: Error, Sendable, LocalizedError, CustomStringConvert
 
   public var recoverySuggestion: String? {
     switch self {
-    case .httpError(let statusCode, _):
-      if statusCode >= 500 {
+    case .httpError(let status, _):
+      if status.rawValue >= 500 {
         return "Server error. Try again later or contact support."
-      } else if statusCode == 404 {
+      } else if status.rawValue == 404 {
         return "Resource not found. Verify the endpoint path."
-      } else if statusCode == 401 || statusCode == 403 {
+      } else if status.rawValue == 401 || status.rawValue == 403 {
         return "Authentication failed. Check your credentials."
       } else {
         return "Check request parameters and try again."
@@ -212,8 +212,8 @@ public enum APIClientError: Error, Sendable, LocalizedError, CustomStringConvert
 
   public var failureReason: String? {
     switch self {
-    case .httpError(let statusCode, _):
-      return "Server returned status code \(statusCode)"
+    case .httpError(let status, _):
+      return "Server returned status code \(status)"
 
     case .networkError:
       return "Network connection failed"

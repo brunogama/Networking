@@ -25,8 +25,10 @@ import Foundation
 @available(
   *,
   deprecated,
-  message:
-    "InterceptorError is part of the compatibility interceptor layer. Prefer middleware-specific errors or HTTPError handling for new runtime behavior."
+  message: """
+    InterceptorError is part of the compatibility interceptor layer. \
+    Prefer middleware-specific errors or HTTPError handling for new runtime behavior.
+    """
 )
 public enum InterceptorError: Error, Sendable {
   /// The maximum number of retry attempts was exceeded.
@@ -35,7 +37,7 @@ public enum InterceptorError: Error, Sendable {
   /// exceeding the configured maximum retry limit (typically 3 attempts).
   ///
   /// - Parameter maxAttempts: The maximum number of attempts that was configured
-  case maxRetriesExceeded(maxAttempts: Int)
+  case maxRetriesExceeded(maxAttempts: RetryAttemptCount)
 
   /// An interceptor threw an error during execution.
   ///
@@ -54,7 +56,7 @@ public enum InterceptorError: Error, Sendable {
   /// - A response interceptor returning `.shortCircuit` with an invalid response
   ///
   /// - Parameter reason: A human-readable explanation of why the result was invalid
-  case invalidResult(reason: String)
+  case invalidResult(reason: HTTPErrorDetail)
 
   /// Rate limit exceeded for the endpoint.
   ///
@@ -65,7 +67,11 @@ public enum InterceptorError: Error, Sendable {
   ///   - path: The endpoint path that exceeded the limit
   ///   - limit: The maximum number of requests allowed per window
   ///   - window: The time window duration in seconds
-  case rateLimitExceeded(path: String, limit: Int, window: TimeInterval)
+  case rateLimitExceeded(
+    path: RequestPathPattern,
+    limit: RequestCount,
+    window: RateLimitWindowDuration
+  )
 }
 
 // MARK: - LocalizedError Conformance
@@ -73,11 +79,13 @@ public enum InterceptorError: Error, Sendable {
 @available(
   *,
   deprecated,
-  message:
-    "InterceptorError is part of the compatibility interceptor layer. Prefer middleware-specific errors or HTTPError handling for new runtime behavior."
+  message: """
+    InterceptorError is part of the compatibility interceptor layer. \
+    Prefer middleware-specific errors or HTTPError handling for new runtime behavior.
+    """
 )
-extension InterceptorError: LocalizedError {
-  public var errorDescription: String? {
+extension InterceptorError {
+  public var errorDescriptionText: HTTPErrorMessage? {
     switch self {
     case .maxRetriesExceeded(let maxAttempts):
       return """
@@ -105,7 +113,7 @@ extension InterceptorError: LocalizedError {
     }
   }
 
-  public var failureReason: String? {
+  public var failureReasonText: HTTPErrorDetail? {
     switch self {
     case .maxRetriesExceeded:
       return "The maximum number of retry attempts was exceeded"
@@ -121,7 +129,7 @@ extension InterceptorError: LocalizedError {
     }
   }
 
-  public var recoverySuggestion: String? {
+  public var recoverySuggestionText: RecoveryActionDescription? {
     switch self {
     case .maxRetriesExceeded:
       return """

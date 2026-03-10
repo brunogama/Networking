@@ -32,25 +32,37 @@ import Foundation
 @available(
   *,
   deprecated,
-  message:
-    "LoggingInterceptor is a compatibility API. Prefer request, response, or error middleware for new runtime behavior."
+  message: """
+    LoggingInterceptor is a compatibility API.
+    Prefer request, response, or error middleware for new runtime behavior.
+    """
 )
 public struct LoggingInterceptor: RequestInterceptor, ResponseInterceptor, Sendable {
   /// Log level determines what information is logged
-  public enum LogLevel: Int, Sendable, Comparable {
+  public enum LogLevel: Sendable, Comparable {
     /// No logging
-    case none = 0
+    case none
     /// Log only errors
-    case error = 1
+    case error
     /// Log errors and basic request/response info
-    case basic = 2
+    case basic
     /// Log headers and response size
-    case headers = 3
+    case headers
     /// Log everything including body previews
-    case verbose = 4
+    case verbose
+
+    private var rank: LoggingLevelRank {
+      switch self {
+      case .none: return 0
+      case .error: return 1
+      case .basic: return 2
+      case .headers: return 3
+      case .verbose: return 4
+      }
+    }
 
     public static func < (lhs: Self, rhs: Self) -> Bool {
-      lhs.rawValue < rhs.rawValue
+      lhs.rank < rhs.rank
     }
   }
 
@@ -61,10 +73,12 @@ public struct LoggingInterceptor: RequestInterceptor, ResponseInterceptor, Senda
   ///
   /// - Parameters:
   ///   - level: The logging verbosity level
-  ///   - logger: Optional custom logging function. Defaults to print().
+  ///   - logger: Optional custom logging function. Defaults to `NSLog`.
   public init(
     level: LogLevel = .basic,
-    logger: @escaping @Sendable (String) -> Void = { print($0) }
+    logger: @escaping @Sendable (String) -> Void = { message in
+      NSLog("%@", message)
+    }
   ) {
     self.level = level
     self.logger = logger
@@ -99,18 +113,43 @@ public struct LoggingInterceptor: RequestInterceptor, ResponseInterceptor, Senda
     response: HTTPResponse,
     context: InterceptorContext
   ) async throws -> InterceptorResult {
-    guard level > .none else { return .proceed }
+    guard let logMessage = responseLogMessage(for: response, context: context) else {
+      return .proceed
+    }
+
+    logger(logMessage)
+
+    return .proceed
+  }
+
+  private func responseLogMessage(
+    for response: HTTPResponse,
+    context: InterceptorContext
+  ) -> String? {
+    guard level > .none else { return nil }
 
     let statusCode = response.status.rawValue
-    let isError = statusCode >= 400
+    guard level > .error || statusCode >= 400 else { return nil }
 
-    // Only log errors at .error level, everything at .basic and above
-    guard level > .error || isError else { return .proceed }
+    return appendResponseDetails(
+      to: baseResponseLogMessage(statusCode: statusCode, context: context),
+      response: response
+    )
+  }
 
+  private func baseResponseLogMessage(
+    statusCode: HTTPStatusCode,
+    context: InterceptorContext
+  ) -> String {
     var logMessage = "[RESPONSE] \(context.method.rawValue) \(context.path) - \(statusCode)"
-    if isError {
+    if statusCode >= 400 {
       logMessage += " ❌"
     }
+    return logMessage
+  }
+
+  private func appendResponseDetails(to baseMessage: String, response: HTTPResponse) -> String {
+    var logMessage = baseMessage
 
     if level >= .headers {
       logMessage += "\nHeaders: \(redactSensitiveHeaders(response.headers))"
@@ -120,23 +159,21 @@ public struct LoggingInterceptor: RequestInterceptor, ResponseInterceptor, Senda
       logMessage += "\nBody: \(bodySize) bytes"
     }
 
-    logger(logMessage)
-
-    return .proceed
+    return logMessage
   }
 
   // MARK: - Private Helpers
 
   /// Redacts sensitive headers like Authorization and API keys
-  private func redactSensitiveHeaders(_ headers: [String: String]) -> [String: String] {
+  private func redactSensitiveHeaders(_ headers: HTTPHeaders) -> [String: String] {
     let sensitiveKeys = ["authorization", "api-key", "x-api-key", "cookie", "set-cookie"]
 
     var redacted: [String: String] = [:]
     for (key, value) in headers {
-      if sensitiveKeys.contains(key.lowercased()) {
-        redacted[key] = "[REDACTED]"
+      if sensitiveKeys.contains(key.rawValue.lowercased()) {
+        redacted[key.rawValue] = "[REDACTED]"
       } else {
-        redacted[key] = value
+        redacted[key.rawValue] = value.rawValue
       }
     }
     return redacted
@@ -148,8 +185,10 @@ public struct LoggingInterceptor: RequestInterceptor, ResponseInterceptor, Senda
 @available(
   *,
   deprecated,
-  message:
-    "LoggingInterceptor is a compatibility API. Prefer request, response, or error middleware for new runtime behavior."
+  message: """
+    LoggingInterceptor is a compatibility API.
+    Prefer request, response, or error middleware for new runtime behavior.
+    """
 )
 extension LoggingInterceptor {
   /// Creates a logging interceptor that only logs errors

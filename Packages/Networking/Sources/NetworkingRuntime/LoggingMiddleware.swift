@@ -10,20 +10,20 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
   // MARK: - Configuration
 
   public struct Configuration: Sendable {
-    public let subsystem: String
-    public let category: String
+    public let subsystem: LoggingSubsystemName
+    public let category: LoggingCategoryName
     public let logLevel: OSLogType
-    public let logHeaders: Bool
-    public let logBody: Bool
-    public let maxBodyLength: Int
+    public let logHeaders: CollectHeadersFlag
+    public let logBody: CollectBodyInfoFlag
+    public let maxBodyLength: LogBodyLengthLimit
 
     public init(
-      subsystem: String = "Networking",
-      category: String = "HTTPClient",
+      subsystem: LoggingSubsystemName = "Networking",
+      category: LoggingCategoryName = "HTTPClient",
       logLevel: OSLogType = .debug,
-      logHeaders: Bool = true,
-      logBody: Bool = false,
-      maxBodyLength: Int = 1024
+      logHeaders: CollectHeadersFlag = true,
+      logBody: CollectBodyInfoFlag = false,
+      maxBodyLength: LogBodyLengthLimit = 1024
     ) {
       self.subsystem = subsystem
       self.category = category
@@ -44,8 +44,8 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
   public init(configuration: Configuration = Configuration()) {
     self.configuration = configuration
     self.logger = Logger(
-      subsystem: configuration.subsystem,
-      category: configuration.category
+      subsystem: configuration.subsystem.rawValue,
+      category: configuration.category.rawValue
     )
   }
   // MARK: - HTTPRequestMiddleware
@@ -56,18 +56,18 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
       "→ \(request.method.rawValue) \(request.url.absoluteString)"
     )
 
-    if configuration.logHeaders && !request.headers.isEmpty {
+    if configuration.logHeaders.rawValue && !request.headers.isEmpty {
       logger.log(
         level: configuration.logLevel,
         "  Headers: \(request.headers.description)"
       )
     }
 
-    if configuration.logBody,
+    if configuration.logBody.rawValue,
       let body = request.body,
-      let bodyString = String(data: body, encoding: .utf8)
+      let bodyString = String(data: body.rawValue, encoding: .utf8)
     {
-      let truncatedBody = String(bodyString.prefix(configuration.maxBodyLength))
+      let truncatedBody = String(bodyString.prefix(configuration.maxBodyLength.rawValue))
       logger.log(
         level: configuration.logLevel,
         "  Body: \(truncatedBody)"
@@ -88,18 +88,18 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
       "← \(response.status.rawValue) \(request.method.rawValue) \(request.url.absoluteString)"
     )
 
-    if configuration.logHeaders && !response.headers.isEmpty {
+    if configuration.logHeaders.rawValue && !response.headers.isEmpty {
       logger.log(
         level: configuration.logLevel,
         "  Headers: \(response.headers.description)"
       )
     }
 
-    if configuration.logBody,
+    if configuration.logBody.rawValue,
       let body = response.body,
-      let bodyString = String(data: body, encoding: .utf8)
+      let bodyString = String(data: body.rawValue, encoding: .utf8)
     {
-      let truncatedBody = String(bodyString.prefix(configuration.maxBodyLength))
+      let truncatedBody = String(bodyString.prefix(configuration.maxBodyLength.rawValue))
       logger.log(
         level: configuration.logLevel,
         "  Body: \(truncatedBody)"

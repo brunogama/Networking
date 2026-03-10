@@ -38,8 +38,8 @@ public struct ValidatedResponse<T: Sendable>: ValidatedResponseProtocol, Sendabl
   }
 
   /// Indicates if all validations passed
-  public var isValid: Bool {
-    validationResults.allSatisfy { $0.isValid }
+  public var isValid: ValidationFlag {
+    ValidationFlag(validationResults.allSatisfy { $0.isValid.rawValue })
   }
 
   /// Gets all validation errors
@@ -77,7 +77,7 @@ extension ValidatedResponse {
   /// - Returns: The validated value
   /// - Throws: HTTPError if validation failed
   public func extractValue() throws -> T {
-    guard isValid else {
+    guard isValid.rawValue else {
       throw validationErrors.first ?? HTTPError(category: .configuration("Validation failed"))
     }
     return value

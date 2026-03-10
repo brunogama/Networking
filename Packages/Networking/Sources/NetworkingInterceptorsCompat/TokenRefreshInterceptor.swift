@@ -26,18 +26,21 @@ import Foundation
 @available(
   *,
   deprecated,
-  message:
-    "TokenRefreshInterceptor is a compatibility API. Prefer authentication middleware or custom response/error middleware for new runtime behavior."
+  message: """
+    TokenRefreshInterceptor is a compatibility API. \
+    Prefer authentication middleware or custom response/error middleware for new runtime behavior.
+    """
 )
 public struct TokenRefreshInterceptor: ResponseInterceptor, Sendable {
   /// Handler that refreshes tokens and returns new access and refresh tokens
   public typealias RefreshHandler =
-    @Sendable (String) async throws -> (
-      accessToken: String, refreshToken: String
+    @Sendable (RefreshTokenValue) async throws -> (
+      accessToken: BearerTokenValue, refreshToken: RefreshTokenValue
     )
 
   /// Handler that updates tokens in persistent storage
-  public typealias TokenUpdateHandler = @Sendable (String, String) async -> Void
+  public typealias TokenUpdateHandler =
+    @Sendable (BearerTokenValue, RefreshTokenValue) async -> Void
 
   private let refreshHandler: RefreshHandler
   private let tokenUpdateHandler: TokenUpdateHandler
@@ -57,6 +60,26 @@ public struct TokenRefreshInterceptor: ResponseInterceptor, Sendable {
     self.refreshCoordinator = RefreshCoordinator()
   }
 
+  package init(
+    refreshHandler:
+      @escaping @Sendable (String) async throws -> (
+        accessToken: String, refreshToken: String
+      ),
+    tokenUpdateHandler: @escaping @Sendable (String, String) async -> Void
+  ) {
+    self.refreshHandler = { refreshToken in
+      let tokens = try await refreshHandler(refreshToken.rawValue)
+      return (
+        accessToken: BearerTokenValue(tokens.accessToken),
+        refreshToken: RefreshTokenValue(tokens.refreshToken)
+      )
+    }
+    self.tokenUpdateHandler = { accessToken, refreshToken in
+      await tokenUpdateHandler(accessToken.rawValue, refreshToken.rawValue)
+    }
+    self.refreshCoordinator = RefreshCoordinator()
+  }
+
   // MARK: - ResponseInterceptor
 
   public func intercept(
@@ -73,11 +96,12 @@ public struct TokenRefreshInterceptor: ResponseInterceptor, Sendable {
       // No refresh token available, cannot refresh
       return .proceed
     }
+    let refreshTokenValue = RefreshTokenValue(refreshToken.rawValue)
 
     do {
       // Coordinate refresh to prevent concurrent refresh operations
-      let newTokens = try await refreshCoordinator.refresh(using: refreshToken) {
-        try await refreshHandler(refreshToken)
+      let newTokens = try await refreshCoordinator.refresh(using: refreshTokenValue) {
+        try await refreshHandler(refreshTokenValue)
       }
 
       // Update tokens in persistent storage
@@ -86,7 +110,7 @@ public struct TokenRefreshInterceptor: ResponseInterceptor, Sendable {
       // Retry the original request with new token
       // Note: The new token should be picked up by AuthenticationInterceptor
       // via the tokenUpdateHandler updating the token source
-      return .retry(after: 0)
+      return .retry(after: RetryDelay(0))
     } catch {
       // Refresh failed, propagate error
       return .proceed
@@ -96,16 +120,23 @@ public struct TokenRefreshInterceptor: ResponseInterceptor, Sendable {
 
 /// Actor that coordinates token refresh operations to prevent concurrent refreshes.
 private actor RefreshCoordinator {
-  private var refreshTask: Task<(accessToken: String, refreshToken: String), Error>?
+  private var refreshTask:
+    Task<
+      (accessToken: BearerTokenValue, refreshToken: RefreshTokenValue),
+      Error
+    >?
 
   /// Ensures only one refresh operation occurs at a time.
   ///
   /// If a refresh is already in progress, awaits the existing task.
   /// Otherwise, starts a new refresh operation.
   func refresh(
-    using refreshToken: String,
-    operation: @escaping @Sendable () async throws -> (accessToken: String, refreshToken: String)
-  ) async throws -> (accessToken: String, refreshToken: String) {
+    using refreshToken: RefreshTokenValue,
+    operation:
+      @escaping @Sendable () async throws -> (
+        accessToken: BearerTokenValue, refreshToken: RefreshTokenValue
+      )
+  ) async throws -> (accessToken: BearerTokenValue, refreshToken: RefreshTokenValue) {
     // If refresh is already in progress, await it
     if let existingTask = refreshTask {
       return try await existingTask.value

@@ -131,8 +131,8 @@ public final class MockHTTPErrorMiddleware: HTTPErrorMiddleware, MockVerifiable,
   // MARK: - MockVerifiable Conformance
 
   /// The number of times `handleError` was called.
-  nonisolated public var callCount: Int {
-    get async { queue.sync { handleCount }
+  nonisolated public var callCount: MockVerificationCount {
+    get async { MockVerificationCount(queue.sync { handleCount })
     }
   }
 

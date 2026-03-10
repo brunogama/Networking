@@ -252,7 +252,7 @@ public struct ScenarioBuilder {
 /// Closure-based Given step for inline definitions.
 public struct InlineGivenStep: GivenStep, DescribableStep {
   private let _setup: @Sendable (ScenarioContext) async throws -> Void
-  public let stepDescription: String
+  public let stepDescription: BDDStepText
 
   /// Creates an inline Given step.
   ///
@@ -260,7 +260,7 @@ public struct InlineGivenStep: GivenStep, DescribableStep {
   ///   - description: Step description
   ///   - setup: Setup closure
   public init(
-    _ description: String,
+    _ description: BDDStepText,
     setup: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) {
     self.stepDescription = description
@@ -275,7 +275,7 @@ public struct InlineGivenStep: GivenStep, DescribableStep {
 /// Closure-based When step for inline definitions.
 public struct InlineWhenStep: WhenStep, DescribableStep {
   private let _perform: @Sendable (ScenarioContext) async throws -> Void
-  public let stepDescription: String
+  public let stepDescription: BDDStepText
 
   /// Creates an inline When step.
   ///
@@ -283,7 +283,7 @@ public struct InlineWhenStep: WhenStep, DescribableStep {
   ///   - description: Step description
   ///   - perform: Perform closure
   public init(
-    _ description: String,
+    _ description: BDDStepText,
     perform: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) {
     self.stepDescription = description
@@ -298,7 +298,7 @@ public struct InlineWhenStep: WhenStep, DescribableStep {
 /// Closure-based Then step for inline definitions.
 public struct InlineThenStep: ThenStep, DescribableStep {
   private let _verify: @Sendable (ScenarioContext) throws -> Void
-  public let stepDescription: String
+  public let stepDescription: BDDStepText
 
   /// Creates an inline Then step.
   ///
@@ -306,7 +306,7 @@ public struct InlineThenStep: ThenStep, DescribableStep {
   ///   - description: Step description
   ///   - verify: Verify closure
   public init(
-    _ description: String,
+    _ description: BDDStepText,
     verify: @escaping @Sendable (ScenarioContext) throws -> Void
   ) {
     self.stepDescription = description
@@ -327,7 +327,7 @@ public struct InlineThenStep: ThenStep, DescribableStep {
 ///   - setup: Setup closure
 /// - Returns: A Given step
 public func given(
-  _ description: String,
+  _ description: BDDStepText,
   setup: @escaping @Sendable (ScenarioContext) async throws -> Void
 ) -> InlineGivenStep {
   InlineGivenStep(description, setup: setup)
@@ -340,7 +340,7 @@ public func given(
 ///   - perform: Perform closure
 /// - Returns: A When step
 public func when(
-  _ description: String,
+  _ description: BDDStepText,
   perform: @escaping @Sendable (ScenarioContext) async throws -> Void
 ) -> InlineWhenStep {
   InlineWhenStep(description, perform: perform)
@@ -353,7 +353,7 @@ public func when(
 ///   - verify: Verify closure
 /// - Returns: A Then step
 public func then(
-  _ description: String,
+  _ description: BDDStepText,
   verify: @escaping @Sendable (ScenarioContext) throws -> Void
 ) -> InlineThenStep {
   InlineThenStep(description, verify: verify)

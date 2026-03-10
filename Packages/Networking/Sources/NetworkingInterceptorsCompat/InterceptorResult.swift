@@ -63,8 +63,10 @@ import Foundation
 @available(
   *,
   deprecated,
-  message:
-    "InterceptorResult is part of the compatibility interceptor layer. Prefer middleware return values and HTTPError propagation for new runtime behavior."
+  message: """
+    InterceptorResult is part of the compatibility interceptor layer. \
+    Prefer middleware return values and HTTPError propagation for new runtime behavior.
+    """
 )
 public enum InterceptorResult: Sendable {
   /// Continue to the next interceptor or proceed with the network call/response processing.
@@ -100,5 +102,5 @@ public enum InterceptorResult: Sendable {
   ///
   /// - Warning: Returning `.retry()` from a request interceptor is unusual and may
   ///   cause unexpected behavior. Retry logic should typically be in response interceptors.
-  case retry(after: TimeInterval? = nil)
+  case retry(after: RetryDelay? = nil)
 }

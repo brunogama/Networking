@@ -1,6 +1,8 @@
 import Foundation
 import NetworkingCore
 
+// swiftlint:disable file_length
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -40,21 +42,21 @@ public struct SecurityConfiguration: Sendable {
 /// Configuration for certificate pinning.
 public struct CertificatePinningConfiguration: Sendable {
   /// Pinned certificates stored as SHA-256 hashes
-  public let pinnedCertificateHashes: Set<String>
+  public let pinnedCertificateHashes: Set<CertificateHash>
 
   /// Domains to apply certificate pinning to
-  public let domains: Set<String>
+  public let domains: Set<PinnedDomain>
 
   /// Whether to allow backup certificates (for certificate rotation)
-  public let allowBackupCertificates: Bool
+  public let allowBackupCertificates: BackupCertificateAllowance
 
   /// Action to take when certificate validation fails
   public let validationFailureAction: ValidationFailureAction
 
   public init(
-    pinnedCertificateHashes: Set<String>,
-    domains: Set<String>,
-    allowBackupCertificates: Bool = true,
+    pinnedCertificateHashes: Set<CertificateHash>,
+    domains: Set<PinnedDomain>,
+    allowBackupCertificates: BackupCertificateAllowance = true,
     validationFailureAction: ValidationFailureAction = .reject
   ) {
     self.pinnedCertificateHashes = pinnedCertificateHashes
@@ -73,21 +75,21 @@ public struct CertificatePinningConfiguration: Sendable {
 /// Configuration for public key pinning (recommended over certificate pinning).
 public struct PublicKeyPinningConfiguration: Sendable {
   /// Pinned public key hashes (SPKI SHA-256 hashes)
-  public let pinnedPublicKeyHashes: Set<String>
+  public let pinnedPublicKeyHashes: Set<CertificateHash>
 
   /// Domains to apply public key pinning to
-  public let domains: Set<String>
+  public let domains: Set<PinnedDomain>
 
   /// Whether to require at least one pinned key in the certificate chain
-  public let requirePinnedKey: Bool
+  public let requirePinnedKey: PinnedKeyRequirement
 
   /// Action to take when validation fails
   public let validationFailureAction: ValidationFailureAction
 
   public init(
-    pinnedPublicKeyHashes: Set<String>,
-    domains: Set<String>,
-    requirePinnedKey: Bool = true,
+    pinnedPublicKeyHashes: Set<CertificateHash>,
+    domains: Set<PinnedDomain>,
+    requirePinnedKey: PinnedKeyRequirement = true,
     validationFailureAction: ValidationFailureAction = .reject
   ) {
     self.pinnedPublicKeyHashes = pinnedPublicKeyHashes
@@ -112,20 +114,20 @@ public struct TLSConfiguration: Sendable {
   public let maximumTLSVersion: TLSVersion
 
   /// Whether to validate the certificate chain
-  public let validateCertificateChain: Bool
+  public let validateCertificateChain: TLSChainValidationFlag
 
   /// Whether to validate the hostname
-  public let validateHostname: Bool
+  public let validateHostname: TLSHostnameValidationFlag
 
   /// Custom certificate authority certificates to trust
-  public let customCACertificates: [Data]
+  public let customCACertificates: [CACertificateData]
 
   public init(
     minimumTLSVersion: TLSVersion = .v1_2,
     maximumTLSVersion: TLSVersion = .v1_3,
-    validateCertificateChain: Bool = true,
-    validateHostname: Bool = true,
-    customCACertificates: [Data] = []
+    validateCertificateChain: TLSChainValidationFlag = true,
+    validateHostname: TLSHostnameValidationFlag = true,
+    customCACertificates: [CACertificateData] = []
   ) {
     self.minimumTLSVersion = minimumTLSVersion
     self.maximumTLSVersion = maximumTLSVersion
@@ -136,16 +138,19 @@ public struct TLSConfiguration: Sendable {
 
   public static let `default` = Self()
 
+  // swiftlint:disable identifier_name
   public enum TLSVersion: Sendable {
     case v1_0
     case v1_1
     case v1_2
     case v1_3
   }
+  // swiftlint:enable identifier_name
 }
 
 #if canImport(Security)
 
+// swiftlint:disable type_body_length
 /// SSL Pinning Validator that handles certificate and public key validation.
 public final class SSLPinningValidator: NSObject, URLSessionDelegate {
   private let securityConfiguration: SecurityConfiguration
@@ -162,53 +167,31 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
     didReceive challenge: URLAuthenticationChallenge,
     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
   ) {
-    // Only handle server trust challenges
     guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust
     else {
       completionHandler(.performDefaultHandling, nil)
       return
     }
 
-    guard let serverTrust = challenge.protectionSpace.serverTrust else {
-      completionHandler(.rejectProtectionSpace, nil)
+    guard
+      let serverTrust = serverTrust(
+        for: challenge,
+        completionHandler: completionHandler
+      )
+    else {
       return
     }
 
     let host = challenge.protectionSpace.host
 
-    // Perform certificate pinning validation if configured
-    if let certPinningConfig = securityConfiguration.certificatePinning,
-      certPinningConfig.domains.contains(host)
-    {
-      if validateCertificatePinning(serverTrust: serverTrust, configuration: certPinningConfig) {
-        completionHandler(.useCredential, URLCredential(trust: serverTrust))
-        return
-      } else {
-        handleValidationFailure(
-          action: certPinningConfig.validationFailureAction,
-          completionHandler: completionHandler
-        )
-        return
-      }
+    if handlePinning(
+      serverTrust: serverTrust,
+      host: host,
+      completionHandler: completionHandler
+    ) {
+      return
     }
 
-    // Perform public key pinning validation if configured
-    if let pkPinningConfig = securityConfiguration.publicKeyPinning,
-      pkPinningConfig.domains.contains(host)
-    {
-      if validatePublicKeyPinning(serverTrust: serverTrust, configuration: pkPinningConfig) {
-        completionHandler(.useCredential, URLCredential(trust: serverTrust))
-        return
-      } else {
-        handleValidationFailure(
-          action: pkPinningConfig.validationFailureAction,
-          completionHandler: completionHandler
-        )
-        return
-      }
-    }
-
-    // Apply TLS configuration validation
     if !validateTLSConfiguration(serverTrust: serverTrust) {
       completionHandler(.rejectProtectionSpace, nil)
       return
@@ -220,6 +203,91 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
 
   // MARK: - Private Validation Methods
 
+  private func handlePinning(
+    serverTrust: SecTrust,
+    host: String,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) -> Bool {
+    if handleCertificatePinning(
+      serverTrust: serverTrust,
+      host: host,
+      completionHandler: completionHandler
+    ) {
+      return true
+    }
+
+    return handlePublicKeyPinning(
+      serverTrust: serverTrust,
+      host: host,
+      completionHandler: completionHandler
+    )
+  }
+
+  private func serverTrust(
+    for challenge: URLAuthenticationChallenge,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) -> SecTrust? {
+    guard let serverTrust = challenge.protectionSpace.serverTrust else {
+      completionHandler(.rejectProtectionSpace, nil)
+      return nil
+    }
+
+    return serverTrust
+  }
+
+  private func handleCertificatePinning(
+    serverTrust: SecTrust,
+    host: String,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) -> Bool {
+    guard let configuration = securityConfiguration.certificatePinning,
+      configuration.domains.contains(PinnedDomain(host))
+    else {
+      return false
+    }
+
+    if validateCertificatePinning(serverTrust: serverTrust, configuration: configuration) {
+      completeWithCredential(serverTrust: serverTrust, completionHandler: completionHandler)
+    } else {
+      handleValidationFailure(
+        action: configuration.validationFailureAction,
+        completionHandler: completionHandler
+      )
+    }
+
+    return true
+  }
+
+  private func handlePublicKeyPinning(
+    serverTrust: SecTrust,
+    host: String,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) -> Bool {
+    guard let configuration = securityConfiguration.publicKeyPinning,
+      configuration.domains.contains(PinnedDomain(host))
+    else {
+      return false
+    }
+
+    if validatePublicKeyPinning(serverTrust: serverTrust, configuration: configuration) {
+      completeWithCredential(serverTrust: serverTrust, completionHandler: completionHandler)
+    } else {
+      handleValidationFailure(
+        action: configuration.validationFailureAction,
+        completionHandler: completionHandler
+      )
+    }
+
+    return true
+  }
+
+  private func completeWithCredential(
+    serverTrust: SecTrust,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) {
+    completionHandler(.useCredential, URLCredential(trust: serverTrust))
+  }
+
   private func validateCertificatePinning(
     serverTrust: SecTrust,
     configuration: CertificatePinningConfiguration
@@ -230,14 +298,14 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
 
     // Check if any certificate in the chain matches our pinned certificates
     for certificate in certificateChain {
-      let certificateHash = sha256Hash(of: certificate)
+      let certificateHash = CertificateHash(sha256Hash(of: certificate))
       if configuration.pinnedCertificateHashes.contains(certificateHash) {
         return true
       }
     }
 
     // If backup certificates are allowed, perform additional validation
-    if configuration.allowBackupCertificates {
+    if configuration.allowBackupCertificates.rawValue {
       // In a production environment, you might check against backup certificate hashes
       // or perform other fallback validations
     }
@@ -258,7 +326,7 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
     // Extract and validate public keys from the certificate chain
     for certificate in certificateChain {
       if let publicKey = SecCertificateCopyKey(certificate) {
-        let publicKeyHash = sha256Hash(of: publicKey)
+        let publicKeyHash = CertificateHash(sha256Hash(of: publicKey))
         if configuration.pinnedPublicKeyHashes.contains(publicKeyHash) {
           foundPinnedKey = true
           break
@@ -266,7 +334,7 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
       }
     }
 
-    return configuration.requirePinnedKey ? foundPinnedKey : true
+    return configuration.requirePinnedKey.rawValue ? foundPinnedKey : true
   }
 
   private func validateTLSConfiguration(serverTrust: SecTrust) -> Bool {
@@ -275,7 +343,7 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
     // - Custom CA certificates
     // - Certificate chain validation settings
 
-    if !securityConfiguration.tlsConfiguration.validateCertificateChain {
+    if !securityConfiguration.tlsConfiguration.validateCertificateChain.rawValue {
       return true
     }
 
@@ -283,7 +351,9 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
     let isValid = SecTrustEvaluateWithError(serverTrust, &error)
 
     if let error = error {
-      print("TLS validation error: \(String(describing: CFErrorCopyDescription(error)))")
+      writeToStandardError(
+        "TLS validation error: \(String(describing: CFErrorCopyDescription(error)))"
+      )
     }
 
     return isValid
@@ -298,8 +368,9 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
       completionHandler(.rejectProtectionSpace, nil)
 
     case .warn:
-      // Log warning but allow connection
-      print("⚠️ SSL Pinning validation failed, but allowing connection due to configuration")
+      writeToStandardError(
+        "SSL pinning validation failed, allowing connection due to configuration"
+      )
       completionHandler(.performDefaultHandling, nil)
 
     case .allow:
@@ -316,8 +387,9 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
       completionHandler(.rejectProtectionSpace, nil)
 
     case .warn:
-      // Log warning but allow connection
-      print("⚠️ Public Key Pinning validation failed, but allowing connection due to configuration")
+      writeToStandardError(
+        "Public key pinning validation failed, allowing connection due to configuration"
+      )
       completionHandler(.performDefaultHandling, nil)
 
     case .allow:
@@ -328,38 +400,27 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
   // MARK: - Helper Methods
 
   private func getServerCertificateChain(serverTrust: SecTrust) -> [SecCertificate]? {
-    if #available(macOS 12.0, iOS 15.0, *) {
-      // Use modern API for macOS 12.0+ and iOS 15.0+
-      guard let certificateChain = SecTrustCopyCertificateChain(serverTrust) else {
-        return nil
-      }
-
-      var certificates: [SecCertificate] = []
-      let count = CFArrayGetCount(certificateChain)
-
-      for i in 0..<count {
-        let certificate = CFArrayGetValueAtIndex(certificateChain, i)
-        if let cert = Unmanaged<SecCertificate>.fromOpaque(certificate!).takeUnretainedValue()
-          as SecCertificate?
-        {
-          certificates.append(cert)
-        }
-      }
-
-      return certificates.isEmpty ? nil : certificates
-    } else {
-      // Fallback for older versions
-      var certificates: [SecCertificate] = []
-
-      let certificateCount = SecTrustGetCertificateCount(serverTrust)
-      for i in 0..<certificateCount {
-        if let certificate = SecTrustGetCertificateAtIndex(serverTrust, i) {
-          certificates.append(certificate)
-        }
-      }
-
-      return certificates.isEmpty ? nil : certificates
+    guard let certificateChain = SecTrustCopyCertificateChain(serverTrust) else {
+      return nil
     }
+
+    var certificates: [SecCertificate] = []
+    let count = CFArrayGetCount(certificateChain)
+
+    for index in 0..<count {
+      guard let certificate = CFArrayGetValueAtIndex(certificateChain, index) else {
+        continue
+      }
+
+      let cert = Unmanaged<SecCertificate>.fromOpaque(certificate).takeUnretainedValue()
+      certificates.append(cert)
+    }
+
+    return certificates.isEmpty ? nil : certificates
+  }
+
+  private func writeToStandardError(_ message: String) {
+    FileHandle.standardError.write(Data("\(message)\n".utf8))
   }
 
   private func sha256Hash(of certificate: SecCertificate) -> String {
@@ -387,6 +448,7 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate {
     return digest.map { String(format: "%02x", $0) }.joined()
   }
 }
+// swiftlint:enable type_body_length
 
 #endif  // canImport(Security)
 
@@ -399,8 +461,8 @@ extension SecurityConfiguration {
   ///   - domains: Domains to apply certificate pinning to
   /// - Returns: SecurityConfiguration with certificate pinning enabled
   public static func withCertificatePinning(
-    certificateHashes: Set<String>,
-    domains: Set<String>
+    certificateHashes: Set<CertificateHash>,
+    domains: Set<PinnedDomain>
   ) -> SecurityConfiguration {
     let pinningConfig = CertificatePinningConfiguration(
       pinnedCertificateHashes: certificateHashes,
@@ -415,8 +477,8 @@ extension SecurityConfiguration {
   ///   - domains: Domains to apply public key pinning to
   /// - Returns: SecurityConfiguration with public key pinning enabled
   public static func withPublicKeyPinning(
-    publicKeyHashes: Set<String>,
-    domains: Set<String>
+    publicKeyHashes: Set<CertificateHash>,
+    domains: Set<PinnedDomain>
   ) -> SecurityConfiguration {
     let pinningConfig = PublicKeyPinningConfiguration(
       pinnedPublicKeyHashes: publicKeyHashes,

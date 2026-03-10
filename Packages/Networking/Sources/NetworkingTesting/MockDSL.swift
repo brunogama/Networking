@@ -3,6 +3,8 @@ import NetworkingInterceptorsCompat
 import NetworkingObservability
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - NetworkingMock DSL
 
 /// A result-builder DSL for creating mock network expectations.
@@ -40,52 +42,63 @@ public struct NetworkingMock: Sendable {
     let mockClient = MockNetworkClient()
 
     for rule in rules {
-      let expectation: MockNetworkClient.RequestExpectation
-
-      // Build matcher from expect components
-      if let path = rule.expectation.path {
-        switch rule.expectation.method {
-        case .some(.get):
-          expectation = mockClient.expectGET(path)
-        case .some(.post):
-          expectation = mockClient.expectPOST(path)
-        case .some(.put):
-          expectation = mockClient.expectPUT(path)
-        case .some(.delete):
-          expectation = mockClient.expectDELETE(path)
-        default:
-          expectation = mockClient.expect(.path(path))
-        }
-      } else {
-        expectation = mockClient.expect(.custom({ _ in true }))
-      }
-
-      // Apply response
-      if let error = rule.response.error {
-        expectation.andReturnError(error)
-      } else {
-        let statusCode = rule.response.statusCode ?? 200
-        let data = rule.response.body ?? Data()
-        var headers: [String: String] = [:]
-        if rule.response.isJSON {
-          headers["Content-Type"] = "application/json"
-        }
-        for (name, value) in rule.response.headers {
-          headers[name] = value
-        }
-
-        expectation.andReturn(
-          .success(statusCode: statusCode, data: data, headers: headers)
-        )
-      }
-
-      // Apply count constraints
-      if let count = rule.expectation.count {
-        expectation.exactly(count)
-      }
+      let expectation = Self.makeExpectation(for: rule.expectation, using: mockClient)
+      Self.applyResponse(rule.response, to: expectation)
+      Self.applyCount(rule.expectation.count, to: expectation)
     }
 
     self.client = mockClient
+  }
+
+  private static func makeExpectation(
+    for expectation: MockExpectation,
+    using mockClient: MockNetworkClient
+  ) -> MockNetworkClient.RequestExpectation {
+    guard let path = expectation.path else {
+      return mockClient.expect(.custom(MockURLRequestPredicate { _ in true }))
+    }
+
+    let builders: [HTTPMethod: (MockRequestPath) -> MockNetworkClient.RequestExpectation] = [
+      .get: mockClient.expectGET,
+      .post: mockClient.expectPOST,
+      .put: mockClient.expectPUT,
+      .delete: mockClient.expectDELETE,
+    ]
+    if let method = expectation.method,
+      let builder = builders[method]
+    {
+      return builder(path)
+    }
+    return mockClient.expect(.path(path))
+  }
+
+  private static func applyResponse(
+    _ response: MockResponse,
+    to expectation: MockNetworkClient.RequestExpectation
+  ) {
+    if let error = response.error {
+      expectation.andReturnError(error)
+      return
+    }
+
+    expectation.andReturn(
+      .success(
+        statusCode: response.statusCode ?? 200,
+        data: response.body ?? HTTPBody(Data()),
+        headers: response.responseHeaders
+      )
+    )
+  }
+
+  private static func applyCount(
+    _ count: RequestCount?,
+    to expectation: MockNetworkClient.RequestExpectation
+  ) {
+    guard let count else {
+      return
+    }
+
+    expectation.exactly(count)
   }
 }
 
@@ -144,17 +157,17 @@ public struct MockRuleBuilder {
 /// Defines what requests should match this mock rule.
 public struct MockExpectation: Sendable {
   public let method: HTTPMethod?
-  public let path: String?
-  public let requiredHeaders: [String]
-  public let headerValues: [String: String]
-  public let count: Int?
+  public let path: MockRequestPath?
+  public let requiredHeaders: [HTTPHeaderName]
+  public let headerValues: HTTPHeaders
+  public let count: RequestCount?
 
   public init(
     method: HTTPMethod? = nil,
-    path: String? = nil,
-    requiredHeaders: [String] = [],
-    headerValues: [String: String] = [:],
-    count: Int? = nil
+    path: MockRequestPath? = nil,
+    requiredHeaders: [HTTPHeaderName] = [],
+    headerValues: HTTPHeaders = [:],
+    count: RequestCount? = nil
   ) {
     self.method = method
     self.path = path
@@ -168,24 +181,32 @@ public struct MockExpectation: Sendable {
 
 /// Defines how the mock should respond.
 public struct MockResponse: Sendable {
-  public let statusCode: Int?
-  public let body: Data?
-  public let headers: [String: String]
+  public let statusCode: HTTPStatusCode?
+  public let body: HTTPBody?
+  public let headers: HTTPHeaders
   public let error: (any Error)?
-  public let isJSON: Bool
+  public let isJSON: MockJSONResponseFlag
 
   public init(
-    statusCode: Int? = 200,
-    body: Data? = nil,
-    headers: [String: String] = [:],
+    statusCode: HTTPStatusCode? = 200,
+    body: HTTPBody? = nil,
+    headers: HTTPHeaders = [:],
     error: (any Error)? = nil,
-    isJSON: Bool = false
+    isJSON: MockJSONResponseFlag = false
   ) {
     self.statusCode = statusCode
     self.body = body
     self.headers = headers
     self.error = error
     self.isJSON = isJSON
+  }
+
+  fileprivate var responseHeaders: HTTPHeaders {
+    var responseHeaders = headers
+    if isJSON.rawValue {
+      responseHeaders["Content-Type"] = "application/json"
+    }
+    return responseHeaders
   }
 }
 
@@ -195,44 +216,21 @@ public struct MockResponse: Sendable {
 @resultBuilder
 public struct ExpectBuilder {
   public static func buildBlock(_ components: ExpectComponent...) -> MockExpectation {
-    var method: HTTPMethod?
-    var path: String?
-    var requiredHeaders: [String] = []
-    var headerValues: [String: String] = [:]
-    var count: Int?
-
+    var accumulator = ExpectationAccumulator()
     for component in components {
-      switch component {
-      case .method(let m):
-        method = m
-      case .path(let p):
-        path = p
-      case .headerPresent(let name):
-        requiredHeaders.append(name)
-      case .headerValue(let name, let value):
-        headerValues[name] = value
-      case .count(let c):
-        count = c
-      }
+      accumulator.apply(component)
     }
-
-    return MockExpectation(
-      method: method,
-      path: path,
-      requiredHeaders: requiredHeaders,
-      headerValues: headerValues,
-      count: count
-    )
+    return accumulator.expectation
   }
 }
 
 /// Components for building expectations.
 public enum ExpectComponent: Sendable {
   case method(HTTPMethod)
-  case path(String)
-  case headerPresent(String)
-  case headerValue(String, String)
-  case count(Int)
+  case path(MockRequestPath)
+  case headerPresent(HTTPHeaderName)
+  case headerValue(HTTPHeaderName, HTTPHeaderValue)
+  case count(RequestCount)
 }
 
 // MARK: - Respond Builder
@@ -241,35 +239,11 @@ public enum ExpectComponent: Sendable {
 @resultBuilder
 public struct RespondBuilder {
   public static func buildBlock(_ components: RespondComponent...) -> MockResponse {
-    var statusCode: Int?
-    var body: Data?
-    var headers: [String: String] = [:]
-    var error: (any Error)?
-    var isJSON = false
-
+    var accumulator = ResponseAccumulator()
     for component in components {
-      switch component {
-      case .status(let code):
-        statusCode = code
-      case .body(let data):
-        body = data
-      case .jsonBody(let data):
-        body = data
-        isJSON = true
-      case .header(let name, let value):
-        headers[name] = value
-      case .error(let err):
-        error = err
-      }
+      accumulator.apply(component)
     }
-
-    return MockResponse(
-      statusCode: statusCode,
-      body: body,
-      headers: headers,
-      error: error,
-      isJSON: isJSON
-    )
+    return accumulator.response
   }
 }
 
@@ -280,14 +254,130 @@ public struct RespondBuilder {
 ///   This is safe because errors are only used during test setup (single-threaded)
 ///   and consumed synchronously during mock response generation.
 public enum RespondComponent: @unchecked Sendable {
-  case status(Int)
-  case body(Data)
-  case jsonBody(Data)
-  case header(String, String)
+  case status(HTTPStatusCode)
+  case body(HTTPBody)
+  case jsonBody(HTTPBody)
+  case header(HTTPHeaderName, HTTPHeaderValue)
   case error(any Error)
 }
 
+private struct ExpectationAccumulator {
+  var method: HTTPMethod?
+  var path: MockRequestPath?
+  var requiredHeaders: [HTTPHeaderName] = []
+  var headerValues: HTTPHeaders = [:]
+  var count: RequestCount?
+
+  mutating func apply(_ component: ExpectComponent) {
+    if applyRequestTarget(component) || applyHeader(component) {
+      return
+    }
+    applyCount(component)
+  }
+
+  var expectation: MockExpectation {
+    MockExpectation(
+      method: method,
+      path: path,
+      requiredHeaders: requiredHeaders,
+      headerValues: headerValues,
+      count: count
+    )
+  }
+
+  private mutating func applyRequestTarget(_ component: ExpectComponent) -> Bool {
+    switch component {
+    case .method(let methodValue):
+      method = methodValue
+      return true
+    case .path(let requestPath):
+      path = requestPath
+      return true
+    default:
+      return false
+    }
+  }
+
+  private mutating func applyHeader(_ component: ExpectComponent) -> Bool {
+    switch component {
+    case .headerPresent(let name):
+      requiredHeaders.append(name)
+      return true
+    case .headerValue(let name, let value):
+      headerValues[name] = value
+      return true
+    default:
+      return false
+    }
+  }
+
+  private mutating func applyCount(_ component: ExpectComponent) {
+    if case .count(let requestCount) = component {
+      count = requestCount
+    }
+  }
+}
+
+private struct ResponseAccumulator {
+  var statusCode: HTTPStatusCode?
+  var body: HTTPBody?
+  var headers: HTTPHeaders = [:]
+  var error: (any Error)?
+  var isJSON: MockJSONResponseFlag = false
+
+  mutating func apply(_ component: RespondComponent) {
+    if applyPayload(component) || applyHeader(component) {
+      return
+    }
+    applyError(component)
+  }
+
+  var response: MockResponse {
+    MockResponse(
+      statusCode: statusCode,
+      body: body,
+      headers: headers,
+      error: error,
+      isJSON: isJSON
+    )
+  }
+
+  private mutating func applyPayload(_ component: RespondComponent) -> Bool {
+    switch component {
+    case .status(let statusCode):
+      self.statusCode = statusCode
+      return true
+    case .body(let responseBody):
+      body = responseBody
+      return true
+    case .jsonBody(let responseBody):
+      body = responseBody
+      isJSON = true
+      return true
+    default:
+      return false
+    }
+  }
+
+  private mutating func applyHeader(_ component: RespondComponent) -> Bool {
+    guard case .header(let name, let value) = component else {
+      return false
+    }
+
+    headers[name] = value
+    return true
+  }
+
+  private mutating func applyError(_ component: RespondComponent) {
+    if case .error(let responseError) = component {
+      error = responseError
+    }
+  }
+}
+
 // MARK: - DSL Functions
+
+// swiftlint:disable identifier_name
 
 /// Creates an expectation block for a mock rule.
 ///
@@ -322,22 +412,22 @@ public func Method(_ method: HTTPMethod) -> ExpectComponent {
 }
 
 /// Matches a specific URL path.
-public func Path(_ path: String) -> ExpectComponent {
+public func Path(_ path: MockRequestPath) -> ExpectComponent {
   .path(path)
 }
 
 /// Requires a header to be present (any value).
-public func HeaderPresent(_ name: String) -> ExpectComponent {
+public func HeaderPresent(_ name: HTTPHeaderName) -> ExpectComponent {
   .headerPresent(name)
 }
 
 /// Requires a header with a specific value.
-public func HeaderValue(_ name: String, _ value: String) -> ExpectComponent {
+public func HeaderValue(_ name: HTTPHeaderName, _ value: HTTPHeaderValue) -> ExpectComponent {
   .headerValue(name, value)
 }
 
 /// Sets the expected call count.
-public func Count(_ count: Int) -> ExpectComponent {
+public func Count(_ count: RequestCount) -> ExpectComponent {
   .count(count)
 }
 
@@ -349,8 +439,12 @@ public func Status(_ status: HTTPStatus) -> RespondComponent {
 }
 
 /// Sets a raw data body on the mock response.
-public func Body(_ data: Data) -> RespondComponent {
+public func Body(_ data: HTTPBody) -> RespondComponent {
   .body(data)
+}
+
+package func Body(_ data: Data) -> RespondComponent {
+  .body(HTTPBody(data))
 }
 
 /// Sets a JSON-encoded body on the mock response.
@@ -361,10 +455,13 @@ public func MockJSONBody<T: Encodable>(
   -> RespondComponent
 {
   let data = try encoder.encode(value)
-  return .jsonBody(data)
+  return .jsonBody(HTTPBody(data))
 }
 
 /// Sets a response header.
-public func ResponseHeader(_ name: String, _ value: String) -> RespondComponent {
+public func ResponseHeader(_ name: HTTPHeaderName, _ value: HTTPHeaderValue) -> RespondComponent {
   .header(name, value)
 }
+
+// swiftlint:enable identifier_name
+// swiftlint:enable file_length

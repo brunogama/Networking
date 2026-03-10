@@ -3,6 +3,7 @@ import NetworkingTesting
 import Foundation
 
 // MARK: - Gherkin Parser
+// swiftlint:disable file_length type_body_length
 
 /// Parser for Gherkin feature files.
 ///
@@ -20,7 +21,7 @@ import Foundation
 ///
 /// ```swift
 /// let parser = GherkinParser()
-/// let feature = try parser.parse(source: featureContent)
+/// let feature = try parser.parse(source: BDDSourceText(featureContent))
 /// ```
 public final class GherkinParser: Sendable {
   // MARK: - Types
@@ -54,6 +55,41 @@ public final class GherkinParser: Sendable {
     let column: Int
   }
 
+  private struct StepAttachments {
+    let docString: DocString?
+    let dataTable: DataTable?
+  }
+
+  private struct DocStringParseResult {
+    let lines: [String]
+    let terminated: Bool
+  }
+
+  private static let lineKeywords: [(String, TokenType)] = [
+    ("Feature:", .feature),
+    ("Background:", .background),
+    ("Scenario Outline:", .scenarioOutline),
+    ("Scenario Template:", .scenarioOutline),
+    ("Scenario:", .scenario),
+    ("Examples:", .examples),
+    ("Scenarios:", .examples),
+    ("Given ", .given),
+    ("When ", .when),
+    ("Then ", .then),
+    ("And ", .and),
+    ("But ", .but),
+    ("* ", .asterisk),
+  ]
+
+  private static let stepKeywords: [TokenType: StepKeyword] = [
+    .given: .given,
+    .when: .when,
+    .then: .then,
+    .and: .and,
+    .but: .but,
+    .asterisk: .asterisk,
+  ]
+
   // MARK: - Initialization
 
   public init() {}
@@ -65,26 +101,26 @@ public final class GherkinParser: Sendable {
   /// - Parameter source: The Gherkin source text
   /// - Returns: Parsed feature
   /// - Throws: `BDDError` for parsing errors
-  public func parse(source: String) throws -> GherkinFeature {
-    let lines = source.components(separatedBy: .newlines)
+  public func parse(source: BDDSourceText) throws -> GherkinFeature {
+    let lines = source.rawValue.components(separatedBy: .newlines)
     var tokens = tokenize(lines: lines)
 
     return try parseFeature(tokens: &tokens)
   }
 
-  /// Parses a Gherkin feature file from a URL.
+  /// Parses a Gherkin feature file from a file URL.
   ///
-  /// - Parameter url: URL to the feature file
+  /// - Parameter url: File URL to the feature file
   /// - Returns: Parsed feature
   /// - Throws: `BDDError.fileNotFound` or `BDDError.fileReadError`
-  public func parse(url: URL) throws -> GherkinFeature {
+  public func parse(url: BDDFileURL) throws -> GherkinFeature {
     guard FileManager.default.fileExists(atPath: url.path) else {
-      throw BDDError.fileNotFound(path: url.path)
+      throw BDDError.fileNotFound(path: BDDSourceFilePath(url.path))
     }
 
     do {
-      let source = try String(contentsOf: url, encoding: .utf8)
-      var feature = try parse(source: source)
+      let source = try String(contentsOf: url.rawValue, encoding: .utf8)
+      var feature = try parse(source: BDDSourceText(source))
       // Update location with file path
       feature = GherkinFeature(
         id: feature.id,
@@ -96,14 +132,14 @@ public final class GherkinParser: Sendable {
         location: GherkinSourceLocation(
           line: feature.location.line,
           column: feature.location.column,
-          file: url.path
+          file: BDDSourceFilePath(url.path)
         )
       )
       return feature
     } catch let error as BDDError {
       throw error
     } catch {
-      throw BDDError.fileReadError(path: url.path, underlyingError: error)
+      throw BDDError.fileReadError(path: BDDSourceFilePath(url.path), underlyingError: error)
     }
   }
 
@@ -113,80 +149,76 @@ public final class GherkinParser: Sendable {
     var tokens: [Token] = []
 
     for (lineIndex, line) in lines.enumerated() {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
       let lineNumber = lineIndex + 1
-
-      if trimmed.isEmpty {
-        tokens.append(Token(type: .blank, text: "", line: lineNumber, column: 1))
-        continue
-      }
-
-      if trimmed.hasPrefix("#") {
-        tokens.append(Token(type: .comment, text: trimmed, line: lineNumber, column: 1))
-        continue
-      }
-
-      if trimmed.hasPrefix("@") {
-        // Parse tags
-        let tagStrings = trimmed.components(separatedBy: .whitespaces)
-          .filter { $0.hasPrefix("@") }
-        for tag in tagStrings {
-          tokens.append(Token(type: .tag, text: tag, line: lineNumber, column: 1))
-        }
-        continue
-      }
-
-      if trimmed.hasPrefix("\"\"\"") || trimmed.hasPrefix("```") {
-        tokens.append(
-          Token(
-            type: .docStringDelimiter,
-            text: trimmed,
-            line: lineNumber,
-            column: 1
-          )
-        )
-        continue
-      }
-
-      if trimmed.hasPrefix("|") {
-        tokens.append(Token(type: .tableRow, text: trimmed, line: lineNumber, column: 1))
-        continue
-      }
-
-      let token = tokenizeLine(trimmed, lineNumber: lineNumber)
-      tokens.append(token)
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+      tokens.append(contentsOf: self.tokens(for: trimmed, lineNumber: lineNumber))
     }
 
     return tokens
   }
 
-  private func tokenizeLine(_ line: String, lineNumber: Int) -> Token {
-    let keywords: [(String, TokenType)] = [
-      ("Feature:", .feature),
-      ("Background:", .background),
-      ("Scenario Outline:", .scenarioOutline),
-      ("Scenario Template:", .scenarioOutline),
-      ("Scenario:", .scenario),
-      ("Examples:", .examples),
-      ("Scenarios:", .examples),
-      ("Given ", .given),
-      ("When ", .when),
-      ("Then ", .then),
-      ("And ", .and),
-      ("But ", .but),
-      ("* ", .asterisk),
-    ]
+  private func tokens(for line: String, lineNumber: Int) -> [Token] {
+    blankTokens(for: line, lineNumber: lineNumber)
+      ?? commentTokens(for: line, lineNumber: lineNumber)
+      ?? tagTokens(for: line, lineNumber: lineNumber)
+      ?? docStringDelimiterTokens(for: line, lineNumber: lineNumber)
+      ?? tableRowTokens(for: line, lineNumber: lineNumber)
+      ?? [tokenizeLine(line, lineNumber: lineNumber)]
+  }
 
-    for (keyword, type) in keywords {
-      if line.hasPrefix(keyword) {
-        let text = String(line.dropFirst(keyword.count))
-        return Token(
-          type: type,
-          text: text.trimmingCharacters(in: .whitespaces),
-          line: lineNumber,
-          column: 1
-        )
-      }
+  private func blankTokens(for line: String, lineNumber: Int) -> [Token]? {
+    guard line.isEmpty else {
+      return nil
+    }
+
+    return [Token(type: .blank, text: "", line: lineNumber, column: 1)]
+  }
+
+  private func commentTokens(for line: String, lineNumber: Int) -> [Token]? {
+    guard line.hasPrefix("#") else {
+      return nil
+    }
+
+    return [Token(type: .comment, text: line, line: lineNumber, column: 1)]
+  }
+
+  private func tagTokens(for line: String, lineNumber: Int) -> [Token]? {
+    guard line.hasPrefix("@") else {
+      return nil
+    }
+
+    return
+      line
+      .components(separatedBy: .whitespaces)
+      .filter { $0.hasPrefix("@") }
+      .map { Token(type: .tag, text: $0, line: lineNumber, column: 1) }
+  }
+
+  private func docStringDelimiterTokens(for line: String, lineNumber: Int) -> [Token]? {
+    guard line.hasPrefix("\"\"\"") || line.hasPrefix("```") else {
+      return nil
+    }
+
+    return [Token(type: .docStringDelimiter, text: line, line: lineNumber, column: 1)]
+  }
+
+  private func tableRowTokens(for line: String, lineNumber: Int) -> [Token]? {
+    guard line.hasPrefix("|") else {
+      return nil
+    }
+
+    return [Token(type: .tableRow, text: line, line: lineNumber, column: 1)]
+  }
+
+  private func tokenizeLine(_ line: String, lineNumber: Int) -> Token {
+    for (keyword, type) in Self.lineKeywords where line.hasPrefix(keyword) {
+      let text = String(line.dropFirst(keyword.count))
+      return Token(
+        type: type,
+        text: text.trimmingCharacters(in: .whitespaces),
+        line: lineNumber,
+        column: 1
+      )
     }
 
     return Token(type: .text, text: line, line: lineNumber, column: 1)
@@ -195,154 +227,218 @@ public final class GherkinParser: Sendable {
   // MARK: - Parsing
 
   private func parseFeature(tokens: inout [Token]) throws -> GherkinFeature {
-    var tags: [Tag] = []
-
-    // Skip blanks and comments, collect tags
-    while !tokens.isEmpty {
-      let token = tokens.first!
-      switch token.type {
-      case .blank, .comment:
-        tokens.removeFirst()
-      case .tag:
-        tags.append(Tag(token.text))
-        tokens.removeFirst()
-      case .feature:
-        break
-      default:
-        throw BDDError.syntaxError(
-          message: "Expected Feature keyword",
-          location: GherkinSourceLocation(line: token.line, column: token.column)
-        )
-      }
-
-      if tokens.first?.type == .feature {
-        break
-      }
-    }
-
-    guard !tokens.isEmpty, tokens.first?.type == .feature else {
+    let tags = try collectFeatureTags(tokens: &tokens)
+    guard let featureToken = tokens.first, featureToken.type == .feature else {
       throw BDDError.missingFeature
     }
 
-    let featureToken = tokens.removeFirst()
-    let featureName = featureToken.text
-    let location = GherkinSourceLocation(
-      line: featureToken.line,
-      column: featureToken.column
+    let feature = consumeFeatureToken(tokens: &tokens)
+    let description = parseDescription(
+      tokens: &tokens,
+      stopTokens: [.background, .scenario, .scenarioOutline, .tag]
     )
-
-    // Parse feature description (lines until Background/Scenario)
-    var description: String?
-    var descLines: [String] = []
-
-    while !tokens.isEmpty {
-      let token = tokens.first!
-      switch token.type {
-      case .blank, .comment:
-        tokens.removeFirst()
-      case .text:
-        descLines.append(token.text)
-        tokens.removeFirst()
-      default:
-        break
-      }
-
-      if let nextToken = tokens.first,
-        [.background, .scenario, .scenarioOutline, .tag].contains(nextToken.type)
-      {
-        break
-      }
-    }
-
-    if !descLines.isEmpty {
-      description = descLines.joined(separator: "\n")
-    }
-
-    // Parse background
-    var background: GherkinBackground?
-    if tokens.first?.type == .background || (tokens.first?.type == .tag) {
-      // Check if next non-tag is background
-      var peekIndex = 0
-      while peekIndex < tokens.count && tokens[peekIndex].type == .tag {
-        peekIndex += 1
-      }
-      if peekIndex < tokens.count && tokens[peekIndex].type == .background {
-        // Skip tags for background (backgrounds don't have tags)
-        while tokens.first?.type == .tag {
-          tokens.removeFirst()
-        }
-        background = try parseBackground(tokens: &tokens)
-      }
-    }
-
-    if tokens.first?.type == .background {
-      background = try parseBackground(tokens: &tokens)
-    }
-
-    // Parse scenarios
-    var scenarios: [GherkinScenario] = []
-
-    while !tokens.isEmpty {
-      // Skip blanks and comments
-      while tokens.first?.type == .blank || tokens.first?.type == .comment {
-        tokens.removeFirst()
-      }
-
-      if tokens.isEmpty {
-        break
-      }
-
-      // Collect scenario tags
-      var scenarioTags: [Tag] = []
-      while tokens.first?.type == .tag {
-        scenarioTags.append(Tag(tokens.removeFirst().text))
-      }
-
-      guard let token = tokens.first else {
-        break
-      }
-
-      switch token.type {
-      case .scenario:
-        let scenario = try parseScenario(tokens: &tokens, tags: scenarioTags)
-        scenarios.append(.scenario(scenario))
-      case .scenarioOutline:
-        let outline = try parseScenarioOutline(tokens: &tokens, tags: scenarioTags)
-        scenarios.append(.outline(outline))
-      case .blank, .comment:
-        tokens.removeFirst()
-      default:
-        break
-      }
-    }
+    let background = try parseOptionalBackground(tokens: &tokens)
+    let scenarios = try parseScenarios(tokens: &tokens)
 
     return GherkinFeature(
-      name: featureName,
+      name: BDDFeatureName(feature.text),
       description: description,
       tags: tags,
       background: background,
       scenarios: scenarios,
-      location: location
+      location: feature.location
     )
+  }
+
+  private func collectFeatureTags(tokens: inout [Token]) throws -> [Tag] {
+    var tags: [Tag] = []
+
+    while let token = tokens.first {
+      if token.type == .feature {
+        return tags
+      }
+
+      if token.type == .tag {
+        tags.append(Tag(BDDTagText(token.text)))
+        tokens.removeFirst()
+        continue
+      }
+
+      if isIgnorableToken(token.type) {
+        tokens.removeFirst()
+        continue
+      }
+
+      throw BDDError.syntaxError(
+        message: UserMessageText("Expected Feature keyword"),
+        location: makeLocation(from: token)
+      )
+    }
+
+    return tags
+  }
+
+  private func consumeFeatureToken(
+    tokens: inout [Token]
+  ) -> (text: String, location: GherkinSourceLocation) {
+    let featureToken = tokens.removeFirst()
+    return (
+      text: featureToken.text,
+      location: makeLocation(from: featureToken)
+    )
+  }
+
+  private func parseDescription(
+    tokens: inout [Token],
+    stopTokens: [TokenType]
+  ) -> BDDDescriptionText? {
+    var descriptionLines: [String] = []
+
+    while let token = tokens.first, !stopTokens.contains(token.type) {
+      guard
+        processDescriptionToken(
+          token,
+          tokens: &tokens,
+          descriptionLines: &descriptionLines
+        )
+      else {
+        break
+      }
+    }
+
+    guard !descriptionLines.isEmpty else {
+      return nil
+    }
+
+    return BDDDescriptionText(descriptionLines.joined(separator: "\n"))
+  }
+
+  private func processDescriptionToken(
+    _ token: Token,
+    tokens: inout [Token],
+    descriptionLines: inout [String]
+  ) -> Bool {
+    if token.type == .text {
+      descriptionLines.append(token.text)
+      tokens.removeFirst()
+      return true
+    }
+
+    if isIgnorableToken(token.type) {
+      tokens.removeFirst()
+      return true
+    }
+
+    return false
+  }
+
+  private func parseOptionalBackground(tokens: inout [Token]) throws -> GherkinBackground? {
+    guard shouldParseBackground(tokens: tokens) else {
+      return nil
+    }
+
+    while tokens.first?.type == .tag {
+      tokens.removeFirst()
+    }
+
+    guard tokens.first?.type == .background else {
+      return nil
+    }
+
+    return try parseBackground(tokens: &tokens)
+  }
+
+  private func shouldParseBackground(tokens: [Token]) -> Bool {
+    let firstType = tokens.first?.type
+    guard firstType == .background || firstType == .tag else {
+      return false
+    }
+
+    var peekIndex = 0
+    while peekIndex < tokens.count && tokens[peekIndex].type == .tag {
+      peekIndex += 1
+    }
+
+    return peekIndex < tokens.count && tokens[peekIndex].type == .background
+  }
+
+  private func parseScenarios(tokens: inout [Token]) throws -> [GherkinScenario] {
+    var scenarios: [GherkinScenario] = []
+
+    while !tokens.isEmpty {
+      consumeIgnorableTokens(tokens: &tokens)
+      guard !tokens.isEmpty else {
+        break
+      }
+
+      let scenarioTags = collectTags(tokens: &tokens)
+      guard let token = tokens.first else {
+        break
+      }
+
+      guard let scenario = try parseNextScenario(tokens: &tokens, token: token, tags: scenarioTags)
+      else {
+        break
+      }
+
+      scenarios.append(scenario)
+    }
+
+    return scenarios
+  }
+
+  private func consumeIgnorableTokens(tokens: inout [Token]) {
+    while tokens.first?.type == .blank || tokens.first?.type == .comment {
+      tokens.removeFirst()
+    }
+  }
+
+  private func collectTags(tokens: inout [Token]) -> [Tag] {
+    var tags: [Tag] = []
+    while tokens.first?.type == .tag {
+      tags.append(Tag(BDDTagText(tokens.removeFirst().text)))
+    }
+    return tags
+  }
+
+  private func parseNextScenario(
+    tokens: inout [Token],
+    token: Token,
+    tags: [Tag]
+  ) throws -> GherkinScenario? {
+    switch token.type {
+    case .scenario:
+      return .scenario(try parseScenario(tokens: &tokens, tags: tags))
+    case .scenarioOutline:
+      return .outline(try parseScenarioOutline(tokens: &tokens, tags: tags))
+    default:
+      return nil
+    }
   }
 
   private func parseBackground(tokens: inout [Token]) throws -> GherkinBackground {
     guard tokens.first?.type == .background else {
       throw BDDError.syntaxError(
-        message: "Expected Background keyword",
+        message: UserMessageText("Expected Background keyword"),
         location: tokens.first.map {
-          GherkinSourceLocation(line: $0.line, column: $0.column)
+          GherkinSourceLocation(
+            line: BDDSourceLine($0.line),
+            column: BDDSourceColumn($0.column)
+          )
         } ?? .unknown
       )
     }
 
     let bgToken = tokens.removeFirst()
-    let location = GherkinSourceLocation(line: bgToken.line, column: bgToken.column)
+    let location = GherkinSourceLocation(
+      line: BDDSourceLine(bgToken.line),
+      column: BDDSourceColumn(bgToken.column)
+    )
 
     let steps = try parseSteps(tokens: &tokens)
 
     return GherkinBackground(
-      name: bgToken.text.isEmpty ? nil : bgToken.text,
+      name: bgToken.text.isEmpty ? nil : BDDDescriptionText(bgToken.text),
       steps: steps,
       location: location
     )
@@ -354,27 +450,34 @@ public final class GherkinParser: Sendable {
   ) throws -> ScenarioDefinition {
     guard tokens.first?.type == .scenario else {
       throw BDDError.syntaxError(
-        message: "Expected Scenario keyword",
+        message: UserMessageText("Expected Scenario keyword"),
         location: tokens.first.map {
-          GherkinSourceLocation(line: $0.line, column: $0.column)
+          GherkinSourceLocation(
+            line: BDDSourceLine($0.line),
+            column: BDDSourceColumn($0.column)
+          )
         } ?? .unknown
       )
     }
 
     let scenarioToken = tokens.removeFirst()
-    let location = GherkinSourceLocation(line: scenarioToken.line, column: scenarioToken.column)
+    let location = GherkinSourceLocation(
+      line: BDDSourceLine(scenarioToken.line),
+      column: BDDSourceColumn(scenarioToken.column)
+    )
 
     // Parse description (optional)
     var descLines: [String] = []
     while tokens.first?.type == .text {
       descLines.append(tokens.removeFirst().text)
     }
-    let description = descLines.isEmpty ? nil : descLines.joined(separator: "\n")
+    let description =
+      descLines.isEmpty ? nil : BDDDescriptionText(descLines.joined(separator: "\n"))
 
     let steps = try parseSteps(tokens: &tokens)
 
     return ScenarioDefinition(
-      name: scenarioToken.text,
+      name: BDDScenarioName(scenarioToken.text),
       description: description,
       tags: tags,
       steps: steps,
@@ -388,28 +491,35 @@ public final class GherkinParser: Sendable {
   ) throws -> ScenarioOutlineDefinition {
     guard tokens.first?.type == .scenarioOutline else {
       throw BDDError.syntaxError(
-        message: "Expected Scenario Outline keyword",
+        message: UserMessageText("Expected Scenario Outline keyword"),
         location: tokens.first.map {
-          GherkinSourceLocation(line: $0.line, column: $0.column)
+          GherkinSourceLocation(
+            line: BDDSourceLine($0.line),
+            column: BDDSourceColumn($0.column)
+          )
         } ?? .unknown
       )
     }
 
     let outlineToken = tokens.removeFirst()
-    let location = GherkinSourceLocation(line: outlineToken.line, column: outlineToken.column)
+    let location = GherkinSourceLocation(
+      line: BDDSourceLine(outlineToken.line),
+      column: BDDSourceColumn(outlineToken.column)
+    )
 
     // Parse description
     var descLines: [String] = []
     while tokens.first?.type == .text {
       descLines.append(tokens.removeFirst().text)
     }
-    let description = descLines.isEmpty ? nil : descLines.joined(separator: "\n")
+    let description =
+      descLines.isEmpty ? nil : BDDDescriptionText(descLines.joined(separator: "\n"))
 
     let steps = try parseSteps(tokens: &tokens)
     let examples = try parseExamples(tokens: &tokens)
 
     return ScenarioOutlineDefinition(
-      name: outlineToken.text,
+      name: BDDScenarioName(outlineToken.text),
       description: description,
       tags: tags,
       steps: steps,
@@ -422,44 +532,25 @@ public final class GherkinParser: Sendable {
     var steps: [GherkinStep] = []
 
     while !tokens.isEmpty {
-      // Skip blanks
-      while tokens.first?.type == .blank {
-        tokens.removeFirst()
-      }
-
+      consumeBlankTokens(tokens: &tokens)
       guard let token = tokens.first else {
         break
       }
 
-      // Map token type to step keyword, or exit if not a step
       guard let keyword = stepKeyword(for: token.type) else {
         break
       }
 
       tokens.removeFirst()
-      let stepLocation = GherkinSourceLocation(line: token.line, column: token.column)
-
-      // Check for doc string
-      var docString: DocString?
-      var dataTable: DataTable?
-
-      // Skip blanks
-      while tokens.first?.type == .blank {
-        tokens.removeFirst()
-      }
-
-      if tokens.first?.type == .docStringDelimiter {
-        docString = try parseDocString(tokens: &tokens)
-      } else if tokens.first?.type == .tableRow {
-        dataTable = try parseDataTable(tokens: &tokens)
-      }
+      let stepLocation = makeLocation(from: token)
+      let attachments = try parseStepAttachments(tokens: &tokens)
 
       steps.append(
         GherkinStep(
           keyword: keyword,
-          text: token.text,
-          dataTable: dataTable,
-          docString: docString,
+          text: BDDStepText(token.text),
+          dataTable: attachments.dataTable,
+          docString: attachments.docString,
           location: stepLocation
         )
       )
@@ -468,47 +559,73 @@ public final class GherkinParser: Sendable {
     return steps
   }
 
+  private func consumeBlankTokens(tokens: inout [Token]) {
+    while tokens.first?.type == .blank {
+      tokens.removeFirst()
+    }
+  }
+
+  private func parseStepAttachments(tokens: inout [Token]) throws -> StepAttachments {
+    consumeBlankTokens(tokens: &tokens)
+
+    if tokens.first?.type == .docStringDelimiter {
+      return StepAttachments(docString: try parseDocString(tokens: &tokens), dataTable: nil)
+    }
+
+    if tokens.first?.type == .tableRow {
+      return StepAttachments(docString: nil, dataTable: try parseDataTable(tokens: &tokens))
+    }
+
+    return StepAttachments(docString: nil, dataTable: nil)
+  }
+
   private func parseDocString(tokens: inout [Token]) throws -> DocString {
     guard tokens.first?.type == .docStringDelimiter else {
       throw BDDError.syntaxError(
-        message: "Expected doc string delimiter",
-        location: tokens.first.map {
-          GherkinSourceLocation(line: $0.line, column: $0.column)
-        } ?? .unknown
+        message: UserMessageText("Expected doc string delimiter"),
+        location: tokens.first.map(makeLocation(from:)) ?? .unknown
       )
     }
 
     let startToken = tokens.removeFirst()
-    var contentType: String?
+    let location = makeLocation(from: startToken)
+    let result = consumeDocStringContent(tokens: &tokens)
 
-    // Check for content type (e.g., ```json)
-    let delimiter = startToken.text.trimmingCharacters(in: .whitespaces)
-    if delimiter.count > 3 {
-      contentType = String(delimiter.dropFirst(3))
+    guard result.terminated else {
+      throw BDDError.unterminatedDocString(location: location)
     }
 
+    return DocString(
+      contentType: docStringContentType(for: startToken.text),
+      content: BDDDocContent(result.lines.joined(separator: "\n"))
+    )
+  }
+
+  private func docStringContentType(for delimiterText: String) -> BDDDocContentType? {
+    let delimiter = delimiterText.trimmingCharacters(in: .whitespaces)
+    guard delimiter.count > 3 else {
+      return nil
+    }
+
+    return BDDDocContentType(String(delimiter.dropFirst(3)))
+  }
+
+  private func consumeDocStringContent(tokens: inout [Token]) -> DocStringParseResult {
     var lines: [String] = []
-    let location = GherkinSourceLocation(line: startToken.line, column: startToken.column)
 
     while !tokens.isEmpty {
       let token = tokens.removeFirst()
       if token.type == .docStringDelimiter {
-        break
+        return DocStringParseResult(lines: lines, terminated: true)
       }
       lines.append(token.text)
     }
 
-    if tokens.isEmpty && lines.last?.contains("\"\"\"") != true
-      && lines.last?.contains("```") != true
-    {
-      throw BDDError.unterminatedDocString(location: location)
-    }
-
-    return DocString(contentType: contentType, content: lines.joined(separator: "\n"))
+    return DocStringParseResult(lines: lines, terminated: false)
   }
 
   private func parseDataTable(tokens: inout [Token]) throws -> DataTable {
-    var rows: [[String]] = []
+    var rows: [[BDDExamplesCell]] = []
 
     while tokens.first?.type == .tableRow {
       let token = tokens.removeFirst()
@@ -519,16 +636,16 @@ public final class GherkinParser: Sendable {
     return DataTable(rows: rows)
   }
 
-  private func parseTableRow(_ line: String) -> [String] {
+  private func parseTableRow(_ line: String) -> [BDDExamplesCell] {
     let trimmed = line.trimmingCharacters(in: .whitespaces)
-    var cells: [String] = []
+    var cells: [BDDExamplesCell] = []
 
     // Split by | and trim each cell
     let parts = trimmed.split(separator: "|", omittingEmptySubsequences: false)
     for part in parts {
       let cell = part.trimmingCharacters(in: .whitespaces)
       if !cell.isEmpty {
-        cells.append(cell)
+        cells.append(BDDExamplesCell(cell))
       }
     }
 
@@ -539,52 +656,31 @@ public final class GherkinParser: Sendable {
     var examples: [ExamplesTable] = []
 
     while !tokens.isEmpty {
-      // Skip blanks
-      while tokens.first?.type == .blank {
-        tokens.removeFirst()
-      }
-
-      // Collect example tags
-      var exampleTags: [Tag] = []
-      while tokens.first?.type == .tag {
-        exampleTags.append(Tag(tokens.removeFirst().text))
-      }
+      consumeBlankTokens(tokens: &tokens)
+      let exampleTags = collectTags(tokens: &tokens)
 
       guard tokens.first?.type == .examples else {
         break
       }
 
       let examplesToken = tokens.removeFirst()
-      let location = GherkinSourceLocation(
-        line: examplesToken.line,
-        column: examplesToken.column
-      )
-
-      // Skip blanks
-      while tokens.first?.type == .blank {
-        tokens.removeFirst()
-      }
-
-      // Parse table
-      var rows: [[String]] = []
-      while tokens.first?.type == .tableRow {
-        let token = tokens.removeFirst()
-        rows.append(parseTableRow(token.text))
-      }
+      let location = makeLocation(from: examplesToken)
+      consumeBlankTokens(tokens: &tokens)
+      let rows = consumeExampleRows(tokens: &tokens)
 
       guard !rows.isEmpty else {
         throw BDDError.invalidExamples(
-          reason: "Examples table is empty",
+          reason: UserMessageText("Examples table is empty"),
           location: location
         )
       }
 
-      let headers = rows[0]
+      let headers = rows[0].map { BDDExamplesHeader($0.rawValue) }
       let dataRows = Array(rows.dropFirst())
 
       examples.append(
         ExamplesTable(
-          name: examplesToken.text.isEmpty ? nil : examplesToken.text,
+          name: examplesToken.text.isEmpty ? nil : BDDExamplesName(examplesToken.text),
           tags: exampleTags,
           headers: headers,
           rows: dataRows,
@@ -596,24 +692,29 @@ public final class GherkinParser: Sendable {
     return examples
   }
 
+  private func consumeExampleRows(tokens: inout [Token]) -> [[BDDExamplesCell]] {
+    var rows: [[BDDExamplesCell]] = []
+    while tokens.first?.type == .tableRow {
+      let token = tokens.removeFirst()
+      rows.append(parseTableRow(token.text))
+    }
+    return rows
+  }
+
   /// Maps a token type to a step keyword, returning nil if not a step token.
   private func stepKeyword(for tokenType: TokenType) -> StepKeyword? {
-    switch tokenType {
-    case .given:
-      return .given
-    case .when:
-      return .when
-    case .then:
-      return .then
-    case .and:
-      return .and
-    case .but:
-      return .but
-    case .asterisk:
-      return .asterisk
-    case .feature, .background, .scenario, .scenarioOutline, .examples,
-      .tag, .docStringDelimiter, .tableRow, .text, .blank, .comment:
-      return nil
-    }
+    Self.stepKeywords[tokenType]
+  }
+
+  private func isIgnorableToken(_ tokenType: TokenType) -> Bool {
+    tokenType == .blank || tokenType == .comment
+  }
+
+  private func makeLocation(from token: Token) -> GherkinSourceLocation {
+    GherkinSourceLocation(
+      line: BDDSourceLine(token.line),
+      column: BDDSourceColumn(token.column)
+    )
   }
 }
+// swiftlint:enable file_length type_body_length

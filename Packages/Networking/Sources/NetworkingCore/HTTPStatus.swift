@@ -2,7 +2,7 @@ import Foundation
 
 /// A structure representing an HTTP status code.
 /// Using a struct instead of an enum provides flexibility for custom status codes.
-public struct HTTPStatus: Sendable, Hashable, ExpressibleByIntegerLiteral {
+public struct HTTPStatus: Sendable, Hashable {
   // MARK: - 1xx Informational
 
   public static let `continue` = Self(rawValue: 100)
@@ -64,41 +64,49 @@ public struct HTTPStatus: Sendable, Hashable, ExpressibleByIntegerLiteral {
 
   // MARK: - Properties
 
-  public let rawValue: Int
+  public let rawValue: HTTPStatusCode
   // MARK: - Initialization
 
-  public init(rawValue: Int) {
+  public init(_ rawValue: HTTPStatusCode) {
     self.rawValue = rawValue
   }
 
-  public init(integerLiteral value: Int) {
-    self.init(rawValue: value)
+  public init(rawValue: HTTPStatusCode) {
+    self.init(rawValue)
+  }
+
+  package init(rawValue: Int) {
+    self.init(rawValue: HTTPStatusCode(rawValue))
   }
 
   // MARK: - Computed Properties
 
   /// Returns true if the status code is in the 1xx range
-  public var isInformational: Bool {
-    (100..<200).contains(rawValue)
+  public var isInformational: HTTPStatusInformationalFlag {
+    HTTPStatusInformationalFlag(100..<200 ~= rawValue)
   }
 
   /// Returns true if the status code is in the 2xx range
-  public var isSuccess: Bool {
-    (200..<300).contains(rawValue)
+  public var isSuccess: HTTPStatusSuccessFlag {
+    HTTPStatusSuccessFlag(200..<300 ~= rawValue)
   }
 
   /// Returns true if the status code is in the 3xx range
-  public var isRedirection: Bool {
-    (300..<400).contains(rawValue)
+  public var isRedirection: HTTPStatusRedirectionFlag {
+    HTTPStatusRedirectionFlag(300..<400 ~= rawValue)
   }
 
   /// Returns true if the status code is in the 4xx range
-  public var isClientError: Bool {
-    (400..<500).contains(rawValue)
+  public var isClientError: HTTPStatusClientErrorFlag {
+    HTTPStatusClientErrorFlag(400..<500 ~= rawValue)
   }
 
   /// Returns true if the status code is in the 5xx range
-  public var isServerError: Bool {
-    (500..<600).contains(rawValue)
+  public var isServerError: HTTPStatusServerErrorFlag {
+    HTTPStatusServerErrorFlag(500..<600 ~= rawValue)
+  }
+
+  package var codeValue: Int {
+    rawValue.rawValue
   }
 }

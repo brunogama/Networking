@@ -107,7 +107,7 @@ final class ResponseProcessingTests: XCTestCase {
                 .asString()
 
         // Then
-        XCTAssertEqual(transformedResponse.value, testString)
+        XCTAssertEqual(transformedResponse.value.rawValue, testString)
     }
 
     func testMethodChaining() throws {
@@ -131,7 +131,7 @@ final class ResponseProcessingTests: XCTestCase {
 
         // Then
         XCTAssertEqual(result.value, user)
-        XCTAssertTrue(result.isCacheValid)
+        XCTAssertTrue(result.isCacheValid.rawValue)
         XCTAssertEqual(result.response.status.rawValue, 200)
     }
 
@@ -178,7 +178,7 @@ final class ResponseProcessingTests: XCTestCase {
 
             switch httpError.category {
             case let .http(status):
-                XCTAssertEqual(status.rawValue, 500)
+                XCTAssertEqual(status.rawValue.rawValue, 500)
 
             default:
                 XCTFail("Expected HTTP error category")

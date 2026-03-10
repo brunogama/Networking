@@ -4,17 +4,21 @@ import NetworkingCore
 // MARK: - URL and Base Configuration Components
 
 public struct RequestBaseURL: RequestComponent {
-  private let url: URL
+  private let url: HTTPRequestURL
 
-  public init(_ urlString: String) throws {
+  public init(_ urlString: BaseURLText) throws {
     guard let url = URL(string: urlString) else {
       throw HTTPError(category: .configuration("Invalid base URL: \(urlString)"))
     }
+    self.url = HTTPRequestURL(url)
+  }
+
+  public init(_ url: HTTPRequestURL) {
     self.url = url
   }
 
-  public init(_ url: URL) {
-    self.url = url
+  package init(_ url: URL) {
+    self.url = HTTPRequestURL(url)
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
@@ -25,7 +29,11 @@ public struct RequestBaseURL: RequestComponent {
         let currentPath = components?.path ?? ""
         components?.path = currentPath + path
       }
-      request.url = components?.url ?? url
+      if let combinedURL = components?.url {
+        request.url = HTTPRequestURL(combinedURL)
+      } else {
+        request.url = url
+      }
     } else {
       request.url = url
     }
@@ -35,12 +43,16 @@ public struct RequestBaseURL: RequestComponent {
 // MARK: - Header Components
 
 public struct Header: RequestComponent {
-  private let name: String
-  private let value: String
+  private let name: HTTPHeaderName
+  private let value: HTTPHeaderValue
 
-  public init(_ name: String, _ value: String) {
+  public init(_ name: HTTPHeaderName, _ value: HTTPHeaderValue) {
     self.name = name
     self.value = value
+  }
+
+  package init(_ name: String, _ value: String) {
+    self.init(HTTPHeaderName(name), HTTPHeaderValue(value))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
@@ -48,14 +60,18 @@ public struct Header: RequestComponent {
   }
 }
 public struct ContentType: RequestComponent {
-  private let value: String
+  private let value: HTTPMediaType
 
-  public init(_ value: String) {
+  public init(_ value: HTTPMediaType) {
     self.value = value
   }
 
+  package init(_ value: String) {
+    self.init(HTTPMediaType(value))
+  }
+
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    request.headers["Content-Type"] = value
+    request.headers[HTTPHeaderName("Content-Type")] = HTTPHeaderValue(value.rawValue)
   }
 
   public static let json = Self("application/json")
@@ -67,10 +83,14 @@ public struct ContentType: RequestComponent {
 // MARK: - Authentication Components
 
 public struct BearerAuth: RequestComponent {
-  private let token: String
+  private let token: BearerTokenValue
 
-  public init(_ token: String) {
+  public init(_ token: BearerTokenValue) {
     self.token = token
+  }
+
+  package init(_ token: String) {
+    self.init(BearerTokenValue(token))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
@@ -79,12 +99,16 @@ public struct BearerAuth: RequestComponent {
 }
 
 public struct RequestBasicAuth: RequestComponent {
-  private let username: String
-  private let password: String
+  private let username: BasicAuthUsername
+  private let password: BasicAuthPassword
 
-  public init(username: String, password: String) {
+  public init(username: BasicAuthUsername, password: BasicAuthPassword) {
     self.username = username
     self.password = password
+  }
+
+  package init(username: String, password: String) {
+    self.init(username: BasicAuthUsername(username), password: BasicAuthPassword(password))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
@@ -98,12 +122,22 @@ public struct RequestBasicAuth: RequestComponent {
 }
 
 public struct APIKey: RequestComponent {
-  private let key: String
-  private let headerName: String
+  private let key: HTTPHeaderValue
+  private let headerName: HTTPHeaderName
 
-  public init(_ key: String, headerName: String = "X-API-Key") {
+  public init(
+    _ key: HTTPHeaderValue,
+    headerName: HTTPHeaderName = HTTPHeaderName(rawValue: "X-API-Key")
+  ) {
     self.key = key
     self.headerName = headerName
+  }
+
+  package init(
+    _ key: String,
+    headerName: HTTPHeaderName = HTTPHeaderName(rawValue: "X-API-Key")
+  ) {
+    self.init(HTTPHeaderValue(key), headerName: headerName)
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
@@ -114,17 +148,21 @@ public struct APIKey: RequestComponent {
 // MARK: - Query Parameter Components
 
 public struct RequestQueryParam: RequestComponent {
-  private let name: String
-  private let value: String
+  private let name: QueryParameterName
+  private let value: QueryParameterValue
 
-  public init(_ name: String, _ value: String) {
+  public init(_ name: QueryParameterName, _ value: QueryParameterValue) {
     self.name = name
     self.value = value
   }
 
-  public init<T: CustomStringConvertible>(_ name: String, _ value: T) {
+  public init<T: CustomStringConvertible>(_ name: QueryParameterName, _ value: T) {
     self.name = name
-    self.value = value.description
+    self.value = QueryParameterValue(value.description)
+  }
+
+  package init(_ name: String, _ value: String) {
+    self.init(QueryParameterName(name), QueryParameterValue(value))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
@@ -137,26 +175,36 @@ public struct RequestQueryParam: RequestComponent {
     }
 
     var queryItems = components.queryItems ?? []
-    queryItems.append(URLQueryItem(name: name, value: value))
+    queryItems.append(URLQueryItem(name: name.rawValue, value: value.rawValue))
     components.queryItems = queryItems
 
     guard let newURL = components.url else {
       throw HTTPError(category: .configuration("Failed to construct URL with query parameters"))
     }
 
-    request.url = newURL
+    request.url = HTTPRequestURL(newURL)
   }
 }
 
 public struct QueryParams: RequestComponent {
-  private let params: [String: String]
+  private let params: [QueryParameterName: QueryParameterValue]
 
-  public init(_ params: [String: String]) {
+  public init(_ params: [QueryParameterName: QueryParameterValue]) {
     self.params = params
   }
 
-  public init<T: CustomStringConvertible>(_ params: [String: T]) {
-    self.params = params.mapValues { $0.description }
+  public init<T: CustomStringConvertible>(_ params: [QueryParameterName: T]) {
+    self.params = params.mapValues { QueryParameterValue($0.description) }
+  }
+
+  package init(_ params: [String: String]) {
+    self.init(
+      Dictionary(
+        uniqueKeysWithValues: params.map {
+          (QueryParameterName($0.key), QueryParameterValue($0.value))
+        }
+      )
+    )
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
@@ -170,7 +218,7 @@ public struct QueryParams: RequestComponent {
 
     var queryItems = components.queryItems ?? []
     for (name, value) in params {
-      queryItems.append(URLQueryItem(name: name, value: value))
+      queryItems.append(URLQueryItem(name: name.rawValue, value: value.rawValue))
     }
     components.queryItems = queryItems
 
@@ -178,108 +226,6 @@ public struct QueryParams: RequestComponent {
       throw HTTPError(category: .configuration("Failed to construct URL with query parameters"))
     }
 
-    request.url = newURL
-  }
-}
-
-// MARK: - Configuration Components
-
-public struct RequestTimeout: RequestComponent {
-  private let interval: TimeInterval
-
-  public init(_ interval: TimeInterval) {
-    self.interval = interval
-  }
-
-  public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    request.timeout = interval
-  }
-}
-
-public struct AcceptHeader: RequestComponent {
-  private let mediaType: String
-
-  public init(_ mediaType: String) {
-    self.mediaType = mediaType
-  }
-
-  public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    request.headers["Accept"] = mediaType
-  }
-
-  public static let json = Self("application/json")
-  public static let xml = Self("application/xml")
-  public static let any = Self("*/*")
-  public static let html = Self("text/html")
-}
-
-public struct UserAgent: RequestComponent {
-  private let userAgent: String
-
-  public init(_ userAgent: String) {
-    self.userAgent = userAgent
-  }
-
-  public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    request.headers["User-Agent"] = userAgent
-  }
-}
-
-// MARK: - Conditional Components
-
-public struct ConditionalComponent: RequestComponent {
-  private let condition: Bool
-  private let component: any RequestComponent
-
-  public init(_ condition: Bool, _ component: any RequestComponent) {
-    self.condition = condition
-    self.component = component
-  }
-
-  public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    if condition {
-      try component.apply(to: &request)
-    }
-  }
-}
-
-// MARK: - Helper Functions
-
-public func `if`(_ condition: Bool, _ component: any RequestComponent) -> any RequestComponent {
-  ConditionalComponent(condition, component)
-}
-
-public func `if`(
-  _ condition: Bool,
-  @RequestBuilder _ content: () -> [any RequestComponent]
-) -> any RequestComponent {
-  if condition {
-    return CompositeComponent(content())
-  } else {
-    return EmptyComponent()
-  }
-}
-
-// MARK: - Supporting Types
-
-public struct EmptyComponent: RequestComponent {
-  public init() {}
-
-  public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    // No-op
-  }
-}
-
-public struct CompositeComponent: RequestComponent {
-  private let components: [any RequestComponent]
-
-  public init(_ components: [any RequestComponent]) {
-    self.components = components
-  }
-
-  public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    for component in components {
-      try component.apply(to: &request)
-    }
+    request.url = HTTPRequestURL(newURL)
   }
 }

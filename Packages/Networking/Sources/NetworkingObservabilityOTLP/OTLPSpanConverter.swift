@@ -1,3 +1,4 @@
+import NetworkingCore
 import NetworkingObservability
 import Foundation
 import OpenTelemetryApi
@@ -56,20 +57,20 @@ public struct OTLPSpanConverter: Sendable {
     let attributes = await convertAttributes(span.attributes)
 
     // Parse trace and span IDs from hex strings
-    let traceId = TraceId(fromHexString: span.context.traceId)
-    let spanId = SpanId(fromHexString: span.context.spanId)
-    let parentSpanId = span.context.parentSpanId.map { SpanId(fromHexString: $0) }
+    let traceId = TraceId(fromHexString: span.context.traceId.rawValue)
+    let spanId = SpanId(fromHexString: span.context.spanId.rawValue)
+    let parentSpanId = span.context.parentSpanId.map { SpanId(fromHexString: $0.rawValue) }
 
     // Create trace flags from context
     var traceFlags = TraceFlags()
-    traceFlags = traceFlags.settingIsSampled(span.context.isSampled)
+    traceFlags = traceFlags.settingIsSampled(span.context.isSampled.rawValue)
 
     // Create SpanData using SDK tracer (no public initializer exists)
     var spanData = createSpanData(
       with: SpanCreationParams(
         traceId: traceId,
         spanId: spanId,
-        name: span.name,
+        name: span.name.rawValue,
         kind: .client
       )
     )
@@ -139,19 +140,25 @@ public struct OTLPSpanConverter: Sendable {
     case .ok:
       return .ok
     case .error(let message):
-      return .error(description: message)
+      return .error(description: message.rawValue)
     }
   }
 
   /// Converts attribute dictionary to OpenTelemetry AttributeValue map.
-  private func convertAttributes(_ attributes: [String: String]) -> [String: AttributeValue] {
-    attributes.mapValues { AttributeValue($0) }
+  private func convertAttributes(
+    _ attributes: [TraceAttributeKey: TraceAttributeValue]
+  ) -> [String: AttributeValue] {
+    Dictionary(
+      uniqueKeysWithValues: attributes.map { ($0.key.rawValue, AttributeValue($0.value.rawValue)) }
+    )
   }
 
   /// Converts resource attributes to OpenTelemetry Resource.
   private func convertResource() -> Resource {
     let attrs = resource.toAttributes()
-    let attributeValues = attrs.mapValues { AttributeValue($0) }
+    let attributeValues = Dictionary(
+      uniqueKeysWithValues: attrs.map { ($0.key.rawValue, AttributeValue($0.value.rawValue)) }
+    )
     return Resource(attributes: attributeValues)
   }
 }

@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 import NetworkingCore
 
@@ -14,8 +15,8 @@ public struct DecodedResponse<T: Sendable>: Sendable {
 
   // Pass-through accessors for common response properties
   public var status: HTTPStatus { response.status }
-  public var headers: [String: String] { response.headers }
-  public var requestURL: URL { response.request.url }
+  public var headers: HTTPHeaders { response.headers }
+  public var requestURL: HTTPRequestURL { response.request.url }
 
   public init(response: HTTPResponse, value: T) {
     self.response = response
@@ -29,14 +30,18 @@ extension DecodedResponse {
   /// Marks this response for caching with the specified configuration.
   /// - Parameter ttl: Time-to-live in seconds (default: 300)
   /// - Returns: CacheableResponse wrapping this decoded response
-  public func cacheable(ttl: TimeInterval = 300) -> CacheableResponse<T> {
+  public func cacheable(
+    ttl: NetworkingCore.RequestTimeout = NetworkingCore.RequestTimeout(300)
+  ) -> CacheableResponse<T> {
     CacheableResponse(decoded: self, ttl: ttl)
   }
 
   /// Marks this response as retryable with specified max attempts.
   /// - Parameter maxAttempts: Maximum retry attempts (default: 3)
   /// - Returns: RetryableResponse wrapping this decoded response
-  public func retryable(maxAttempts: Int = 3) -> RetryableResponse<T> {
+  public func retryable(
+    maxAttempts: RetryAttemptCount = RetryAttemptCount(rawValue: 3)
+  ) -> RetryableResponse<T> {
     RetryableResponse(decoded: self, maxAttempts: maxAttempts)
   }
 
@@ -65,21 +70,23 @@ extension DecodedResponse {
 /// A decoded response with caching configuration attached.
 public struct CacheableResponse<T: Sendable>: Sendable {
   public let decoded: DecodedResponse<T>
-  public let ttl: TimeInterval
+  public let ttl: NetworkingCore.RequestTimeout
 
   // Pass-through accessors
   public var value: T { decoded.value }
   public var response: HTTPResponse { decoded.response }
   public var status: HTTPStatus { decoded.status }
-  public var headers: [String: String] { decoded.headers }
+  public var headers: HTTPHeaders { decoded.headers }
 
-  public init(decoded: DecodedResponse<T>, ttl: TimeInterval) {
+  public init(decoded: DecodedResponse<T>, ttl: NetworkingCore.RequestTimeout) {
     self.decoded = decoded
     self.ttl = ttl
   }
 
   /// Chain to add retry configuration
-  public func retryable(maxAttempts: Int = 3) -> RetryableCacheableResponse<T> {
+  public func retryable(
+    maxAttempts: RetryAttemptCount = RetryAttemptCount(rawValue: 3)
+  ) -> RetryableCacheableResponse<T> {
     RetryableCacheableResponse(cacheable: self, maxAttempts: maxAttempts)
   }
 }
@@ -89,21 +96,23 @@ public struct CacheableResponse<T: Sendable>: Sendable {
 /// A decoded response with retry configuration attached.
 public struct RetryableResponse<T: Sendable>: Sendable {
   public let decoded: DecodedResponse<T>
-  public let maxAttempts: Int
+  public let maxAttempts: RetryAttemptCount
 
   // Pass-through accessors
   public var value: T { decoded.value }
   public var response: HTTPResponse { decoded.response }
   public var status: HTTPStatus { decoded.status }
-  public var headers: [String: String] { decoded.headers }
+  public var headers: HTTPHeaders { decoded.headers }
 
-  public init(decoded: DecodedResponse<T>, maxAttempts: Int) {
+  public init(decoded: DecodedResponse<T>, maxAttempts: RetryAttemptCount) {
     self.decoded = decoded
     self.maxAttempts = maxAttempts
   }
 
   /// Chain to add caching configuration
-  public func cacheable(ttl: TimeInterval = 300) -> RetryableCacheableResponse<T> {
+  public func cacheable(
+    ttl: NetworkingCore.RequestTimeout = NetworkingCore.RequestTimeout(300)
+  ) -> RetryableCacheableResponse<T> {
     RetryableCacheableResponse(
       cacheable: CacheableResponse(decoded: decoded, ttl: ttl),
       maxAttempts: maxAttempts
@@ -116,16 +125,16 @@ public struct RetryableResponse<T: Sendable>: Sendable {
 /// A response with both caching and retry configuration.
 public struct RetryableCacheableResponse<T: Sendable>: Sendable {
   public let cacheable: CacheableResponse<T>
-  public let maxAttempts: Int
+  public let maxAttempts: RetryAttemptCount
 
   // Pass-through accessors
   public var value: T { cacheable.value }
   public var response: HTTPResponse { cacheable.response }
   public var status: HTTPStatus { cacheable.status }
-  public var headers: [String: String] { cacheable.headers }
-  public var ttl: TimeInterval { cacheable.ttl }
+  public var headers: HTTPHeaders { cacheable.headers }
+  public var ttl: NetworkingCore.RequestTimeout { cacheable.ttl }
 
-  public init(cacheable: CacheableResponse<T>, maxAttempts: Int) {
+  public init(cacheable: CacheableResponse<T>, maxAttempts: RetryAttemptCount) {
     self.cacheable = cacheable
     self.maxAttempts = maxAttempts
   }
@@ -164,9 +173,9 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
   /// Configuration for response caching
   public struct CacheConfiguration: Sendable {
     /// Time-to-live in seconds for cached responses
-    public let ttl: TimeInterval
+    public let ttl: NetworkingCore.RequestTimeout
 
-    public init(ttl: TimeInterval) {
+    public init(ttl: NetworkingCore.RequestTimeout) {
       self.ttl = ttl
     }
   }
@@ -174,18 +183,18 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
   /// Configuration for request retry behavior
   public struct RetryConfiguration: Sendable {
     /// Maximum number of retry attempts
-    public let maxAttempts: Int
+    public let maxAttempts: RetryAttemptCount
 
     /// Base delay for exponential backoff in seconds
-    public let baseDelay: TimeInterval
+    public let baseDelay: RetryDelay
 
     /// Maximum delay cap in seconds
-    public let maxDelay: TimeInterval
+    public let maxDelay: RetryDelay
 
     public init(
-      maxAttempts: Int,
-      baseDelay: TimeInterval = 1.0,
-      maxDelay: TimeInterval = 60.0
+      maxAttempts: RetryAttemptCount,
+      baseDelay: RetryDelay = 1.0,
+      maxDelay: RetryDelay = 60.0
     ) {
       self.maxAttempts = maxAttempts
       self.baseDelay = baseDelay
@@ -208,7 +217,9 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
   /// Adds caching configuration to the request.
   /// - Parameter ttl: Time-to-live in seconds (default: 300)
   /// - Returns: New ChainedRequest with caching enabled
-  public func cacheable(ttl: TimeInterval = 300) -> ChainedRequest<T> {
+  public func cacheable(
+    ttl: NetworkingCore.RequestTimeout = NetworkingCore.RequestTimeout(300)
+  ) -> ChainedRequest<T> {
     Self(
       request: request,
       decoder: decoder,
@@ -224,9 +235,9 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
   ///   - maxDelay: Maximum delay cap (default: 60.0)
   /// - Returns: New ChainedRequest with retry enabled
   public func retryable(
-    maxAttempts: Int = 3,
-    baseDelay: TimeInterval = 1.0,
-    maxDelay: TimeInterval = 60.0
+    maxAttempts: RetryAttemptCount = 3,
+    baseDelay: RetryDelay = 1.0,
+    maxDelay: RetryDelay = 60.0
   ) -> ChainedRequest<T> {
     Self(
       request: request,
@@ -269,33 +280,35 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
 
   // MARK: - Private Helpers
 
+  // swiftlint:disable:next cyclomatic_complexity
   private func executeWithRetry(
     client: any HTTPClient,
-    maxAttempts: Int,
-    baseDelay: TimeInterval,
-    maxDelay: TimeInterval
+    maxAttempts: RetryAttemptCount,
+    baseDelay: RetryDelay,
+    maxDelay: RetryDelay
   ) async throws -> HTTPResponse {
     var lastError: Error?
 
-    for attempt in 0..<maxAttempts {
+    for rawAttempt in 0..<maxAttempts.rawValue {
+      let attempt = RetryAttemptCount(rawAttempt)
       do {
         return try await client.execute(request)
       } catch let error as HTTPError {
         lastError = error
 
         // Check if error is retryable
-        guard shouldRetry(error: error) else {
+        guard shouldRetry(error: error).rawValue else {
           throw error
         }
 
         // Don't delay after last attempt
-        if attempt < maxAttempts - 1 {
+        if rawAttempt < maxAttempts.rawValue - 1 {
           let delay = calculateDelay(
             attempt: attempt,
             baseDelay: baseDelay,
             maxDelay: maxDelay
           )
-          try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+          try await Task.sleep(nanoseconds: UInt64(delay.rawValue * 1_000_000_000))
         }
       } catch {
         throw error
@@ -309,11 +322,13 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
       )
   }
 
-  private func shouldRetry(error: HTTPError) -> Bool {
+  private func shouldRetry(error: HTTPError) -> RetryDecision {
     switch error.category {
     case .http(let status):
       // Retry server errors and specific client errors
-      return status.rawValue >= 500 || status.rawValue == 408 || status.rawValue == 429
+      return RetryDecision(
+        status.rawValue >= 500 || status.rawValue == 408 || status.rawValue == 429
+      )
     case .network:
       return true
     default:
@@ -322,14 +337,14 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
   }
 
   private func calculateDelay(
-    attempt: Int,
-    baseDelay: TimeInterval,
-    maxDelay: TimeInterval
-  ) -> TimeInterval {
-    let exponentialDelay = baseDelay * pow(2.0, Double(attempt))
-    let cappedDelay = min(exponentialDelay, maxDelay)
+    attempt: RetryAttemptCount,
+    baseDelay: RetryDelay,
+    maxDelay: RetryDelay
+  ) -> RetryDelay {
+    let exponentialDelay = baseDelay.rawValue * pow(2.0, Double(attempt.rawValue))
+    let cappedDelay = min(exponentialDelay, maxDelay.rawValue)
     let jitter = Double.random(in: 0...(cappedDelay * 0.1))
-    return min(cappedDelay + jitter, maxDelay)
+    return RetryDelay(min(cappedDelay + jitter, maxDelay.rawValue))
   }
 
   private func decodeResponse(_ response: HTTPResponse) throws -> DecodedResponse<T> {
@@ -341,7 +356,7 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
     }
 
     do {
-      let value = try decoder.decode(T.self, from: data)
+      let value = try decoder.decode(T.self, from: data.rawValue)
       return DecodedResponse(response: response, value: value)
     } catch let error as DecodingError {
       throw HTTPError(

@@ -1,6 +1,8 @@
 import Foundation
 import NetworkingCore
 
+// swiftlint:disable file_length
+
 /// Protocol for providing current time, enabling deterministic testing.
 public protocol TimeProvider: Sendable {
   /// Returns the current date/time.
@@ -38,26 +40,27 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
   /// Configuration for the circuit breaker behavior
   public struct Configuration: Sendable {
     /// Number of consecutive failures required to open the circuit
-    public let failureThreshold: Int
+    public let failureThreshold: CircuitBreakerFailureThreshold
 
     /// Time interval to wait before transitioning from open to half-open
-    public let recoveryTimeout: TimeInterval
+    public let recoveryTimeout: CircuitBreakerRecoveryTimeout
 
     /// Number of successful requests required in half-open state to close the circuit
-    public let successThreshold: Int
+    public let successThreshold: CircuitBreakerSuccessThreshold
 
     /// Time window for counting failures
-    public let rollingWindow: TimeInterval
+    public let rollingWindow: CircuitBreakerRollingWindow
 
     /// Predicate to determine if an error should count as a failure
-    public let shouldCountFailure: @Sendable (HTTPError) -> Bool
+    public let shouldCountFailure: @Sendable (HTTPError) -> CircuitBreakerFailureDecision
 
     public init(
-      failureThreshold: Int = 5,
-      recoveryTimeout: TimeInterval = 60.0,
-      successThreshold: Int = 3,
-      rollingWindow: TimeInterval = 120.0,
-      shouldCountFailure: @escaping @Sendable (HTTPError) -> Bool = Self.defaultShouldCountFailure
+      failureThreshold: CircuitBreakerFailureThreshold = 5,
+      recoveryTimeout: CircuitBreakerRecoveryTimeout = 60.0,
+      successThreshold: CircuitBreakerSuccessThreshold = 3,
+      rollingWindow: CircuitBreakerRollingWindow = 120.0,
+      shouldCountFailure: @escaping @Sendable (HTTPError) -> CircuitBreakerFailureDecision = Self
+        .defaultShouldCountFailure
     ) {
       self.failureThreshold = failureThreshold
       self.recoveryTimeout = recoveryTimeout
@@ -67,7 +70,9 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
     }
 
     /// Default predicate for determining if an error should count as a failure
-    public static func defaultShouldCountFailure(_ error: HTTPError) -> Bool {
+    public static func defaultShouldCountFailure(
+      _ error: HTTPError
+    ) -> CircuitBreakerFailureDecision {
       switch error.category {
       case .network(.serverUnreachable), .network(.connectionLost), .network(.noConnection):
         return true
@@ -92,7 +97,7 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
 
   // Circuit breaker state
   private var state: State = .closed
-  private var failureCount: Int = 0
+  private var failureCount: CircuitBreakerFailureCount = 0
   private var successCount: Int = 0
   private var failureTimes: [Date] = []
 
@@ -162,7 +167,7 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
   }
 
   /// Returns the current failure count
-  public var currentFailureCount: Int {
+  public var currentFailureCount: CircuitBreakerFailureCount {
     get async { failureCount }
   }
 
@@ -185,7 +190,7 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
 
     case .halfOpen:
       successCount += 1
-      if successCount >= configuration.successThreshold {
+      if successCount >= configuration.successThreshold.rawValue {
         await transitionToClosed()
       }
 
@@ -196,33 +201,33 @@ public actor CircuitBreakerMiddleware: HTTPErrorMiddleware {
   }
 
   private func recordFailure(_ error: HTTPError) async {
-    guard configuration.shouldCountFailure(error) else {
+    guard configuration.shouldCountFailure(error).rawValue else {
       return
     }
 
     let now = timeProvider.now()
 
     // Clean up old failures outside the rolling window
-    let cutoffTime = now.addingTimeInterval(-configuration.rollingWindow)
+    let cutoffTime = now.addingTimeInterval(-configuration.rollingWindow.rawValue)
     failureTimes = failureTimes.filter { $0 >= cutoffTime }
 
     // Add new failure
     failureTimes.append(now)
-    failureCount = failureTimes.count
+    failureCount = CircuitBreakerFailureCount(failureTimes.count)
 
+    if shouldTransitionToOpenAfterFailure() {
+      await transitionToOpen()
+    }
+  }
+
+  private func shouldTransitionToOpenAfterFailure() -> Bool {
     switch state {
     case .closed:
-      if failureCount >= configuration.failureThreshold {
-        await transitionToOpen()
-      }
-
+      failureCount.rawValue >= configuration.failureThreshold.rawValue
     case .halfOpen:
-      // Any failure in half-open state should open the circuit
-      await transitionToOpen()
-
+      true
     case .open:
-      // Already open, just update the failure count
-      break
+      false
     }
   }
 

@@ -2,6 +2,8 @@ import NetworkingRuntime
 import NetworkingTesting
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - Network Scenario
 
 /// A type-safe BDD scenario builder for network testing.
@@ -37,10 +39,10 @@ import Foundation
 /// Only `Complete` scenarios can be executed with `.run()`.
 public struct NetworkScenario<Phase: ScenarioPhaseProtocol>: Sendable {
   /// The scenario name.
-  public let name: String
+  public let name: BDDScenarioName
 
   /// Optional description.
-  public let description: String?
+  public let description: BDDDescriptionText?
 
   /// Tags for filtering.
   public let tags: [Tag]
@@ -61,8 +63,8 @@ public struct NetworkScenario<Phase: ScenarioPhaseProtocol>: Sendable {
   ///   - description: Optional description
   ///   - tags: Tags for filtering
   init(
-    name: String,
-    description: String? = nil,
+    name: BDDScenarioName,
+    description: BDDDescriptionText? = nil,
     tags: [Tag] = [],
     givenSteps: [any GivenStep] = [],
     whenSteps: [any WhenStep] = [],
@@ -87,8 +89,8 @@ extension NetworkScenario where Phase == ScenarioPhase.Initial {
   ///   - description: Optional description
   ///   - tags: Tags for filtering
   public init(
-    _ name: String,
-    description: String? = nil,
+    _ name: BDDScenarioName,
+    description: BDDDescriptionText? = nil,
     tags: [Tag] = []
   ) {
     self.name = name
@@ -226,104 +228,11 @@ extension NetworkScenario where Phase == ScenarioPhase.Complete {
     let startTime = Date()
     var stepResults: [StepResultEntry] = []
 
-    // Execute Given steps
-    for step in givenSteps {
-      let stepStart = Date()
-      do {
-        try await step.execute(context: context)
-        let duration = Date().timeIntervalSince(stepStart)
-        let gherkinStep = GherkinStep(
-          keyword: .given,
-          text: (step as? DescribableStep)?.stepDescription ?? "Given step"
-        )
-        stepResults.append(
-          StepResultEntry(
-            step: gherkinStep,
-            result: .passed(duration: duration)
-          )
-        )
-      } catch {
-        let duration = Date().timeIntervalSince(stepStart)
-        let gherkinStep = GherkinStep(
-          keyword: .given,
-          text: (step as? DescribableStep)?.stepDescription ?? "Given step"
-        )
-        stepResults.append(
-          StepResultEntry(
-            step: gherkinStep,
-            result: .failed(error: error, duration: duration)
-          )
-        )
-        throw error
-      }
-    }
+    try await executeGivenSteps(context: context, stepResults: &stepResults)
+    await executeWhenSteps(context: context, stepResults: &stepResults)
+    try await executeThenSteps(context: context, stepResults: &stepResults)
 
-    // Execute When steps
-    for step in whenSteps {
-      let stepStart = Date()
-      do {
-        try await step.execute(context: context)
-        let duration = Date().timeIntervalSince(stepStart)
-        let gherkinStep = GherkinStep(
-          keyword: .when,
-          text: (step as? DescribableStep)?.stepDescription ?? "When step"
-        )
-        stepResults.append(
-          StepResultEntry(
-            step: gherkinStep,
-            result: .passed(duration: duration)
-          )
-        )
-      } catch {
-        let duration = Date().timeIntervalSince(stepStart)
-        let gherkinStep = GherkinStep(
-          keyword: .when,
-          text: (step as? DescribableStep)?.stepDescription ?? "When step"
-        )
-        stepResults.append(
-          StepResultEntry(
-            step: gherkinStep,
-            result: .failed(error: error, duration: duration)
-          )
-        )
-        // Record error in context but don't rethrow - let Then steps verify it
-        context.lastError = error
-      }
-    }
-
-    // Execute Then steps
-    for step in thenSteps {
-      let stepStart = Date()
-      do {
-        try await step.execute(context: context)
-        let duration = Date().timeIntervalSince(stepStart)
-        let gherkinStep = GherkinStep(
-          keyword: .then,
-          text: (step as? DescribableStep)?.stepDescription ?? "Then step"
-        )
-        stepResults.append(
-          StepResultEntry(
-            step: gherkinStep,
-            result: .passed(duration: duration)
-          )
-        )
-      } catch {
-        let duration = Date().timeIntervalSince(stepStart)
-        let gherkinStep = GherkinStep(
-          keyword: .then,
-          text: (step as? DescribableStep)?.stepDescription ?? "Then step"
-        )
-        stepResults.append(
-          StepResultEntry(
-            step: gherkinStep,
-            result: .failed(error: error, duration: duration)
-          )
-        )
-        throw error
-      }
-    }
-
-    let totalDuration = Date().timeIntervalSince(startTime)
+    let totalDuration = MeasurementDuration(Date().timeIntervalSince(startTime))
 
     let scenarioDef = ScenarioDefinition(
       name: name,
@@ -335,6 +244,131 @@ extension NetworkScenario where Phase == ScenarioPhase.Complete {
       scenario: .scenario(scenarioDef),
       stepResults: stepResults,
       duration: totalDuration
+    )
+  }
+
+  private func executeGivenSteps(
+    context: ScenarioContext,
+    stepResults: inout [StepResultEntry]
+  ) async throws {
+    for step in givenSteps {
+      let result = await executeGivenStep(step, context: context)
+      stepResults.append(result.entry)
+      if let error = result.error {
+        throw error
+      }
+    }
+  }
+
+  private func executeWhenSteps(
+    context: ScenarioContext,
+    stepResults: inout [StepResultEntry]
+  ) async {
+    for step in whenSteps {
+      let result = await executeWhenStep(step, context: context)
+      stepResults.append(result.entry)
+      if let error = result.error {
+        context.lastError = error
+      }
+    }
+  }
+
+  private func executeThenSteps(
+    context: ScenarioContext,
+    stepResults: inout [StepResultEntry]
+  ) async throws {
+    for step in thenSteps {
+      let result = await executeThenStep(step, context: context)
+      stepResults.append(result.entry)
+      if let error = result.error {
+        throw error
+      }
+    }
+  }
+
+  private func executeGivenStep(
+    _ step: any GivenStep,
+    context: ScenarioContext
+  ) async -> (entry: StepResultEntry, error: Error?) {
+    await executeStep(
+      keyword: .given,
+      description: (step as? DescribableStep)?.stepDescription ?? "Given step",
+      context: context
+    ) {
+      try await step.execute(context: $0)
+    }
+  }
+
+  private func executeWhenStep(
+    _ step: any WhenStep,
+    context: ScenarioContext
+  ) async -> (entry: StepResultEntry, error: Error?) {
+    await executeStep(
+      keyword: .when,
+      description: (step as? DescribableStep)?.stepDescription ?? "When step",
+      context: context
+    ) {
+      try await step.execute(context: $0)
+    }
+  }
+
+  private func executeThenStep(
+    _ step: any ThenStep,
+    context: ScenarioContext
+  ) async -> (entry: StepResultEntry, error: Error?) {
+    await executeStep(
+      keyword: .then,
+      description: (step as? DescribableStep)?.stepDescription ?? "Then step",
+      context: context
+    ) {
+      try await step.execute(context: $0)
+    }
+  }
+
+  private func executeStep(
+    keyword: StepKeyword,
+    description: BDDStepText,
+    context: ScenarioContext,
+    execution: (ScenarioContext) async throws -> Void
+  ) async -> (entry: StepResultEntry, error: Error?) {
+    let stepStart = Date()
+
+    do {
+      try await execution(context)
+      return (
+        buildStepResultEntry(
+          keyword: keyword,
+          description: description,
+          result: .passed(duration: MeasurementDuration(Date().timeIntervalSince(stepStart)))
+        ),
+        nil
+      )
+    } catch {
+      return (
+        buildStepResultEntry(
+          keyword: keyword,
+          description: description,
+          result: .failed(
+            error: error,
+            duration: MeasurementDuration(Date().timeIntervalSince(stepStart))
+          )
+        ),
+        error
+      )
+    }
+  }
+
+  private func buildStepResultEntry(
+    keyword: StepKeyword,
+    description: BDDStepText,
+    result: StepResult
+  ) -> StepResultEntry {
+    StepResultEntry(
+      step: GherkinStep(
+        keyword: keyword,
+        text: description
+      ),
+      result: result
     )
   }
 }
@@ -349,8 +383,8 @@ extension NetworkScenario where Phase == ScenarioPhase.Complete {
 ///   - tags: Tags for filtering
 /// - Returns: A new scenario ready for step definition
 public func scenario(
-  _ name: String,
-  description: String? = nil,
+  _ name: BDDScenarioName,
+  description: BDDDescriptionText? = nil,
   tags: [Tag] = []
 ) -> NetworkScenario<ScenarioPhase.Initial> {
   NetworkScenario(name, description: description, tags: tags)
@@ -363,7 +397,7 @@ public func scenario(
 ///   - tags: Tags for filtering
 /// - Returns: A new scenario ready for step definition
 public func scenario(
-  _ name: String,
+  _ name: BDDScenarioName,
   tags: Tag...
 ) -> NetworkScenario<ScenarioPhase.Initial> {
   NetworkScenario(name, tags: Array(tags))
@@ -377,10 +411,11 @@ public struct ScenarioCollection: Sendable {
   public let scenarios: [NetworkScenario<ScenarioPhase.Complete>]
 
   /// Collection name.
-  public let name: String
+  public let name: BDDScenarioCollectionName
 
   /// Creates a new scenario collection.
-  public init(name: String, scenarios: [NetworkScenario<ScenarioPhase.Complete>]) {
+  public init(name: BDDScenarioCollectionName, scenarios: [NetworkScenario<ScenarioPhase.Complete>])
+  {
     self.name = name
     self.scenarios = scenarios
   }

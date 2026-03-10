@@ -61,8 +61,8 @@ public final class MockTimeProvider: TimeProvider, MockVerifiable, @unchecked Se
   /// Creates a mock time provider from Unix timestamp
   ///
   /// - Parameter timestamp: Unix timestamp (seconds since epoch)
-  public convenience init(timestamp: TimeInterval) {
-    self.init(initialTime: Date(timeIntervalSince1970: timestamp))
+  public convenience init(timestamp: MockUnixTimestamp) {
+    self.init(initialTime: Date(timeIntervalSince1970: timestamp.rawValue))
   }
 
   // MARK: - TimeProvider Conformance
@@ -88,18 +88,18 @@ public final class MockTimeProvider: TimeProvider, MockVerifiable, @unchecked Se
   /// Advance time forward by interval
   ///
   /// - Parameter interval: Time interval to advance (in seconds)
-  public func advance(by interval: TimeInterval) {
+  public func advance(by interval: MockTimeAdjustment) {
     queue.sync(flags: .barrier) {
-      currentTime = currentTime.addingTimeInterval(interval)
+      currentTime = currentTime.addingTimeInterval(interval.rawValue)
     }
   }
 
   /// Rewind time backward by interval
   ///
   /// - Parameter interval: Time interval to rewind (in seconds)
-  public func rewind(by interval: TimeInterval) {
+  public func rewind(by interval: MockTimeAdjustment) {
     queue.sync(flags: .barrier) {
-      currentTime = currentTime.addingTimeInterval(-interval)
+      currentTime = currentTime.addingTimeInterval(-interval.rawValue)
     }
   }
 
@@ -113,8 +113,9 @@ public final class MockTimeProvider: TimeProvider, MockVerifiable, @unchecked Se
 
   // MARK: - MockVerifiable Conformance
 
-  nonisolated public var callCount: Int {
-    get async { queue.sync { nowCallCount }
+  nonisolated public var callCount: MockVerificationCount {
+    get async {
+      MockVerificationCount(queue.sync { nowCallCount })
     }
   }
 
@@ -132,7 +133,7 @@ public final class MockTimeProvider: TimeProvider, MockVerifiable, @unchecked Se
   ///
   /// - Parameter timestamp: Unix timestamp (seconds since epoch)
   /// - Returns: MockTimeProvider that always returns the same time
-  public static func frozen(at timestamp: TimeInterval) -> MockTimeProvider {
+  public static func frozen(at timestamp: MockUnixTimestamp) -> MockTimeProvider {
     MockTimeProvider(timestamp: timestamp)
   }
 
@@ -155,9 +156,11 @@ public final class MockTimeProvider: TimeProvider, MockVerifiable, @unchecked Se
   /// Get the elapsed time since initialization
   ///
   /// - Returns: Time interval from initial time to current time
-  public func getElapsedTime() -> TimeInterval {
-    queue.sync {
-      currentTime.timeIntervalSince(initialTime)
-    }
+  public func getElapsedTime() -> MockTimeAdjustment {
+    MockTimeAdjustment(
+      queue.sync {
+        currentTime.timeIntervalSince(initialTime)
+      }
+    )
   }
 }

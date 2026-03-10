@@ -51,11 +51,11 @@ public actor OTLPTraceExporter: TraceExporter {
 
     // Create the OpenTelemetry HTTP exporter
     let otlpConfig = OtlpConfiguration(
-      timeout: configuration.timeout,
-      headers: configuration.headers.map { ($0.key, $0.value) }
+      timeout: configuration.timeout.rawValue,
+      headers: configuration.headers.map { ($0.key.rawValue, $0.value.rawValue) }
     )
     self.httpExporter = OtlpHttpTraceExporter(
-      endpoint: configuration.endpoint,
+      endpoint: configuration.endpoint.rawValue,
       config: otlpConfig
     )
   }
@@ -82,7 +82,7 @@ public actor OTLPTraceExporter: TraceExporter {
     buffer.append(span)
 
     // Flush if batch size reached
-    if buffer.count >= configuration.batchSize {
+    if buffer.count >= configuration.batchSize.rawValue {
       await flushBuffer()
     }
   }
@@ -105,7 +105,7 @@ public actor OTLPTraceExporter: TraceExporter {
 
   private func flushIfNeeded() async {
     let elapsed = Date().timeIntervalSince(lastFlush)
-    if elapsed >= configuration.flushInterval && !buffer.isEmpty {
+    if elapsed >= configuration.flushInterval.rawValue && !buffer.isEmpty {
       await flushBuffer()
     }
   }

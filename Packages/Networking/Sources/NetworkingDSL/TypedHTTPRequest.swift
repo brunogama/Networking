@@ -51,34 +51,36 @@ public enum HEADMethod: HTTPMethodType {
 /// for compile-time environment validation with ``TypedHTTPRequest``.
 public protocol HTTPEnvironmentType: Sendable {
   /// The base URL for this environment.
-  static var baseURL: URL { get }
+  static var baseURL: HTTPRequestURL { get }
 
   /// A human-readable name for this environment.
-  static var name: String { get }
+  static var name: HTTPEnvironmentName { get }
 }
 
 /// Phantom type representing a production environment.
 public enum ProductionEnvironment: HTTPEnvironmentType {
-  public static let baseURL = URL(string: "https://api.example.com")!
-  public static let name = "production"
+  public static let baseURL = makeEnvironmentURL(BaseURLText(rawValue: "https://api.example.com"))
+  public static let name = HTTPEnvironmentName(rawValue: "production")
 }
 
 /// Phantom type representing a staging environment.
 public enum StagingEnvironment: HTTPEnvironmentType {
-  public static let baseURL = URL(string: "https://staging-api.example.com")!
-  public static let name = "staging"
+  public static let baseURL = makeEnvironmentURL(
+    BaseURLText(rawValue: "https://staging-api.example.com")
+  )
+  public static let name = HTTPEnvironmentName(rawValue: "staging")
 }
 
 /// Phantom type representing a development environment.
 public enum DevelopmentEnvironment: HTTPEnvironmentType {
-  public static let baseURL = URL(string: "http://localhost:8080")!
-  public static let name = "development"
+  public static let baseURL = makeEnvironmentURL(BaseURLText(rawValue: "http://localhost:8080"))
+  public static let name = HTTPEnvironmentName(rawValue: "development")
 }
 
 /// A wildcard environment that can be used when the environment is not constrained.
 public enum AnyEnvironment: HTTPEnvironmentType {
-  public static let baseURL = URL(string: "https://localhost")!
-  public static let name = "any"
+  public static let baseURL = makeEnvironmentURL(BaseURLText(rawValue: "https://localhost"))
+  public static let name = HTTPEnvironmentName(rawValue: "any")
 }
 
 // MARK: - Typed HTTP Request
@@ -108,7 +110,7 @@ public enum AnyEnvironment: HTTPEnvironmentType {
 ///
 /// ```swift
 /// enum MyProductionEnv: HTTPEnvironmentType {
-///     static let baseURL = URL(string: "https://api.myapp.com")!
+///     static let baseURL = HTTPRequestURL(URL(string: "https://api.myapp.com")!)
 ///     static let name = "production"
 /// }
 ///
@@ -116,16 +118,16 @@ public enum AnyEnvironment: HTTPEnvironmentType {
 /// ```
 public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironmentType>: Sendable {
   /// The request path relative to the environment's base URL.
-  public let path: String
+  public let path: RequestPathPattern
 
   /// HTTP headers for this request.
-  public let headers: [String: String]
+  public let headers: HTTPHeaders
 
   /// Request body data.
-  public let body: Data?
+  public let body: HTTPBody?
 
   /// Request timeout interval.
-  public let timeout: TimeInterval
+  public let timeout: NetworkingCore.RequestTimeout
 
   /// Creates a new typed HTTP request.
   ///
@@ -135,10 +137,10 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   ///   - body: Request body data (default: nil)
   ///   - timeout: Timeout interval in seconds (default: 30)
   public init(
-    path: String,
-    headers: [String: String] = [:],
-    body: Data? = nil,
-    timeout: TimeInterval = 30.0
+    path: RequestPathPattern,
+    headers: HTTPHeaders = [:],
+    body: HTTPBody? = nil,
+    timeout: NetworkingCore.RequestTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
   ) {
     self.path = path
     self.headers = headers
@@ -147,13 +149,13 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   }
 
   /// The resolved URL combining the environment's base URL and the path.
-  public var url: URL {
+  public var url: HTTPRequestURL {
     let baseString = Environment.baseURL.absoluteString
     let fullString =
       baseString.hasSuffix("/")
-      ? "\(baseString)\(path.hasPrefix("/") ? String(path.dropFirst()) : path)"
-      : "\(baseString)\(path.hasPrefix("/") ? path : "/\(path)")"
-    return URL(string: fullString) ?? Environment.baseURL
+      ? "\(baseString)\(path.rawValue.hasPrefix("/") ? String(path.rawValue.dropFirst()) : path.rawValue)"
+      : "\(baseString)\(path.rawValue.hasPrefix("/") ? path.rawValue : "/\(path.rawValue)")"
+    return URL(string: fullString).map { HTTPRequestURL($0) } ?? Environment.baseURL
   }
 
   /// The HTTP method derived from the phantom type.
@@ -180,7 +182,7 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   ///   - name: The header name
   ///   - value: The header value
   /// - Returns: A new typed request with the header added
-  public func addingHeader(_ name: String, _ value: String) -> Self {
+  public func addingHeader(_ name: HTTPHeaderName, _ value: HTTPHeaderValue) -> Self {
     var newHeaders = headers
     newHeaders[name] = value
     return Self(path: path, headers: newHeaders, body: body, timeout: timeout)
@@ -190,7 +192,7 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   ///
   /// - Parameter data: The body data
   /// - Returns: A new typed request with the body set
-  public func withBody(_ data: Data) -> Self {
+  public func withBody(_ data: HTTPBody) -> Self {
     Self(path: path, headers: headers, body: data, timeout: timeout)
   }
 
@@ -198,7 +200,7 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   ///
   /// - Parameter interval: The timeout interval
   /// - Returns: A new typed request with the timeout set
-  public func withTimeout(_ interval: TimeInterval) -> Self {
+  public func withTimeout(_ interval: NetworkingCore.RequestTimeout) -> Self {
     Self(path: path, headers: headers, body: body, timeout: interval)
   }
 }
@@ -243,7 +245,7 @@ extension TypedHTTPRequest where Method: BodyAllowedMethod {
     let data = try encoder.encode(value)
     var newHeaders = headers
     newHeaders["Content-Type"] = "application/json"
-    return Self(path: path, headers: newHeaders, body: data, timeout: timeout)
+    return Self(path: path, headers: newHeaders, body: HTTPBody(data), timeout: timeout)
   }
 }
 
@@ -260,4 +262,8 @@ extension HTTPClient {
   ) async throws -> HTTPResponse {
     try await execute(request.toHTTPRequest())
   }
+}
+
+private func makeEnvironmentURL(_ value: BaseURLText) -> HTTPRequestURL {
+  HTTPRequestURL(URL(string: value.rawValue) ?? URL(fileURLWithPath: "/"))
 }

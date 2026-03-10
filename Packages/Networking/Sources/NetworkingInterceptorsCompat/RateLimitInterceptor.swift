@@ -45,15 +45,17 @@ import Foundation
 @available(
   *,
   deprecated,
-  message:
-    "RateLimitInterceptor is a compatibility API. Prefer middleware-based rate limiting for new runtime behavior."
+  message: """
+    RateLimitInterceptor is a compatibility API. \
+    Prefer middleware-based rate limiting for new runtime behavior.
+    """
 )
 public struct RateLimitInterceptor: RequestInterceptor, Sendable {
   /// Maximum number of requests allowed per window
-  public let requestsPerWindow: Int
+  public let requestsPerWindow: RequestCount
 
   /// Duration of the rate limit window in seconds
-  public let windowDuration: TimeInterval
+  public let windowDuration: RateLimitWindowDuration
 
   /// Strategy for handling rate limit exceeded
   public let strategy: RateLimitStrategy
@@ -77,16 +79,28 @@ public struct RateLimitInterceptor: RequestInterceptor, Sendable {
   ///   - windowDuration: Window duration in seconds (default: 60)
   ///   - strategy: Strategy for handling exceeded limits (default: .delay)
   public init(
-    requestsPerWindow: Int = 100,
-    windowDuration: TimeInterval = 60.0,
+    requestsPerWindow: RequestCount = 100,
+    windowDuration: RateLimitWindowDuration = 60.0,
     strategy: RateLimitStrategy = .delay
   ) {
     self.requestsPerWindow = requestsPerWindow
     self.windowDuration = windowDuration
     self.strategy = strategy
     self.limiter = RateLimiter(
-      requestsPerWindow: requestsPerWindow,
-      windowDuration: windowDuration
+      requestsPerWindow: requestsPerWindow.rawValue,
+      windowDuration: windowDuration.rawValue
+    )
+  }
+
+  package init(
+    requestsPerWindow: Int = 100,
+    windowDuration: TimeInterval = 60.0,
+    strategy: RateLimitStrategy = .delay
+  ) {
+    self.init(
+      requestsPerWindow: RequestCount(requestsPerWindow),
+      windowDuration: RateLimitWindowDuration(windowDuration),
+      strategy: strategy
     )
   }
 
@@ -97,7 +111,7 @@ public struct RateLimitInterceptor: RequestInterceptor, Sendable {
     context: InterceptorContext
   ) async throws -> InterceptorResult {
     // Check if we can proceed with this request
-    let canProceed = await limiter.checkAndRecord(path: context.path)
+    let canProceed = await limiter.checkAndRecord(path: context.path.rawValue)
 
     if canProceed {
       return .proceed
@@ -107,8 +121,8 @@ public struct RateLimitInterceptor: RequestInterceptor, Sendable {
     switch strategy {
     case .delay:
       // Calculate delay until window allows
-      let delay = await limiter.calculateDelay(path: context.path)
-      return .retry(after: delay)
+      let delay = await limiter.calculateDelay(path: context.path.rawValue)
+      return .retry(after: RetryDelay(delay))
 
     case .reject:
       // Reject immediately
@@ -128,8 +142,8 @@ public struct RateLimitInterceptor: RequestInterceptor, Sendable {
   }
 
   /// Clears rate limit history for a specific endpoint.
-  public func reset(path: String) async {
-    await limiter.reset(path: path)
+  public func reset(path: RequestPathPattern) async {
+    await limiter.reset(path: path.rawValue)
   }
 }
 
@@ -222,8 +236,10 @@ private actor RateLimiter {
 @available(
   *,
   deprecated,
-  message:
-    "RateLimitInterceptor is a compatibility API. Prefer middleware-based rate limiting for new runtime behavior."
+  message: """
+    RateLimitInterceptor is a compatibility API. \
+    Prefer middleware-based rate limiting for new runtime behavior.
+    """
 )
 extension RateLimitInterceptor {
   /// Strict rate limiting (60 requests/minute, reject on exceed)

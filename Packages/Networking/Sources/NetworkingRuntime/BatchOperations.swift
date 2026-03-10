@@ -57,7 +57,7 @@ public struct BatchRequestBuilder {
 /// The result of a single request within a batch operation.
 public struct BatchResult: Sendable {
   /// The index of the request in the original batch.
-  public let index: Int
+  public let index: BatchRequestIndex
 
   /// The original request.
   public let request: HTTPRequest
@@ -66,7 +66,7 @@ public struct BatchResult: Sendable {
   public let result: Result<HTTPResponse, HTTPError>
 
   /// Whether the request succeeded.
-  public var isSuccess: Bool {
+  public var isSuccess: RequestSuccessFlag {
     if case .success = result { return true }
     return false
   }
@@ -89,10 +89,10 @@ public struct BatchResult: Sendable {
 /// Configuration for batch request execution.
 public struct BatchConfiguration: Sendable {
   /// Maximum number of concurrent requests.
-  public let maxConcurrency: Int
+  public let maxConcurrency: BatchConcurrencyLimit
 
   /// Whether to cancel remaining requests if one fails.
-  public let cancelOnFailure: Bool
+  public let cancelOnFailure: CancelOnFailureFlag
 
   /// Creates a batch configuration.
   ///
@@ -100,8 +100,8 @@ public struct BatchConfiguration: Sendable {
   ///   - maxConcurrency: Maximum concurrent requests (default: unlimited, 0 = unlimited)
   ///   - cancelOnFailure: Cancel remaining on first failure (default: false)
   public init(
-    maxConcurrency: Int = 0,
-    cancelOnFailure: Bool = false
+    maxConcurrency: BatchConcurrencyLimit = 0,
+    cancelOnFailure: CancelOnFailureFlag = false
   ) {
     self.maxConcurrency = maxConcurrency
     self.cancelOnFailure = cancelOnFailure
@@ -115,6 +115,12 @@ public struct BatchConfiguration: Sendable {
 }
 
 // MARK: - HTTPClient Batch Extension
+
+private struct BatchExecutionResult: Sendable {
+  let index: Int
+  let request: HTTPRequest
+  let result: Result<HTTPResponse, HTTPError>
+}
 
 extension HTTPClient {
   /// Executes multiple HTTP requests concurrently and returns all results.
@@ -134,9 +140,9 @@ extension HTTPClient {
   /// for result in results {
   ///     switch result.result {
   ///     case .success(let response):
-  ///         print("Request \(result.index): \(response.status)")
+  ///         logger("Request \(result.index): \(response.status)")
   ///     case .failure(let error):
-  ///         print("Request \(result.index) failed: \(error)")
+  ///         logger("Request \(result.index) failed: \(error)")
   ///     }
   /// }
   /// ```
@@ -165,48 +171,66 @@ extension HTTPClient {
   ) async -> [BatchResult] {
     guard !requests.isEmpty else { return [] }
 
-    // Create concurrency limiter from configuration
     let limiter = BatchConcurrencyLimiter(maxConcurrency: configuration.maxConcurrency)
 
-    return await withTaskGroup(of: (Int, HTTPRequest, Result<HTTPResponse, HTTPError>).self) {
-      group in
-
+    return await withTaskGroup(of: BatchExecutionResult.self) { group in
       for (index, request) in requests.enumerated() {
-        group.addTask {
-          // Wait for available concurrency slot
-          await limiter.acquire()
-
-          // LIFECYCLE: Fire-and-forget release - safe because:
-          // 1. Actor isolation ensures thread safety
-          // 2. release() is idempotent (decrement is atomic)
-          // 3. No user-facing impact if delayed cleanup
-          defer { Task { await limiter.release() } }
-
-          do {
-            let response = try await self.execute(request)
-            return (index, request, .success(response))
-          } catch let error as HTTPError {
-            return (index, request, .failure(error))
-          } catch {
-            let httpError = HTTPError(
-              category: .custom("batch", error.localizedDescription),
-              request: request,
-              underlyingError: error
-            )
-            return (index, request, .failure(httpError))
-          }
-        }
+        group.addTask { await self.executeBatchRequest(request, at: index, limiter: limiter) }
       }
 
       var results = [BatchResult]()
       results.reserveCapacity(requests.count)
 
-      for await (index, request, result) in group {
-        results.append(BatchResult(index: index, request: request, result: result))
+      for await batchResult in group {
+        results.append(
+          BatchResult(
+            index: BatchRequestIndex(batchResult.index),
+            request: batchResult.request,
+            result: batchResult.result
+          )
+        )
       }
 
       // Sort by original index to preserve order
       return results.sorted { $0.index < $1.index }
     }
+  }
+
+  private func executeBatchRequest(
+    _ request: HTTPRequest,
+    at index: Int,
+    limiter: BatchConcurrencyLimiter
+  ) async -> BatchExecutionResult {
+    await limiter.acquire()
+    defer { Task { await limiter.release() } }
+
+    do {
+      let response = try await execute(request)
+      return BatchExecutionResult(
+        index: index,
+        request: request,
+        result: Result<HTTPResponse, HTTPError>.success(response)
+      )
+    } catch let error as HTTPError {
+      return BatchExecutionResult(
+        index: index,
+        request: request,
+        result: Result<HTTPResponse, HTTPError>.failure(error)
+      )
+    } catch {
+      return BatchExecutionResult(
+        index: index,
+        request: request,
+        result: Result<HTTPResponse, HTTPError>.failure(wrapBatchError(error, request: request))
+      )
+    }
+  }
+
+  private func wrapBatchError(_ error: any Error, request: HTTPRequest) -> HTTPError {
+    HTTPError(
+      category: .custom("batch", HTTPErrorDetail(error.localizedDescription)),
+      request: request,
+      underlyingError: error
+    )
   }
 }

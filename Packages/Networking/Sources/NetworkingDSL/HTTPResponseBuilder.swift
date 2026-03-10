@@ -1,6 +1,8 @@
 import Foundation
 import NetworkingCore
 
+// swiftlint:disable file_length
+
 // MARK: - Response Builder Components
 
 /// Base protocol for response builder components.
@@ -76,41 +78,16 @@ public struct HTTPResponseBuilder {
     components: [any ResponseComponent]
   ) throws -> ProcessedResponse<T> {
     var state = ProcessingState()
-
-    // Apply all components to build the processing state
-    for component in components {
-      try component.apply(to: response, state: &state)
+    try applyComponents(components, to: response, state: &state)
+    if let recoveredValue: T = try recoverValueIfNeeded(for: response, state: state) {
+      return ProcessedResponse(response: response, value: recoveredValue)
     }
 
-    // Execute validation
-    for validator in state.validators {
-      let result = validator.validate(response)
-      switch result {
-      case .success:
-        continue
-
-      case .failure(let error):
-        if let recovery = state.errorRecovery {
-          let recoveredValue = try recovery(error)
-          guard let typedValue = recoveredValue as? T else {
-            throw HTTPError(category: .configuration("Error recovery returned wrong type"))
-          }
-          return ProcessedResponse(response: response, value: typedValue)
-        }
-        throw error
-      }
-    }
-
-    // Execute transformations
-    var currentValue: any Sendable = response
-    for transformation in state.transformations {
-      currentValue = try transformation(currentValue)
-    }
-
-    guard let finalValue = currentValue as? T else {
-      throw HTTPError(category: .configuration("Final transformation result has wrong type"))
-    }
-
+    let transformedValue = try transform(response, using: state.transformations)
+    let finalValue: T = try castProcessedValue(
+      transformedValue,
+      errorMessage: "Final transformation result has wrong type"
+    )
     return ProcessedResponse(response: response, value: finalValue)
   }
 
@@ -121,6 +98,66 @@ public struct HTTPResponseBuilder {
   ) throws -> ProcessedResponse<T> {
     let components = content()
     return try process(response, components: components)
+  }
+
+  private static func applyComponents(
+    _ components: [any ResponseComponent],
+    to response: HTTPResponse,
+    state: inout ProcessingState
+  ) throws {
+    for component in components {
+      try component.apply(to: response, state: &state)
+    }
+  }
+
+  private static func recoverValueIfNeeded<T: Sendable>(
+    for response: HTTPResponse,
+    state: ProcessingState
+  ) throws -> T? {
+    for validator in state.validators {
+      let result = validator.validate(response)
+      if case .failure(let error) = result {
+        return try recoveredValue(from: error, recovery: state.errorRecovery)
+      }
+    }
+
+    return nil
+  }
+
+  private static func recoveredValue<T: Sendable>(
+    from error: HTTPError,
+    recovery: (@Sendable (HTTPError) throws -> any Sendable)?
+  ) throws -> T {
+    guard let recovery else {
+      throw error
+    }
+
+    let recoveredValue = try recovery(error)
+    return try castProcessedValue(
+      recoveredValue,
+      errorMessage: "Error recovery returned wrong type"
+    )
+  }
+
+  private static func transform(
+    _ response: HTTPResponse,
+    using transformations: [@Sendable (any Sendable) throws -> any Sendable]
+  ) throws -> any Sendable {
+    var currentValue: any Sendable = response
+    for transformation in transformations {
+      currentValue = try transformation(currentValue)
+    }
+    return currentValue
+  }
+
+  private static func castProcessedValue<T: Sendable>(
+    _ value: any Sendable,
+    errorMessage: String
+  ) throws -> T {
+    guard let typedValue = value as? T else {
+      throw HTTPError(category: .configuration(HTTPErrorDetail(errorMessage)))
+    }
+    return typedValue
   }
 }
 
@@ -134,7 +171,7 @@ public struct ValidateStatus: ResponseComponent {
     self.validator = validator
   }
 
-  public init(codes: Set<Int>) {
+  public init(codes: Set<HTTPStatusCode>) {
     self.validator = StatusValidator(validStatuses: codes)
   }
 
@@ -157,7 +194,7 @@ public struct ValidateContentType: ResponseComponent {
     self.validator = validator
   }
 
-  public init(_ contentTypes: String...) {
+  public init(_ contentTypes: HTTPMediaType...) {
     self.validator = ContentTypeValidator(Set(contentTypes))
   }
 
@@ -236,9 +273,9 @@ public struct DecodeJSON<T: Decodable & Sendable>: ResponseComponent {
 
 /// Component that adds string transformation
 public struct TransformToString: ResponseComponent {
-  private let encoding: String.Encoding
+  private let encoding: HTTPTextEncoding
 
-  public init(encoding: String.Encoding = .utf8) {
+  public init(encoding: HTTPTextEncoding = .utf8) {
     self.encoding = encoding
   }
 
@@ -259,7 +296,15 @@ public struct TransformToString: ResponseComponent {
         )
       }
 
-      guard let string = String(data: body, encoding: self.encoding) else {
+      guard let resolvedEncoding = self.encoding.foundationEncoding else {
+        throw HTTPError(
+          category: .configuration("Unsupported text encoding: \(self.encoding)"),
+          request: httpResponse.request,
+          response: httpResponse
+        )
+      }
+
+      guard let string = String(data: body, encoding: resolvedEncoding) else {
         throw HTTPError(
           category: .decoding("Failed to convert data to string using \(self.encoding) encoding"),
           request: httpResponse.request,
@@ -267,7 +312,7 @@ public struct TransformToString: ResponseComponent {
         )
       }
 
-      return string
+      return HTTPResponseText(string)
     }
 
     state.transformations.append(transformation)
@@ -330,19 +375,19 @@ public struct CacheFor: ResponseComponent {
     self.duration = duration
   }
 
-  public static func seconds(_ value: TimeInterval) -> Self {
+  public static func seconds(_ value: NetworkingCore.RequestTimeout) -> Self {
     Self(ResponseCacheDuration.seconds(value))
   }
 
-  public static func minutes(_ value: TimeInterval) -> Self {
+  public static func minutes(_ value: NetworkingCore.RequestTimeout) -> Self {
     Self(ResponseCacheDuration.minutes(value))
   }
 
-  public static func hours(_ value: TimeInterval) -> Self {
+  public static func hours(_ value: NetworkingCore.RequestTimeout) -> Self {
     Self(ResponseCacheDuration.hours(value))
   }
 
-  public static func days(_ value: TimeInterval) -> Self {
+  public static func days(_ value: NetworkingCore.RequestTimeout) -> Self {
     Self(ResponseCacheDuration.days(value))
   }
 
@@ -396,3 +441,4 @@ extension HTTPResponse {
     try HTTPResponseBuilder.process(self, components: components)
   }
 }
+// swiftlint:enable file_length

@@ -1,70 +1,77 @@
+// swiftlint:disable file_length
 import Foundation
 import NetworkingCore
 
-/// Progress tracking system using AsyncThrowingStream for real-time progress updates.
-/// Provides sophisticated progress monitoring for file transfers, uploads, and downloads.
+// Progress tracking system using AsyncThrowingStream for real-time progress updates.
+// Provides sophisticated progress monitoring for file transfers, uploads, and downloads.
+// swiftlint:disable:next type_body_length
 public struct ProgressTracking: Sendable {
   // MARK: - Progress Stream Types
 
   /// Comprehensive progress information for a transfer operation
   public struct ProgressUpdate: Sendable, Hashable {
     /// Unique identifier for this transfer
-    public let transferId: UUID
+    public let transferId: TransferIdentifier
 
     /// Current phase of the transfer
     public let phase: TransferPhase
 
     /// Total bytes expected (nil if unknown)
-    public let totalBytes: Int64?
+    public let totalBytes: TransferByteCount?
 
     /// Bytes transferred so far
-    public let transferredBytes: Int64
+    public let transferredBytes: TransferByteCount
 
     /// Current transfer speed in bytes per second
-    public let bytesPerSecond: Double?
+    public let bytesPerSecond: TransferSpeed?
 
     /// Estimated time remaining in seconds
-    public let estimatedTimeRemaining: TimeInterval?
+    public let estimatedTimeRemaining: TransferDuration?
 
     /// Progress as a percentage (0.0 to 1.0)
-    public var progress: Double {
+    public var progress: TransferProgressFraction {
       guard let total = totalBytes, total > 0 else {
         return phase == .completed ? 1.0 : 0.0
       }
-      return min(1.0, max(0.0, Double(transferredBytes) / Double(total)))
+      return TransferProgressFraction(
+        min(
+          1.0,
+          max(0.0, Double(transferredBytes.rawValue) / Double(total.rawValue))
+        )
+      )
     }
 
     /// Transfer rate in a human-readable format
-    public var formattedSpeed: String {
+    public var formattedSpeed: TransferSpeedText {
       guard let speed = bytesPerSecond, speed > 0 else {
         return "-- KB/s"
       }
 
-      if speed >= 1_048_576 {  // 1 MB/s
-        return String(format: "%.1f MB/s", speed / 1_048_576)
-      } else if speed >= 1024 {  // 1 KB/s
-        return String(format: "%.1f KB/s", speed / 1024)
+      if speed.rawValue >= 1_048_576 {  // 1 MB/s
+        return TransferSpeedText(String(format: "%.1f MB/s", speed.rawValue / 1_048_576))
+      } else if speed.rawValue >= 1024 {  // 1 KB/s
+        return TransferSpeedText(String(format: "%.1f KB/s", speed.rawValue / 1024))
       } else {
-        return String(format: "%.0f B/s", speed)
+        return TransferSpeedText(String(format: "%.0f B/s", speed.rawValue))
       }
     }
 
     /// Formatted time remaining
-    public var formattedTimeRemaining: String {
+    public var formattedTimeRemaining: TransferTimeRemainingText {
       guard let timeRemaining = estimatedTimeRemaining else {
         return "-- remaining"
       }
 
-      if timeRemaining >= 3600 {
-        let hours = Int(timeRemaining / 3600)
-        let minutes = Int((timeRemaining.truncatingRemainder(dividingBy: 3600)) / 60)
-        return "\(hours)h \(minutes)m remaining"
-      } else if timeRemaining >= 60 {
-        let minutes = Int(timeRemaining / 60)
-        let seconds = Int(timeRemaining.truncatingRemainder(dividingBy: 60))
-        return "\(minutes)m \(seconds)s remaining"
+      if timeRemaining.rawValue >= 3600 {
+        let hours = Int(timeRemaining.rawValue / 3600)
+        let minutes = Int((timeRemaining.rawValue.truncatingRemainder(dividingBy: 3600)) / 60)
+        return TransferTimeRemainingText("\(hours)h \(minutes)m remaining")
+      } else if timeRemaining.rawValue >= 60 {
+        let minutes = Int(timeRemaining.rawValue / 60)
+        let seconds = Int(timeRemaining.rawValue.truncatingRemainder(dividingBy: 60))
+        return TransferTimeRemainingText("\(minutes)m \(seconds)s remaining")
       } else {
-        return "\(Int(timeRemaining))s remaining"
+        return TransferTimeRemainingText("\(Int(timeRemaining.rawValue))s remaining")
       }
     }
 
@@ -72,12 +79,12 @@ public struct ProgressTracking: Sendable {
     public let timestamp: Date
 
     public init(
-      transferId: UUID,
+      transferId: TransferIdentifier,
       phase: TransferPhase,
-      totalBytes: Int64?,
-      transferredBytes: Int64,
-      bytesPerSecond: Double? = nil,
-      estimatedTimeRemaining: TimeInterval? = nil,
+      totalBytes: TransferByteCount?,
+      transferredBytes: TransferByteCount,
+      bytesPerSecond: TransferSpeed? = nil,
+      estimatedTimeRemaining: TransferDuration? = nil,
       timestamp: Date = Date()
     ) {
       self.transferId = transferId
@@ -93,7 +100,7 @@ public struct ProgressTracking: Sendable {
   /// Error conditions that can occur during progress tracking
   public enum ProgressError: Error, LocalizedError {
     case streamCancelled
-    case transferNotFound(UUID)
+    case transferNotFound(TransferIdentifier)
     case invalidProgressData
     case streamAlreadyCompleted
 
@@ -119,22 +126,23 @@ public struct ProgressTracking: Sendable {
   /// Manages async progress streams for file transfer operations
   public actor ProgressStreamManager {
     /// Active progress streams indexed by transfer ID
-    private var activeStreams: [UUID: ProgressStreamHandle] = [:]
+    private var activeStreams: [TransferIdentifier: ProgressStreamHandle] = [:]
 
     /// Stream handle containing continuation and metadata
     private struct ProgressStreamHandle {
-      let transferId: UUID
+      let transferId: TransferIdentifier
       let continuation: AsyncThrowingStream<ProgressUpdate, any Error>.Continuation
       var metadata: StreamMetadata
       var isCompleted = false
 
+      // swiftlint:disable:next nesting
       struct StreamMetadata {
         let startTime = Date()
         var lastUpdateTime = Date()
         var speedCalculator = TransferSpeedCalculator()
-        let totalBytes: Int64?
+        let totalBytes: TransferByteCount?
 
-        init(totalBytes: Int64?) {
+        init(totalBytes: TransferByteCount?) {
           self.totalBytes = totalBytes
         }
       }
@@ -148,8 +156,8 @@ public struct ProgressTracking: Sendable {
     ///   - totalBytes: Expected total bytes (nil if unknown)
     /// - Returns: AsyncThrowingStream for progress updates
     public func createProgressStream(
-      for transferId: UUID,
-      totalBytes: Int64? = nil
+      for transferId: TransferIdentifier,
+      totalBytes: TransferByteCount? = nil
     ) -> AsyncThrowingStream<ProgressUpdate, any Error> {
       AsyncThrowingStream<ProgressUpdate, any Error> { continuation in
         let metadata = ProgressStreamHandle.StreamMetadata(totalBytes: totalBytes)
@@ -191,8 +199,8 @@ public struct ProgressTracking: Sendable {
     ///   - transferredBytes: Bytes transferred so far
     ///   - phase: Current transfer phase
     public func updateProgress(
-      for transferId: UUID,
-      transferredBytes: Int64,
+      for transferId: TransferIdentifier,
+      transferredBytes: TransferByteCount,
       phase: TransferPhase = .downloading
     ) async throws {
       guard var handle = activeStreams[transferId] else {
@@ -238,7 +246,7 @@ public struct ProgressTracking: Sendable {
     ///   - phase: Final phase (completed or failed)
     ///   - error: Optional error if transfer failed
     public func completeProgress(
-      for transferId: UUID,
+      for transferId: TransferIdentifier,
       phase: TransferPhase,
       error: (any Error)? = nil
     ) async {
@@ -278,7 +286,7 @@ public struct ProgressTracking: Sendable {
 
     /// Cancels a progress stream
     /// - Parameter transferId: Transfer identifier to cancel
-    public func cancelProgress(for transferId: UUID) async {
+    public func cancelProgress(for transferId: TransferIdentifier) async {
       guard let handle = activeStreams[transferId] else { return }
 
       handle.continuation.finish(throwing: ProgressError.streamCancelled)
@@ -286,30 +294,30 @@ public struct ProgressTracking: Sendable {
     }
 
     /// Returns active transfer IDs
-    public var activeTransferIds: [UUID] {
+    public var activeTransferIds: [TransferIdentifier] {
       Array(activeStreams.keys)
     }
 
     /// Cleans up completed or cancelled streams
-    private func cleanupStream(_ transferId: UUID) async {
+    private func cleanupStream(_ transferId: TransferIdentifier) async {
       activeStreams.removeValue(forKey: transferId)
     }
 
     private func calculateEstimatedTime(
-      totalBytes: Int64?,
-      transferredBytes: Int64,
-      speed: Double?
-    ) -> TimeInterval? {
+      totalBytes: TransferByteCount?,
+      transferredBytes: TransferByteCount,
+      speed: TransferSpeed?
+    ) -> TransferDuration? {
       guard let total = totalBytes,
         let currentSpeed = speed,
-        currentSpeed > 0,
+        currentSpeed.rawValue > 0,
         transferredBytes < total
       else {
         return nil
       }
 
-      let remainingBytes = total - transferredBytes
-      return Double(remainingBytes) / currentSpeed
+      let remainingBytes = total.rawValue - transferredBytes.rawValue
+      return TransferDuration(Double(remainingBytes) / currentSpeed.rawValue)
     }
 
     /// Bridges URLSessionDownloadDelegate progress updates to AsyncThrowingStream.
@@ -323,10 +331,10 @@ public struct ProgressTracking: Sendable {
     ///   - totalBytesWritten: Total bytes written so far
     ///   - totalBytesExpected: Expected total bytes (-1 if unknown)
     public func bridgeDownloadProgress(
-      for transferId: UUID,
-      bytesWritten: Int64,
-      totalBytesWritten: Int64,
-      totalBytesExpected: Int64
+      for transferId: TransferIdentifier,
+      bytesWritten: TransferByteCount,
+      totalBytesWritten: TransferByteCount,
+      totalBytesExpected: TransferByteCount
     ) async {
       do {
         try await updateProgress(
@@ -335,10 +343,12 @@ public struct ProgressTracking: Sendable {
           phase: .downloading
         )
       } catch {
-        // Log error but don't throw - delegate callbacks can't propagate errors
-        // In production, use logger.error("Failed to update download progress: \(error)")
-        print("Progress update failed: \(error)")
+        writeToStandardError("Progress update failed: \(error)")
       }
+    }
+
+    private func writeToStandardError(_ message: String) {
+      FileHandle.standardError.write(Data("\(message)\n".utf8))
     }
   }
 
@@ -346,11 +356,11 @@ public struct ProgressTracking: Sendable {
 
   /// Calculates transfer speed using a sliding window of measurements
   private struct TransferSpeedCalculator {
-    private var measurements: [(timestamp: Date, bytes: Int64)] = []
+    private var measurements: [(timestamp: Date, bytes: TransferByteCount)] = []
     private let maxMeasurements = 10
     private let minTimeWindow: TimeInterval = 1.0  // Minimum 1 second for speed calculation
 
-    mutating func addMeasurement(bytes: Int64, timestamp: Date = Date()) {
+    mutating func addMeasurement(bytes: TransferByteCount, timestamp: Date = Date()) {
       measurements.append((timestamp, bytes))
 
       // Keep only recent measurements
@@ -363,7 +373,7 @@ public struct ProgressTracking: Sendable {
       measurements.removeAll { $0.timestamp < cutoff }
     }
 
-    func calculateSpeed() -> Double? {
+    func calculateSpeed() -> TransferSpeed? {
       guard measurements.count >= 2 else { return nil }
 
       let first = measurements.first!
@@ -372,10 +382,10 @@ public struct ProgressTracking: Sendable {
       let timeInterval = last.timestamp.timeIntervalSince(first.timestamp)
       guard timeInterval >= minTimeWindow else { return nil }
 
-      let bytesTransferred = last.bytes - first.bytes
+      let bytesTransferred = last.bytes.rawValue - first.bytes.rawValue
       guard bytesTransferred > 0 else { return nil }
 
-      return Double(bytesTransferred) / timeInterval
+      return TransferSpeed(Double(bytesTransferred) / timeInterval)
     }
   }
 
@@ -387,10 +397,10 @@ public struct ProgressTracking: Sendable {
     func progressUpdated(_ update: ProgressUpdate) async
 
     /// Called when a transfer completes successfully
-    func transferCompleted(_ transferId: UUID) async
+    func transferCompleted(_ transferId: TransferIdentifier) async
 
     /// Called when a transfer fails
-    func transferFailed(_ transferId: UUID, error: any Error) async
+    func transferFailed(_ transferId: TransferIdentifier, error: any Error) async
   }
 
   /// Default implementation of progress monitor that logs to console
@@ -399,25 +409,37 @@ public struct ProgressTracking: Sendable {
 
     public func progressUpdated(_ update: ProgressUpdate) async {
       let progressBar = createProgressBar(progress: update.progress)
-      print(
-        "[\(update.transferId.uuidString.prefix(8))] \(progressBar) \(String(format: "%.1f", update.progress * 100))% - \(update.formattedSpeed)"
+      writeToStandardOutput(
+        "[\(update.transferId.uuidString.prefix(8))] \(progressBar) "
+          + "\(String(format: "%.1f", update.progress.rawValue * 100))% "
+          + "- \(update.formattedSpeed.rawValue)"
       )
     }
 
-    public func transferCompleted(_ transferId: UUID) async {
-      print("[\(transferId.uuidString.prefix(8))] ✅ Transfer completed")
+    public func transferCompleted(_ transferId: TransferIdentifier) async {
+      writeToStandardOutput("[\(transferId.uuidString.prefix(8))] ✅ Transfer completed")
     }
 
-    public func transferFailed(_ transferId: UUID, error: any Error) async {
-      print("[\(transferId.uuidString.prefix(8))] ❌ Transfer failed: \(error.localizedDescription)")
+    public func transferFailed(_ transferId: TransferIdentifier, error: any Error) async {
+      writeToStandardError(
+        "[\(transferId.uuidString.prefix(8))] ❌ Transfer failed: \(error.localizedDescription)"
+      )
     }
 
-    private func createProgressBar(progress: Double) -> String {
+    private func createProgressBar(progress: TransferProgressFraction) -> String {
       let width = 20
-      let filledWidth = Int(progress * Double(width))
+      let filledWidth = Int(progress.rawValue * Double(width))
       let filled = String(repeating: "█", count: filledWidth)
       let empty = String(repeating: "░", count: width - filledWidth)
       return "[\(filled)\(empty)]"
+    }
+
+    private func writeToStandardOutput(_ message: String) {
+      FileHandle.standardOutput.write(Data("\(message)\n".utf8))
+    }
+
+    private func writeToStandardError(_ message: String) {
+      FileHandle.standardError.write(Data("\(message)\n".utf8))
     }
   }
 
@@ -426,12 +448,12 @@ public struct ProgressTracking: Sendable {
   /// Tracks progress for multiple concurrent transfers
   public actor BatchProgressTracker {
     private let streamManager = ProgressStreamManager()
-    private var batchTransfers: [UUID: BatchTransferInfo] = [:]
+    private var batchTransfers: [TransferIdentifier: BatchTransferInfo] = [:]
 
     private struct BatchTransferInfo {
-      let transferId: UUID
-      let totalBytes: Int64?
-      var transferredBytes: Int64 = 0
+      let transferId: TransferIdentifier
+      let totalBytes: TransferByteCount?
+      var transferredBytes: TransferByteCount = 0
       var phase: TransferPhase = .preparing
       var startTime = Date()
     }
@@ -442,9 +464,9 @@ public struct ProgressTracking: Sendable {
     /// - Parameter transferIds: Array of transfer IDs with their expected sizes
     /// - Returns: Dictionary of progress streams for each transfer
     public func startBatchTracking(
-      _ transferIds: [(transferId: UUID, totalBytes: Int64?)]
-    ) async -> [UUID: AsyncThrowingStream<ProgressUpdate, any Error>] {
-      var streams: [UUID: AsyncThrowingStream<ProgressUpdate, any Error>] = [:]
+      _ transferIds: [(transferId: TransferIdentifier, totalBytes: TransferByteCount?)]
+    ) async -> [TransferIdentifier: AsyncThrowingStream<ProgressUpdate, any Error>] {
+      var streams: [TransferIdentifier: AsyncThrowingStream<ProgressUpdate, any Error>] = [:]
 
       for (transferId, totalBytes) in transferIds {
         let info = BatchTransferInfo(
@@ -465,8 +487,8 @@ public struct ProgressTracking: Sendable {
 
     /// Updates progress for a specific transfer in the batch
     public func updateBatchProgress(
-      transferId: UUID,
-      transferredBytes: Int64,
+      transferId: TransferIdentifier,
+      transferredBytes: TransferByteCount,
       phase: TransferPhase = .downloading
     ) async throws {
       guard var info = batchTransfers[transferId] else {
@@ -486,7 +508,7 @@ public struct ProgressTracking: Sendable {
 
     /// Completes a transfer in the batch
     public func completeBatchTransfer(
-      transferId: UUID,
+      transferId: TransferIdentifier,
       phase: TransferPhase,
       error: (any Error)? = nil
     ) async {
@@ -504,8 +526,8 @@ public struct ProgressTracking: Sendable {
       let activeTransfers = Array(batchTransfers.values)
       guard !activeTransfers.isEmpty else { return nil }
 
-      let totalBytes = activeTransfers.compactMap(\.totalBytes).reduce(0, +)
-      let transferredBytes = activeTransfers.map(\.transferredBytes).reduce(0, +)
+      let totalBytes = activeTransfers.compactMap(\.totalBytes).reduce(TransferByteCount(0), +)
+      let transferredBytes = activeTransfers.map(\.transferredBytes).reduce(TransferByteCount(0), +)
 
       let allCompleted = activeTransfers.allSatisfy { $0.phase == .completed }
       let anyFailed = activeTransfers.contains { $0.phase == .failed }
@@ -520,7 +542,7 @@ public struct ProgressTracking: Sendable {
       }
 
       return ProgressUpdate(
-        transferId: UUID(),  // Aggregate ID
+        transferId: TransferIdentifier(),  // Aggregate ID
         phase: phase,
         totalBytes: totalBytes > 0 ? totalBytes : nil,
         transferredBytes: transferredBytes
@@ -534,24 +556,32 @@ public struct ProgressTracking: Sendable {
   public struct FileOperationProgressTracker: Sendable {
     /// File operation types
     public enum OperationType: Sendable {
-      case upload(source: URL, destination: URL)
-      case download(source: URL, destination: URL)
-      case copy(source: URL, destination: URL)
-      case move(source: URL, destination: URL)
+      case upload(source: LocalFileURL, destination: RemoteTransferURL)
+      case download(source: RemoteTransferURL, destination: LocalFileURL)
+      case copy(source: LocalFileURL, destination: LocalFileURL)
+      case move(source: LocalFileURL, destination: LocalFileURL)
 
-      public var description: String {
+      public var description: FileOperationDescription {
         switch self {
         case .upload(let source, let destination):
-          return "Uploading \(source.lastPathComponent) to \(destination.absoluteString)"
+          return FileOperationDescription(
+            "Uploading \(source.lastPathComponent) to \(destination.absoluteString)"
+          )
 
         case .download(let source, let destination):
-          return "Downloading \(source.lastPathComponent) to \(destination.lastPathComponent)"
+          return FileOperationDescription(
+            "Downloading \(source.lastPathComponent) to \(destination.lastPathComponent)"
+          )
 
         case .copy(let source, let destination):
-          return "Copying \(source.lastPathComponent) to \(destination.lastPathComponent)"
+          return FileOperationDescription(
+            "Copying \(source.lastPathComponent) to \(destination.lastPathComponent)"
+          )
 
         case .move(let source, let destination):
-          return "Moving \(source.lastPathComponent) to \(destination.lastPathComponent)"
+          return FileOperationDescription(
+            "Moving \(source.lastPathComponent) to \(destination.lastPathComponent)"
+          )
         }
       }
     }
@@ -564,8 +594,11 @@ public struct ProgressTracking: Sendable {
     public static func trackFileOperation(
       _ operation: OperationType,
       using streamManager: ProgressStreamManager
-    ) async -> (transferId: UUID, stream: AsyncThrowingStream<ProgressUpdate, any Error>) {
-      let transferId = UUID()
+    ) async -> (
+      transferId: TransferIdentifier,
+      stream: AsyncThrowingStream<ProgressUpdate, any Error>
+    ) {
+      let transferId = TransferIdentifier()
       let totalBytes = getTotalBytes(for: operation)
 
       let stream = await streamManager.createProgressStream(
@@ -576,7 +609,7 @@ public struct ProgressTracking: Sendable {
       return (transferId, stream)
     }
 
-    private static func getTotalBytes(for operation: OperationType) -> Int64? {
+    private static func getTotalBytes(for operation: OperationType) -> TransferByteCount? {
       switch operation {
       case .upload(let source, _), .copy(let source, _), .move(let source, _):
         return getFileSize(at: source)
@@ -586,10 +619,13 @@ public struct ProgressTracking: Sendable {
       }
     }
 
-    private static func getFileSize(at url: URL) -> Int64? {
+    private static func getFileSize(at url: LocalFileURL) -> TransferByteCount? {
       do {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        return attributes[.size] as? Int64
+        guard let size = attributes[.size] as? Int64 else {
+          return nil
+        }
+        return TransferByteCount(size)
       } catch {
         return nil
       }
@@ -601,15 +637,16 @@ public struct ProgressTracking: Sendable {
 
 extension ProgressTracking.ProgressUpdate: CustomStringConvertible {
   public var description: String {
-    let progressPercent = String(format: "%.1f", progress * 100)
-    return
-      "\(phase) - \(progressPercent)% (\(transferredBytes)/\(totalBytes ?? 0) bytes) - \(formattedSpeed)"
+    let summary = TransferProgressSummaryText(
+      "\(phase) - \(String(format: "%.1f", progress.rawValue * 100))% (\(transferredBytes)/\(totalBytes ?? 0) bytes) - \(formattedSpeed)"
+    )
+    return summary.rawValue
   }
 }
 
 extension ProgressTracking.ProgressUpdate: CustomDebugStringConvertible {
   public var debugDescription: String {
-    "ProgressUpdate(id: \(transferId), phase: \(phase), progress: \(String(format: "%.1f", progress * 100))%, speed: \(formattedSpeed), eta: \(formattedTimeRemaining))"
+    "ProgressUpdate(id: \(transferId), phase: \(phase), progress: \(String(format: "%.1f", progress.rawValue * 100))%, speed: \(formattedSpeed), eta: \(formattedTimeRemaining))"
   }
 }
 

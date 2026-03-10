@@ -15,8 +15,8 @@ struct MockVerifiableTests {
         private let queue = DispatchQueue(label: "test.mock", attributes: .concurrent)
         private var _callCount: Int = 0
 
-        var callCount: Int {
-            queue.sync { _callCount }
+        var callCount: MockVerificationCount {
+            get async { MockVerificationCount(queue.sync { _callCount }) }
         }
 
         func recordCall() {
