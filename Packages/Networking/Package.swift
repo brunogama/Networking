@@ -3,6 +3,69 @@
 
 import PackageDescription
 
+let strictConcurrencySettings: [SwiftSetting] = [
+  .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
+]
+
+let libraryProducts = [
+  "Networking", "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
+  "NetworkingInterceptorsCompat", "NetworkingObservability", "NetworkingObservabilityOTLP",
+  "NetworkingTesting", "NetworkingBDD",
+].map { Product.library(name: $0, targets: [$0]) }
+
+let openTelemetryHTTPExporter: Target.Dependency = .product(
+  name: "OpenTelemetryProtocolExporterHTTP",
+  package: "opentelemetry-swift"
+)
+let openTelemetrySDK: Target.Dependency = .product(
+  name: "OpenTelemetrySdk",
+  package: "opentelemetry-swift"
+)
+let swiftCheck: Target.Dependency = .product(name: "SwiftCheck", package: "SwiftCheck")
+let networkingDependencies: [Target.Dependency] = [
+  "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
+  "NetworkingInterceptorsCompat", "NetworkingObservability",
+]
+let runtimeTestDependencies: [Target.Dependency] = [
+  "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL", "NetworkingTesting", swiftCheck,
+]
+let interceptorsCompatTestDependencies: [Target.Dependency] = [
+  "NetworkingInterceptorsCompat", "NetworkingRuntime", "NetworkingDSL", "NetworkingTesting",
+  swiftCheck,
+]
+let observabilityTestDependencies: [Target.Dependency] = [
+  "NetworkingObservability", "NetworkingObservabilityOTLP", "NetworkingRuntime", "NetworkingDSL",
+  "NetworkingTesting",
+]
+let testingTestDependencies: [Target.Dependency] = [
+  "NetworkingTesting", "NetworkingRuntime", "NetworkingObservability", "NetworkingDSL",
+  "NetworkingRuntimeDSL",
+]
+
+func libraryTarget(
+  _ name: String,
+  dependencies: [Target.Dependency] = [],
+  path: String,
+  exclude: [String] = []
+) -> Target {
+  .target(
+    name: name,
+    dependencies: dependencies,
+    path: path,
+    exclude: exclude,
+    swiftSettings: strictConcurrencySettings
+  )
+}
+
+func testTarget(
+  _ name: String,
+  dependencies: [Target.Dependency],
+  path: String,
+  exclude: [String] = []
+) -> Target {
+  .testTarget(name: name, dependencies: dependencies, path: path, exclude: exclude)
+}
+
 let package = Package(
   name: "Networking",
   platforms: [
@@ -11,15 +74,8 @@ let package = Package(
     .tvOS(.v16),
     .watchOS(.v9),
   ],
-  products: [
-    .library(
-      name: "Networking",
-      targets: ["Networking"]
-    )
-  ],
+  products: libraryProducts,
   dependencies: [
-    // Local dependency on NetworkingMacros package
-    .package(path: "../NetworkingMacros"),
     // OpenTelemetry for observability
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift.git",
@@ -27,36 +83,129 @@ let package = Package(
     ),
     // Test dependencies
     .package(url: "https://github.com/typelift/SwiftCheck.git", from: "0.12.0"),
-    .package(url: "https://github.com/Quick/Quick.git", from: "7.4.0"),
-    .package(url: "https://github.com/Quick/Nimble.git", from: "13.0.0"),
   ],
   targets: [
-    // Main library target
-    .target(
-      name: "Networking",
-      dependencies: [
-        .product(name: "NetworkingMacros", package: "NetworkingMacros"),
-        .product(name: "OpenTelemetryProtocolExporterHTTP", package: "opentelemetry-swift"),
-        .product(name: "OpenTelemetrySdk", package: "opentelemetry-swift"),
-      ],
-      exclude: [
-        // Exclude BDD module - incomplete integration code that depends on Quick/Nimble
-        "BDD",
-      ],
-      swiftSettings: [
-        .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
-      ]
+    libraryTarget(
+      "Networking",
+      dependencies: networkingDependencies,
+      path: "Sources/Networking",
+      exclude: ["CLAUDE.md", "ValidatedResponse.swift.backup"]
     ),
-
-    // Test target
-    .testTarget(
-      name: "NetworkingTests",
+    libraryTarget(
+      "NetworkingCore",
+      path: "Sources/NetworkingCore"
+    ),
+    libraryTarget(
+      "NetworkingRuntime",
+      dependencies: ["NetworkingCore"],
+      path: "Sources/NetworkingRuntime"
+    ),
+    libraryTarget(
+      "NetworkingDSL",
+      dependencies: ["NetworkingCore"],
+      path: "Sources/NetworkingDSL"
+    ),
+    libraryTarget(
+      "NetworkingRuntimeDSL",
+      dependencies: [
+        "NetworkingDSL",
+        "NetworkingRuntime",
+      ],
+      path: "Sources/NetworkingRuntimeDSL"
+    ),
+    libraryTarget(
+      "NetworkingInterceptorsCompat",
+      dependencies: ["NetworkingRuntime"],
+      path: "Sources/NetworkingInterceptorsCompat"
+    ),
+    libraryTarget(
+      "NetworkingObservability",
+      dependencies: ["NetworkingRuntime"],
+      path: "Sources/NetworkingObservability"
+    ),
+    libraryTarget(
+      "NetworkingObservabilityOTLP",
+      dependencies: [
+        "NetworkingObservability",
+        openTelemetryHTTPExporter,
+        openTelemetrySDK,
+      ],
+      path: "Sources/NetworkingObservabilityOTLP"
+    ),
+    libraryTarget(
+      "NetworkingTesting",
+      dependencies: [
+        "NetworkingRuntime",
+        "NetworkingInterceptorsCompat",
+        "NetworkingObservability",
+      ],
+      path: "Sources/NetworkingTesting",
+      exclude: ["README.md"]
+    ),
+    libraryTarget(
+      "NetworkingBDD",
+      dependencies: [
+        "NetworkingRuntime",
+        "NetworkingTesting",
+      ],
+      path: "Sources/NetworkingBDD"
+    ),
+    testTarget(
+      "NetworkingCoreTests",
+      dependencies: [
+        "NetworkingCore",
+        "NetworkingTesting",
+      ],
+      path: "Tests/NetworkingCoreTests"
+    ),
+    testTarget(
+      "NetworkingRuntimeTests",
+      dependencies: runtimeTestDependencies,
+      path: "Tests/NetworkingRuntimeTests"
+    ),
+    testTarget(
+      "NetworkingDSLTests",
+      dependencies: [
+        "NetworkingDSL",
+        "NetworkingRuntime",
+        "NetworkingRuntimeDSL",
+        "NetworkingTesting",
+      ],
+      path: "Tests/NetworkingDSLTests"
+    ),
+    testTarget(
+      "NetworkingInterceptorsCompatTests",
+      dependencies: interceptorsCompatTestDependencies,
+      path: "Tests/NetworkingInterceptorsCompatTests"
+    ),
+    testTarget(
+      "NetworkingObservabilityTests",
+      dependencies: observabilityTestDependencies,
+      path: "Tests/NetworkingObservabilityTests"
+    ),
+    testTarget(
+      "NetworkingTestingTests",
+      dependencies: testingTestDependencies,
+      path: "Tests/NetworkingTestingTests"
+    ),
+    testTarget(
+      "NetworkingBDDTests",
+      dependencies: [
+        "NetworkingBDD",
+        "NetworkingRuntime",
+        "NetworkingTesting",
+      ],
+      path: "Tests/NetworkingBDDTests"
+    ),
+    testTarget(
+      "NetworkingTests",
       dependencies: [
         "Networking",
-        .product(name: "SwiftCheck", package: "SwiftCheck"),
-        .product(name: "Quick", package: "Quick"),
-        .product(name: "Nimble", package: "Nimble"),
-      ]
+        "NetworkingTesting",
+        swiftCheck,
+      ],
+      path: "Tests/NetworkingTests",
+      exclude: [".swiftlint.yml", "BDD/INTEGRATION_TEST_AUDIT.md", "CLAUDE.md"]
     ),
   ]
 )
