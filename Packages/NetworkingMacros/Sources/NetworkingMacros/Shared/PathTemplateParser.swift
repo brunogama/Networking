@@ -67,8 +67,8 @@ struct PathTemplateParser {
     // Validate path starts with /
     guard template.hasPrefix("/") else {
       throw MacroExpansionError.invalidPathTemplate(
-        template,
-        suggestion: "Path must start with '/'"
+        EndpointPath(template),
+        suggestion: MacroDiagnosticText("Path must start with '/'")
       )
     }
   }
@@ -83,7 +83,10 @@ struct PathTemplateParser {
         openBraces > closeBraces
         ? "Missing \(openBraces - closeBraces) closing brace(s) '}'"
         : "Missing \(closeBraces - openBraces) opening brace(s) '{'"
-      throw MacroExpansionError.invalidPathTemplate(template, suggestion: suggestion)
+      throw MacroExpansionError.invalidPathTemplate(
+        EndpointPath(template),
+        suggestion: MacroDiagnosticText(suggestion)
+      )
     }
   }
 
@@ -103,25 +106,9 @@ struct PathTemplateParser {
       guard match.numberOfRanges > 1 else { continue }
       let range = match.range(at: 1)
       let paramName = nsString.substring(with: range)
-
-      // Check for empty parameter name
-      if paramName.isEmpty {
-        throw MacroExpansionError.invalidPathTemplate(
-          template,
-          suggestion: "Empty parameter name found: {}"
-        )
-      }
-
-      // Check for valid Swift identifier characters
-      if !isValidSwiftIdentifier(paramName) {
-        throw MacroExpansionError.invalidPathTemplate(
-          template,
-          suggestion: "Parameter '\(paramName)' is not a valid Swift identifier"
-        )
-      }
+      try validateParameterName(paramName)
     }
 
-    // Check for unmatched braces (braces without parameter names)
     try validateNoUnmatchedBraces()
   }
 
@@ -141,8 +128,8 @@ struct PathTemplateParser {
 
     if !matches.isEmpty {
       throw MacroExpansionError.invalidPathTemplate(
-        template,
-        suggestion: "Malformed braces found - use {parameterName} syntax"
+        EndpointPath(template),
+        suggestion: MacroDiagnosticText("Malformed braces found - use {parameterName} syntax")
       )
     }
   }
@@ -153,12 +140,28 @@ struct PathTemplateParser {
   /// - Start with letter or underscore
   /// - Contain only letters, numbers, underscores
   private func isValidSwiftIdentifier(_ name: String) -> Bool {
-    guard !name.isEmpty else { return false }
-
-    let firstChar = name.first!
+    guard let firstChar = name.first else { return false }
     guard firstChar.isLetter || firstChar == "_" else { return false }
 
     return name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
+  }
+
+  private func validateParameterName(_ paramName: String) throws {
+    guard !paramName.isEmpty else {
+      throw MacroExpansionError.invalidPathTemplate(
+        EndpointPath(template),
+        suggestion: MacroDiagnosticText("Empty parameter name found: {}")
+      )
+    }
+
+    guard isValidSwiftIdentifier(paramName) else {
+      throw MacroExpansionError.invalidPathTemplate(
+        EndpointPath(template),
+        suggestion: MacroDiagnosticText(
+          "Parameter '\(paramName)' is not a valid Swift identifier"
+        )
+      )
+    }
   }
 
   // MARK: - Code Generation
@@ -195,7 +198,7 @@ struct PathTemplateParser {
   /// Example for optional parameter:
   /// ```swift
   /// guard let id = id else {
-  ///   throw APIClientError.invalidRequest("Missing required parameter: id")
+  ///   throw APIClientError.invalidRequest(HTTPErrorDetail("Missing required parameter: id"))
   /// }
   /// ```
   func generateValidatedPathSubstitution(
@@ -206,7 +209,7 @@ struct PathTemplateParser {
     for param in parameters where !param.isOptional {
       let guardStatement = """
         guard let \(param.name) = \(param.name) else {
-          throw APIClientError.invalidRequest("Missing required parameter: \(param.name)")
+          throw APIClientError.invalidRequest(HTTPErrorDetail("Missing required parameter: \(param.name)"))
         }
         """
       guards.append(guardStatement)
@@ -214,6 +217,63 @@ struct PathTemplateParser {
 
     let pathCode = generatePathSubstitution()
     return (guards: guards, path: pathCode)
+  }
+}
+
+enum MacroPathTemplateValidator {
+  static func validateBalancedBraces(in path: String) throws {
+    let openBraces = path.filter { $0 == "{" }.count
+    let closeBraces = path.filter { $0 == "}" }.count
+
+    guard openBraces == closeBraces else {
+      let suggestion =
+        openBraces > closeBraces
+        ? "Missing closing brace '}'"
+        : "Missing opening brace '{'"
+      throw MacroExpansionError.invalidPathTemplate(
+        EndpointPath(path),
+        suggestion: MacroDiagnosticText(suggestion)
+      )
+    }
+  }
+
+  static func validatePathParameterNames(in path: String) throws {
+    let pattern = #"\{([^}]*)\}"#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
+      return
+    }
+
+    let nsString = path as NSString
+    let matches = regex.matches(
+      in: path,
+      range: NSRange(location: 0, length: nsString.length)
+    )
+
+    for match in matches {
+      guard match.numberOfRanges > 1 else { continue }
+      let range = match.range(at: 1)
+      let paramName = nsString.substring(with: range)
+      try validatePathParameterName(paramName, in: path)
+    }
+  }
+
+  private static func validatePathParameterName(
+    _ paramName: String,
+    in path: String
+  ) throws {
+    guard !paramName.isEmpty else {
+      throw MacroExpansionError.invalidPathTemplate(
+        EndpointPath(path),
+        suggestion: MacroDiagnosticText("Empty parameter name in {}")
+      )
+    }
+
+    guard paramName.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
+      throw MacroExpansionError.invalidPathTemplate(
+        EndpointPath(path),
+        suggestion: MacroDiagnosticText("Parameter '\(paramName)' contains invalid characters")
+      )
+    }
   }
 }
 

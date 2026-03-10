@@ -5,7 +5,7 @@ import SwiftSyntaxMacros
 ///
 /// Extracts path, body, query parameters, and headers from macro arguments.
 /// These helpers eliminate code duplication across GET, POST, PUT, PATCH, and DELETE macros.
-public enum ArgumentExtractors {
+enum ArgumentExtractors {
   // MARK: - Path Extraction
 
   /// Extracts the path from the first macro argument.
@@ -21,15 +21,14 @@ public enum ArgumentExtractors {
   ///   - method: The HTTP method name for error messages (e.g., "GET", "POST")
   ///   - context: The macro expansion context for diagnostics
   /// - Returns: The path string, or nil if not found (emits error)
-  public static func extractPath(
+  static func extractPath(
     from node: AttributeSyntax,
     method: String,
     context: some MacroExpansionContext
   ) -> String? {
     guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
       let firstArg = arguments.first,
-      let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
-      let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+      let path = BoundaryExpressionParser.string(from: firstArg.expression)
     else {
       MacroHelpers.emitError(
         "@\(method) requires a path argument",
@@ -39,7 +38,7 @@ public enum ArgumentExtractors {
       return nil
     }
 
-    return segment.content.text
+    return path
   }
 
   // MARK: - Body Parameter Extraction
@@ -58,7 +57,7 @@ public enum ArgumentExtractors {
   /// - Returns: The body parameter name, or nil if not found
   ///
   /// - Note: Does NOT emit error if missing - caller decides based on HTTPMethodConfig.requiresBody
-  public static func extractBodyParameter(
+  static func extractBodyParameter(
     from node: AttributeSyntax,
     context: some MacroExpansionContext
   ) -> String? {
@@ -69,10 +68,9 @@ public enum ArgumentExtractors {
     // Find argument labeled "body"
     for argument in arguments {
       if argument.label?.text == "body",
-        let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
-        let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+        let parameterName = BoundaryExpressionParser.string(from: argument.expression)
       {
-        return segment.content.text
+        return parameterName
       }
     }
 
@@ -93,7 +91,7 @@ public enum ArgumentExtractors {
   ///   - node: The attribute syntax node
   ///   - context: The macro expansion context (not used for errors)
   /// - Returns: Array of query parameter names, or empty array if not found
-  public static func extractQueryParameters(
+  static func extractQueryParameters(
     from node: AttributeSyntax,
     context: some MacroExpansionContext
   ) -> [String] {
@@ -103,16 +101,9 @@ public enum ArgumentExtractors {
 
     for argument in arguments {
       if argument.label?.text == "queryParameters",
-        let arrayExpr = argument.expression.as(ArrayExprSyntax.self)
+        let queryParameters = BoundaryExpressionParser.arrayOfStrings(from: argument.expression)
       {
-        return arrayExpr.elements.compactMap { element in
-          if let stringLiteral = element.expression.as(StringLiteralExprSyntax.self),
-            let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
-          {
-            return segment.content.text
-          }
-          return nil
-        }
+        return queryParameters
       }
     }
 
@@ -133,7 +124,7 @@ public enum ArgumentExtractors {
   ///   - node: The attribute syntax node
   ///   - context: The macro expansion context (not used for errors)
   /// - Returns: Dictionary of header names to values, or empty dictionary if not found
-  public static func extractHeaders(
+  static func extractHeaders(
     from node: AttributeSyntax,
     context: some MacroExpansionContext
   ) -> [String: String] {
@@ -144,44 +135,12 @@ public enum ArgumentExtractors {
     // Look for headers argument
     for argument in arguments {
       if argument.label?.text == "headers",
-        let dictExpr = argument.expression.as(DictionaryExprSyntax.self)
+        let headers = BoundaryExpressionParser.dictionaryOfStrings(from: argument.expression)
       {
-        return parseHeaderDictionary(dictExpr)
+        return headers
       }
     }
 
     return [:]
-  }
-
-  /// Parses header dictionary from DictionaryExprSyntax.
-  private static func parseHeaderDictionary(_ dictExpr: DictionaryExprSyntax) -> [String: String] {
-    var headers: [String: String] = [:]
-
-    if case .elements(let elements) = dictExpr.content {
-      for element in elements {
-        if let pair = parseHeaderElement(element) {
-          headers[pair.key] = pair.value
-        }
-      }
-    }
-
-    return headers
-  }
-
-  /// Parses a single header key-value pair from dictionary element.
-  private static func parseHeaderElement(
-    _ element: DictionaryElementSyntax
-  ) -> (key: String, value: String)? {
-    guard let keyString = element.key.as(StringLiteralExprSyntax.self),
-      let keySegment = keyString.segments.first,
-      case .stringSegment(let keyContent) = keySegment,
-      let valueString = element.value.as(StringLiteralExprSyntax.self),
-      let valueSegment = valueString.segments.first,
-      case .stringSegment(let valueContent) = valueSegment
-    else {
-      return nil
-    }
-
-    return (key: keyContent.content.text, value: valueContent.content.text)
   }
 }
