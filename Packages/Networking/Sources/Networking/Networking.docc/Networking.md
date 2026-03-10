@@ -6,6 +6,11 @@ A modern, Swift 6 compliant networking framework built with async/await and stru
 
 Networking is a comprehensive HTTP client framework designed for modern Swift applications. It provides a declarative, type-safe API for network operations with powerful middleware support, advanced caching, security features, and comprehensive error handling.
 
+The `Networking` product is now a compatibility umbrella over smaller packages. Most applications
+can continue to `import Networking`, while advanced adopters can depend on narrower modules such as
+`NetworkingCore`, `NetworkingRuntime`, `NetworkingDSL`, `NetworkingObservability`, and
+`NetworkingTesting`.
+
 ### Key Features
 
 - **Swift 6 Compliant**: Built with structured concurrency and modern Swift patterns
@@ -17,6 +22,7 @@ Networking is a comprehensive HTTP client framework designed for modern Swift ap
 - **Progress Tracking**: Real-time upload/download progress monitoring
 - **Advanced Caching**: Multi-level caching with intelligent invalidation strategies
 - **Error Recovery**: Actionable error information with automatic recovery strategies
+- **Modular Packaging**: Narrow package dependencies without losing umbrella compatibility
 
 ## Getting Started
 
@@ -44,6 +50,14 @@ let response = try await client.execute {
 
 // Decode response
 let user: User = try response.decode(User.self)
+```
+
+If you want narrower dependencies, import the split modules directly:
+
+```swift
+import NetworkingRuntime
+import NetworkingDSL
+import NetworkingRuntimeDSL
 ```
 
 ### Generated API Clients
@@ -94,6 +108,7 @@ let user = try await userAPI.getUser(id: "123")
 ### Guides
 
 - <doc:Getting-Started>
+- <doc:Module-Migration>
 - <doc:Configuration-Guide>
 - <doc:Middleware-Guide>
 - <doc:Security-Guide>
@@ -107,14 +122,18 @@ let user = try await userAPI.getUser(id: "123")
 
 ## Architecture
 
-Networking follows a layered architecture with clear separation of concerns:
+Networking follows a layered architecture with explicit package boundaries:
 
-1. **Core Layer**: HTTP primitives (HTTPRequest, HTTPResponse, HTTPError)
-2. **Client Layer**: NetworkClient implementation with middleware pipeline
-3. **Configuration Layer**: Declarative client and request configuration
-4. **Middleware Layer**: Pluggable request/response processing
-5. **Generation Layer**: Macro-based API client generation
-6. **Utility Layer**: Caching, security, metrics, and progress tracking
+1. **NetworkingCore**: HTTP primitives, error types, and foundational contracts
+2. **NetworkingRuntime**: `NetworkClient`, middleware, auth, retry, caching, transfer, and security
+3. **NetworkingDSL**: request builders, typed requests, response chaining, and transformations
+4. **NetworkingRuntimeDSL**: runtime-to-DSL convenience extensions
+5. **NetworkingObservability** and `NetworkingObservabilityOTLP`: optional observability layers
+6. **NetworkingTesting**: mocks, fakes, `MockURLProtocol`, and test-only helpers
+7. **NetworkingInterceptorsCompat**: legacy interceptor support for compatibility-only adoption
+
+Middleware is the canonical runtime extension model. Interceptors remain available for compatibility
+but do not receive new feature work.
 
 ## Thread Safety
 

@@ -6,6 +6,20 @@ Complete reference for all public APIs in Networking.
 
 This comprehensive API reference covers all public types, protocols, and functions available in Networking, organized by functionality.
 
+`Networking` re-exports the split package graph for compatibility. Advanced users can depend on
+smaller modules directly when they want tighter package boundaries.
+
+## Package Layout
+
+- `NetworkingCore`: HTTP primitives and foundational contracts
+- `NetworkingRuntime`: concrete runtime and middleware implementations
+- `NetworkingDSL`: request/response composition APIs
+- `NetworkingRuntimeDSL`: runtime-to-DSL bridge conveniences
+- `NetworkingObservability`: generic observability interfaces and middleware
+- `NetworkingObservabilityOTLP`: OTLP exporters and configuration
+- `NetworkingTesting`: mocks, fakes, and testing helpers
+- `NetworkingInterceptorsCompat`: compatibility-only interceptor APIs
+
 ## Core Networking Types
 
 ### HTTPClient Protocol
@@ -381,11 +395,14 @@ All public APIs are designed with Swift 6 concurrency in mind:
 
 ### Migration Guide
 
-Information about deprecated APIs and migration paths:
+Compatibility guidance for the split architecture:
 
-- Legacy authentication methods → ``AuthenticationConfiguration``
-- Old request building patterns → ``RequestBuilder``
-- Previous error handling → ``HTTPError`` categorization
+- `Networking` remains the primary consumer-facing import during the migration
+- Prefer `HTTPRequestMiddleware`, `HTTPResponseMiddleware`, and `HTTPErrorMiddleware` for new
+  runtime extensibility work
+- Treat `NetworkingInterceptorsCompat` as compatibility-only for legacy interceptor pipelines
+- Use `NetworkingTesting` for fakes, mocks, and `MockURLProtocol` instead of widening public API
+- See <doc:Module-Migration> for direct module dependency guidance
 
 ## Platform Availability
 
