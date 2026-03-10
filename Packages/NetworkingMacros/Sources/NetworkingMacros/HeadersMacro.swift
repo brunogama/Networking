@@ -13,7 +13,7 @@ public struct HeadersMacro: PeerMacro {
     in context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
     // 1. Validate macro is applied to a function
-    guard let funcDecl = declaration.as(FunctionDeclSyntax.self) else {
+    guard declaration.is(FunctionDeclSyntax.self) else {
       MacroHelpers.emitError(
         "@Headers can only be applied to functions",
         node: node,
@@ -22,126 +22,89 @@ public struct HeadersMacro: PeerMacro {
       return []
     }
 
-    // 2. Extract header configurations from result builder closure
-    guard let headers = extractHeaderComponents(from: node) else {
+    guard let headers = extractHeaders(from: node) else {
       MacroHelpers.emitError(
-        "@Headers requires result builder closure: @Headers { H(\"name\", \"value\") }",
+        """
+        @Headers requires result builder closure: \
+        @Headers { H(.named(\"name\"), .literal(\"value\")) }
+        """,
         node: node,
         context: context
       )
       return []
     }
 
-    // 3. Warn if empty (common mistake)
-    if headers.isEmpty {
-      MacroHelpers.emitWarning(
-        "@Headers closure is empty - no headers will be added",
-        node: Syntax(node),
-        context: context
-      )
-    }
-
-    // 4. Get all parameter names from function signature
-    let parameters = funcDecl.signature.parameterClause.parameters
-    let paramNames = Set(
-      parameters.map { param in
-        param.secondName?.text ?? param.firstName.text
-      }
-    )
-
-    // 5. Validate all parameter references exist and check for CRLF injection
-    for header in headers {
-      // CRLF injection prevention (OWASP A03:2021)
-      if header.name.contains("\r") || header.name.contains("\n") {
-        MacroHelpers.emitError(
-          """
-          Header name '\(header.name)' contains CRLF characters (security risk). \
-          Header names must not contain \\r or \\n characters.
-          """,
-          node: Syntax(node),
-          context: context
-        )
-      }
-
-      // Validate parameter references (if it's a parameter)
-      // Note: We check if the value matches a parameter name to determine if it's a reference
-      if paramNames.contains(header.value) {
-        // It's a valid parameter reference - good!
-        continue
-      }
-      // Otherwise, it's a literal value - also valid
-    }
-
-    // 6. @Headers is a marker macro - return empty array
-    // HTTP method macros will detect this attribute and use the headers
+    emitEmptyHeadersWarningIfNeeded(headers, node: node, context: context)
+    validateHeaderNames(headers, node: node, context: context)
     return []
   }
 
-  /// Extracts header name/value pairs from the @Headers result builder closure
+  /// Extracts parsed headers from the @Headers result builder closure.
   ///
   /// Parses syntax like:
   /// ```
   /// @Headers {
-  ///     H("Authorization", "token")
-  ///     H("Accept", "application/json")
+  ///     H(.named("Authorization"), .parameter("token"))
+  ///     H(.named("Accept"), .literal("application/json"))
   /// }
   /// ```
   ///
   /// - Parameter node: The attribute syntax node
-  /// - Returns: Array of (name, value) tuples, or nil if parsing fails
-  private static func extractHeaderComponents(
+  /// - Returns: Array of parsed headers, or nil if parsing fails
+  private static func extractHeaders(
     from node: AttributeSyntax
-  ) -> [(
-    name: String, value: String
-  )]? {
-    // Parse the closure argument (can be in argumentList or as trailing closure)
-    let closure: ClosureExprSyntax?
-
-    if case .argumentList(let arguments) = node.arguments,
-      let closureArg = arguments.first
-    {
-      closure = closureArg.expression.as(ClosureExprSyntax.self)
-    } else {
-      // No closure found
+  ) -> [ParsedHeader]? {
+    guard let closure = HeaderMacroParser.closure(from: node) else {
       return nil
     }
 
-    guard let closure = closure else {
-      return nil
-    }
-
-    var headers: [(String, String)] = []
-
-    // Extract H("name", "value") calls from closure
-    for statement in closure.statements {
-      // Look for function call expressions: H("name", "value")
-      if let funcCall = statement.item.as(FunctionCallExprSyntax.self),
-        let identExpr = funcCall.calledExpression.as(DeclReferenceExprSyntax.self),
-        identExpr.baseName.text == "H"
-      {
-        let args = Array(funcCall.arguments)
-        guard args.count == 2,
-          let nameLiteral = args[0].expression.as(StringLiteralExprSyntax.self),
-          let valueLiteral = args[1].expression.as(StringLiteralExprSyntax.self),
-          let nameSegment = nameLiteral.segments.first,
-          let valueSegment = valueLiteral.segments.first,
-          case .stringSegment(let nameText) = nameSegment,
-          case .stringSegment(let valueText) = valueSegment
-        else {
-          continue
-        }
-        headers.append((nameText.content.text, valueText.content.text))
-      }
-    }
-
-    return headers
+    return HeaderMacroParser.parseHeaders(from: closure)
   }
+
+  private static func emitEmptyHeadersWarningIfNeeded(
+    _ headers: [ParsedHeader],
+    node: AttributeSyntax,
+    context: some MacroExpansionContext
+  ) {
+    guard headers.isEmpty else {
+      return
+    }
+
+    MacroHelpers.emitWarning(
+      "@Headers closure is empty - no headers will be added",
+      node: Syntax(node),
+      context: context
+    )
+  }
+
+  private static func validateHeaderNames(
+    _ headers: [ParsedHeader],
+    node: AttributeSyntax,
+    context: some MacroExpansionContext
+  ) {
+    for header in headers where header.name.contains("\r") || header.name.contains("\n") {
+      MacroHelpers.emitError(
+        """
+        Header name '\(header.name)' contains CRLF characters (security risk). \
+        Header names must not contain \\r or \\n characters.
+        """,
+        node: Syntax(node),
+        context: context
+      )
+    }
+  }
+
 }
 
 // MARK: - Additional Error Cases
 
 extension MacroExpansionError {
   static func invalidHeadersSyntax(_ message: String) -> MacroExpansionError {
-    .invalidPathTemplate(message, suggestion: "Use @Headers { H(\"name\", \"value\") }")
+    .invalidPathTemplate(
+      EndpointPath(message),
+      suggestion: MacroDiagnosticText(
+        "Use @Headers { H(.named(\"name\"), .literal(\"value\")) }"
+      )
+    )
   }
 }

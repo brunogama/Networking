@@ -18,7 +18,7 @@ final class GETMacroTests: XCTestCase {
   func testBasicGETExpansion() {
     assertMacro {
       """
-      @GET("/users")
+      @GET(.path("/users"))
       func getUsers() async throws -> [User]
       """
     } expansion: {
@@ -38,7 +38,7 @@ final class GETMacroTests: XCTestCase {
   func testGETWithPathParameter() {
     assertMacro {
       """
-      @GET("/users/{id}")
+      @GET(.path("/users/{id}"))
       func getUser(id: String) async throws -> User
       """
     } expansion: {
@@ -58,7 +58,7 @@ final class GETMacroTests: XCTestCase {
   func testGETWithMultiplePathParameters() {
     assertMacro {
       """
-      @GET("/users/{userId}/posts/{postId}")
+      @GET(.path("/users/{userId}/posts/{postId}"))
       func getPost(userId: String, postId: String) async throws -> Post
       """
     } expansion: {
@@ -80,7 +80,7 @@ final class GETMacroTests: XCTestCase {
   func testGETWithQueryParameter() {
     assertMacro {
       """
-      @GET("/users", query: ["page"])
+      @GET(.path("/users"), query: [.parameter("page")])
       func listUsers(page: Int) async throws -> [User]
       """
     } expansion: {
@@ -118,13 +118,13 @@ final class GETMacroTests: XCTestCase {
   func testGETRequiresAsyncThrows() {
     assertMacro {
       """
-      @GET("/users")
+      @GET(.path("/users"))
       func getUsers() -> [User]
       """
     } diagnostics: {
       """
-      @GET("/users")
-      ┬─────────────
+      @GET(.path("/users"))
+      ┬────────────────────
       ╰─ 🛑 Function 'getUsers' must be marked 'async'
       func getUsers() -> [User]
       """
@@ -134,13 +134,13 @@ final class GETMacroTests: XCTestCase {
   func testGETValidatesPathParameters() {
     assertMacro {
       """
-      @GET("/users/{userId}")
+      @GET(.path("/users/{userId}"))
       func getUser(id: String) async throws -> User
       """
     } diagnostics: {
       """
-      @GET("/users/{userId}")
-      ┬──────────────────────
+      @GET(.path("/users/{userId}"))
+      ┬─────────────────────────────
       ╰─ 🛑 Path parameter mismatch in '/users/{userId}': function has parameters [id], but path requires [userId]
       func getUser(id: String) async throws -> User
       """
