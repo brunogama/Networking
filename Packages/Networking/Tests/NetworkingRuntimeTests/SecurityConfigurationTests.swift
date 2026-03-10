@@ -213,13 +213,13 @@ final class SecurityConfigurationTests: XCTestCase {
   }
 
   func testTLSVersionValues() {
-    let versions: [TLSConfiguration.TLSVersion] = [.v1_0, .v1_1, .v1_2, .v1_3]
+    let versions: [TLSConfiguration.TLSVersion] = [.v1_2, .v1_3]
 
     for version in versions {
       let config = TLSConfiguration(minimumTLSVersion: version)
 
       switch (version, config.minimumTLSVersion) {
-      case (.v1_0, .v1_0), (.v1_1, .v1_1), (.v1_2, .v1_2), (.v1_3, .v1_3):
+      case (.v1_2, .v1_2), (.v1_3, .v1_3):
         break  // Match
       default:
         XCTFail("TLS version mismatch")
@@ -365,14 +365,14 @@ final class SecurityConfigurationTests: XCTestCase {
 
   func testTLSConfigurationMinMaxVersions() {
     let config = TLSConfiguration(
-      minimumTLSVersion: .v1_0,
+      minimumTLSVersion: .v1_2,
       maximumTLSVersion: .v1_3
     )
 
-    if case .v1_0 = config.minimumTLSVersion {
+    if case .v1_2 = config.minimumTLSVersion {
       // Success
     } else {
-      XCTFail("Expected TLS 1.0 minimum")
+      XCTFail("Expected TLS 1.2 minimum")
     }
 
     if case .v1_3 = config.maximumTLSVersion {

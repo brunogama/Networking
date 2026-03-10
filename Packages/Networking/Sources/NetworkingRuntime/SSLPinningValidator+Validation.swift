@@ -13,18 +13,23 @@ extension SSLPinningValidator {
       return false
     }
 
-    for certificate in certificateChain {
+    guard let leafCertificate = certificateChain.first else {
+      return false
+    }
+
+    let leafHash = CertificateHash(sha256Hash(of: leafCertificate))
+    if configuration.pinnedCertificateHashes.contains(leafHash) {
+      return true
+    }
+
+    guard configuration.allowBackupCertificates.rawValue else {
+      return false
+    }
+
+    return certificateChain.dropFirst().contains { certificate in
       let certificateHash = CertificateHash(sha256Hash(of: certificate))
-      if configuration.pinnedCertificateHashes.contains(certificateHash) {
-        return true
-      }
+      return configuration.pinnedCertificateHashes.contains(certificateHash)
     }
-
-    if configuration.allowBackupCertificates.rawValue {
-      // In a production environment, you might check backup pins here.
-    }
-
-    return false
   }
 
   func validatePublicKeyPinning(
@@ -50,7 +55,11 @@ extension SSLPinningValidator {
     return configuration.requirePinnedKey.rawValue ? foundPinnedKey : true
   }
 
-  func validateTLSConfiguration(serverTrust: SecTrust) -> Bool {
+  func validateTLSConfiguration(serverTrust: SecTrust, host: String) -> Bool {
+    guard configureTrust(serverTrust: serverTrust, host: host) else {
+      return false
+    }
+
     if !securityConfiguration.tlsConfiguration.validateCertificateChain.rawValue {
       return true
     }
@@ -67,37 +76,73 @@ extension SSLPinningValidator {
     return isValid
   }
 
-  func handleValidationFailure(
-    action: CertificatePinningConfiguration.ValidationFailureAction,
-    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-  ) {
+  private func configureTrust(serverTrust: SecTrust, host: String) -> Bool {
+    let validateHostname = securityConfiguration.tlsConfiguration.validateHostname.rawValue
+    let policyHost = validateHostname ? host as CFString : nil
+    SecTrustSetPolicies(serverTrust, SecPolicyCreateSSL(true, policyHost))
+
+    let customCACertificates = securityConfiguration.tlsConfiguration.customCACertificates
+    guard !customCACertificates.isEmpty else {
+      return true
+    }
+
+    let anchors = customCACertificates.compactMap { certificateData in
+      SecCertificateCreateWithData(nil, certificateData.rawValue as CFData)
+    }
+
+    guard anchors.count == customCACertificates.count else {
+      writeToStandardError("TLS validation error: invalid custom CA certificate data")
+      return false
+    }
+
+    let setAnchorsStatus = SecTrustSetAnchorCertificates(serverTrust, anchors as CFArray)
+    guard setAnchorsStatus == errSecSuccess else {
+      writeToStandardError(
+        "TLS validation error: failed to set custom anchor certificates (\(setAnchorsStatus))"
+      )
+      return false
+    }
+
+    let anchorBehaviorStatus = SecTrustSetAnchorCertificatesOnly(serverTrust, false)
+    guard anchorBehaviorStatus == errSecSuccess else {
+      writeToStandardError(
+        "TLS validation error: failed to configure custom anchor behavior (\(anchorBehaviorStatus))"
+      )
+      return false
+    }
+
+    return true
+  }
+
+  func validationFailureDecision(
+    for action: CertificatePinningConfiguration.ValidationFailureAction
+  ) -> SSLPinningValidationDecision {
     switch action {
     case .reject:
-      completionHandler(.rejectProtectionSpace, nil)
+      return .rejectProtectionSpace
     case .warn:
       writeToStandardError(
         "SSL pinning validation failed, allowing connection due to configuration"
       )
-      completionHandler(.performDefaultHandling, nil)
+      return .performDefaultHandling
     case .allow:
-      completionHandler(.performDefaultHandling, nil)
+      return .performDefaultHandling
     }
   }
 
-  func handleValidationFailure(
-    action: PublicKeyPinningConfiguration.ValidationFailureAction,
-    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-  ) {
+  func validationFailureDecision(
+    for action: PublicKeyPinningConfiguration.ValidationFailureAction
+  ) -> SSLPinningValidationDecision {
     switch action {
     case .reject:
-      completionHandler(.rejectProtectionSpace, nil)
+      return .rejectProtectionSpace
     case .warn:
       writeToStandardError(
         "Public key pinning validation failed, allowing connection due to configuration"
       )
-      completionHandler(.performDefaultHandling, nil)
+      return .performDefaultHandling
     case .allow:
-      completionHandler(.performDefaultHandling, nil)
+      return .performDefaultHandling
     }
   }
 }
