@@ -3,84 +3,6 @@ import NetworkingCore
 
 /// Middleware that provides security validation and sanitization for HTTP headers.
 public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
-  // MARK: - Configuration
-
-  public struct Configuration: Sendable {
-    /// Whether to validate header names for injection attacks
-    public let validateHeaderNames: Bool
-
-    /// Whether to validate header values for injection attacks
-    public let validateHeaderValues: Bool
-
-    /// Whether to sanitize invalid headers by removing them
-    public let sanitizeHeaders: Bool
-
-    /// Maximum allowed header value length (prevents DoS attacks)
-    public let maxHeaderValueLength: Int
-
-    /// Maximum allowed number of headers (prevents DoS attacks)
-    public let maxHeaderCount: Int
-
-    /// Whether to remove potentially dangerous headers
-    public let removeDangerousHeaders: Bool
-
-    /// Set of header names that should be removed for security
-    public let dangerousHeaders: Set<String>
-
-    /// Custom header validation function
-    public let customValidator: (@Sendable (String, String) -> Bool)?
-
-    public init(
-      validateHeaderNames: Bool = true,
-      validateHeaderValues: Bool = true,
-      sanitizeHeaders: Bool = true,
-      maxHeaderValueLength: Int = 4096,
-      maxHeaderCount: Int = 50,
-      removeDangerousHeaders: Bool = true,
-      dangerousHeaders: Set<String> = Self.defaultDangerousHeaders,
-      customValidator: (@Sendable (String, String) -> Bool)? = nil
-    ) {
-      self.validateHeaderNames = validateHeaderNames
-      self.validateHeaderValues = validateHeaderValues
-      self.sanitizeHeaders = sanitizeHeaders
-      self.maxHeaderValueLength = maxHeaderValueLength
-      self.maxHeaderCount = maxHeaderCount
-      self.removeDangerousHeaders = removeDangerousHeaders
-      self.dangerousHeaders = dangerousHeaders
-      self.customValidator = customValidator
-    }
-
-    /// Default set of potentially dangerous headers
-    public static let defaultDangerousHeaders: Set<String> = [
-      "x-forwarded-for",
-      "x-real-ip",
-      "x-forwarded-host",
-      "x-forwarded-proto",
-      "proxy-authorization",
-      "x-cluster-client-ip",
-    ]
-
-    /// Strict security configuration
-    public static let strict = Self(
-      validateHeaderNames: true,
-      validateHeaderValues: true,
-      sanitizeHeaders: true,
-      maxHeaderValueLength: 2048,
-      maxHeaderCount: 30,
-      removeDangerousHeaders: true
-    )
-
-    /// Permissive configuration for development
-    public static let permissive = Self(
-      validateHeaderNames: true,
-      validateHeaderValues: true,
-      sanitizeHeaders: true,
-      maxHeaderValueLength: 8192,
-      maxHeaderCount: 100,
-      removeDangerousHeaders: false
-    )
-  }
-
   // MARK: - Properties
 
   private let configuration: Configuration
@@ -94,60 +16,12 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
   // MARK: - HTTPRequestMiddleware
 
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
-    // Validate header count
-    if request.headers.count > configuration.maxHeaderCount {
-      let message = "Too many headers: \(request.headers.count) > \(configuration.maxHeaderCount)"
-      throw HTTPError(
-        category: .security(.headerInjection, message: message),
-        request: request
-      )
-    }
+    try validateHeaderCount(in: request)
 
-    var sanitizedHeaders: [String: String] = [:]
-
-    for (name, value) in request.headers {
-      // Validate header name
-      if configuration.validateHeaderNames {
-        try validateHeaderName(name, for: request)
-      }
-
-      // Validate header value
-      if configuration.validateHeaderValues {
-        try validateHeaderValue(value, for: request)
-      }
-
-      // Check if header is dangerous and should be removed
-      if configuration.removeDangerousHeaders
-        && configuration.dangerousHeaders.contains(name.lowercased())
-      {
-        continue  // Skip dangerous header
-      }
-
-      // Apply custom validation if provided
-      if let customValidator = configuration.customValidator {
-        if !customValidator(name, value) {
-          if configuration.sanitizeHeaders {
-            continue  // Skip invalid header
-          } else {
-            let message = "Header failed custom validation: \(name)"
-            throw HTTPError(
-              category: .security(.headerInjection, message: message),
-              request: request
-            )
-          }
-        }
-      }
-
-      // Sanitize header value if needed
-      let sanitizedValue = sanitizeHeaderValue(value)
-      sanitizedHeaders[name] = sanitizedValue
-    }
-
-    // Create new request with sanitized headers
     return HTTPRequest(
       method: request.method,
       url: request.url,
-      headers: sanitizedHeaders,
+      headers: try sanitizedHeaders(for: request),
       body: request.body,
       timeout: request.timeout
     )
@@ -155,91 +29,102 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
 
   // MARK: - Validation Methods
 
-  private func validateHeaderName(_ name: String, for request: HTTPRequest) throws {
-    // Check for empty header name
-    if name.isEmpty {
-      let message = "Empty header name"
-      throw HTTPError(
-        category: .security(.headerInjection, message: message),
-        request: request
-      )
+  private func validateHeaderCount(in request: HTTPRequest) throws {
+    guard request.headers.count <= configuration.maxHeaderCount.rawValue else {
+      let message =
+        "Too many headers: \(request.headers.count) > \(configuration.maxHeaderCount.rawValue)"
+      throw securityError(message, request: request)
+    }
+  }
+
+  private func sanitizedHeaders(for request: HTTPRequest) throws -> HTTPHeaders {
+    var headers: HTTPHeaders = [:]
+
+    for (name, value) in request.headers {
+      guard try shouldRetainHeader(name: name, value: value, request: request) else {
+        continue
+      }
+
+      headers[name] = HTTPHeaderValue(sanitizeHeaderValue(value.rawValue))
     }
 
-    // Check for control characters and invalid characters in header name
+    return headers
+  }
+
+  private func shouldRetainHeader(
+    name: HTTPHeaderName,
+    value: HTTPHeaderValue,
+    request: HTTPRequest
+  ) throws -> Bool {
+    if configuration.validateHeaderNames.rawValue {
+      try validateHeaderName(name.rawValue, for: request)
+    }
+
+    if configuration.validateHeaderValues.rawValue {
+      try validateHeaderValue(value.rawValue, for: request)
+    }
+
+    guard !isDangerousHeader(name) else {
+      return false
+    }
+
+    return try passesCustomValidation(for: name, value: value, request: request)
+  }
+
+  private func isDangerousHeader(_ name: HTTPHeaderName) -> Bool {
+    configuration.removeDangerousHeaders.rawValue
+      && configuration.dangerousHeaders.contains(DangerousHeaderName(name.lowercased()))
+  }
+
+  private func passesCustomValidation(
+    for name: HTTPHeaderName,
+    value: HTTPHeaderValue,
+    request: HTTPRequest
+  ) throws -> Bool {
+    guard let customValidator = configuration.customValidator else {
+      return true
+    }
+
+    guard customValidator(name, value).rawValue else {
+      if configuration.sanitizeHeaders.rawValue {
+        return false
+      }
+
+      throw securityError("Header failed custom validation: \(name)", request: request)
+    }
+
+    return true
+  }
+
+  private func validateHeaderName(_ name: String, for request: HTTPRequest) throws {
+    guard !name.isEmpty else {
+      throw securityError("Empty header name", request: request)
+    }
+
     let invalidCharacters = CharacterSet.controlCharacters
       .union(CharacterSet.whitespacesAndNewlines)
       .union(CharacterSet(charactersIn: "()<>@,;:\\\"/[]?={}"))
 
     if name.rangeOfCharacter(from: invalidCharacters) != nil {
-      if configuration.sanitizeHeaders {
-        return  // Will be sanitized later
-      } else {
-        let message = "Invalid characters in header name: \(name)"
-        throw HTTPError(
-          category: .security(.headerInjection, message: message),
-          request: request
-        )
+      if configuration.sanitizeHeaders.rawValue {
+        return
       }
+
+      throw securityError("Invalid characters in header name: \(name)", request: request)
     }
 
-    // Check for header injection patterns
     if containsInjectionPattern(name) {
-      let message = "Potential header injection in name: \(name)"
-      throw HTTPError(
-        category: .security(.headerInjection, message: message),
-        request: request
-      )
+      throw securityError("Potential header injection in name: \(name)", request: request)
     }
   }
 
   private func validateHeaderValue(_ value: String, for request: HTTPRequest) throws {
-    // Check maximum length
-    if value.count > configuration.maxHeaderValueLength {
-      let message = "Header value too long: \(value.count) > \(configuration.maxHeaderValueLength)"
-      throw HTTPError(
-        category: .security(.headerInjection, message: message),
-        request: request
-      )
-    }
-
-    // Check for control characters (except tab)
-    let invalidCharacters = CharacterSet.controlCharacters.subtracting(
-      CharacterSet(charactersIn: "\t")
-    )
-
-    if value.rangeOfCharacter(from: invalidCharacters) != nil {
-      if configuration.sanitizeHeaders {
-        return  // Will be sanitized later
-      } else {
-        let message = "Invalid control characters in header value: \(value.prefix(50))"
-        throw HTTPError(
-          category: .security(.headerInjection, message: message),
-          request: request
-        )
-      }
-    }
-
-    // Check for header injection patterns
-    if containsInjectionPattern(value) {
-      let message = "Potential header injection in value: \(value.prefix(50))"
-      throw HTTPError(
-        category: .security(.headerInjection, message: message),
-        request: request
-      )
-    }
-
-    // Check for common injection patterns
-    if containsSuspiciousPatterns(value) {
-      let message = "Suspicious patterns detected in header value"
-      throw HTTPError(
-        category: .security(.headerInjection, message: message),
-        request: request
-      )
-    }
+    try validateHeaderLength(value, request: request)
+    try validateHeaderCharacters(value, request: request)
+    try validateHeaderContent(value, request: request)
   }
 
   private func sanitizeHeaderValue(_ value: String) -> String {
-    // Remove control characters (except tab) and newlines
     let allowedCharacters = CharacterSet.controlCharacters
       .subtracting(CharacterSet(charactersIn: "\t"))
       .inverted
@@ -247,9 +132,8 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
     let components = value.components(separatedBy: allowedCharacters.inverted)
     let sanitized = components.joined()
 
-    // Truncate if too long
-    if sanitized.count > configuration.maxHeaderValueLength {
-      return String(sanitized.prefix(configuration.maxHeaderValueLength))
+    if sanitized.count > configuration.maxHeaderValueLength.rawValue {
+      return String(sanitized.prefix(configuration.maxHeaderValueLength.rawValue))
     }
 
     return sanitized
@@ -257,23 +141,21 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
 
   private func containsInjectionPattern(_ value: String) -> Bool {
     let injectionPatterns = [
-      "\r\n",  // CRLF injection
-      "\n",  // LF injection
-      "\r",  // CR injection
-      "%0d%0a",  // URL encoded CRLF
-      "%0a",  // URL encoded LF
-      "%0d",  // URL encoded CR
-      "\\r\\n",  // Escaped CRLF
-      "\\n",  // Escaped LF
-      "\\r",  // Escaped CR
+      "\r\n",
+      "\n",
+      "\r",
+      "%0d%0a",
+      "%0a",
+      "%0d",
+      "\\r\\n",
+      "\\n",
+      "\\r",
     ]
 
     let lowercaseValue = value.lowercased()
 
-    for pattern in injectionPatterns {
-      if lowercaseValue.contains(pattern) {
-        return true
-      }
+    for pattern in injectionPatterns where lowercaseValue.contains(pattern) {
+      return true
     }
 
     return false
@@ -296,153 +178,55 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
 
     let lowercaseValue = value.lowercased()
 
-    for pattern in suspiciousPatterns {
-      if lowercaseValue.contains(pattern) {
-        return true
-      }
+    for pattern in suspiciousPatterns where lowercaseValue.contains(pattern) {
+      return true
     }
 
     return false
   }
-}
 
-// MARK: - HTTPError Security Extensions
-
-extension HTTPError {
-  public enum SecurityError: Sendable {
-    case headerInjection
-    case maliciousContent
-    case suspiciousActivity
-    case rateLimitExceeded
-  }
-}
-
-extension HTTPError.Category {
-  public static func security(_ error: HTTPError.SecurityError, message: String? = nil) -> Self {
-    let defaultMessage: String
-    switch error {
-    case .headerInjection:
-      defaultMessage = "Header injection attack detected"
-
-    case .maliciousContent:
-      defaultMessage = "Malicious content detected"
-
-    case .suspiciousActivity:
-      defaultMessage = "Suspicious activity detected"
-
-    case .rateLimitExceeded:
-      defaultMessage = "Rate limit exceeded"
+  private func validateHeaderLength(_ value: String, request: HTTPRequest) throws {
+    guard value.count <= configuration.maxHeaderValueLength.rawValue else {
+      let message =
+        "Header value too long: \(value.count) > \(configuration.maxHeaderValueLength.rawValue)"
+      throw securityError(message, request: request)
     }
-
-    return .custom("Security", message ?? defaultMessage)
-  }
-}
-
-// MARK: - Convenience Extensions
-
-extension HeaderSecurityMiddleware.Configuration {
-  /// Configuration for API clients that need to be extra secure
-  public static let api = Self(
-    validateHeaderNames: true,
-    validateHeaderValues: true,
-    sanitizeHeaders: false,  // Fail fast for APIs
-    maxHeaderValueLength: 1024,
-    maxHeaderCount: 20,
-    removeDangerousHeaders: true
-  )
-
-  /// Configuration for web clients that need more flexibility
-  public static let web = Self(
-    validateHeaderNames: true,
-    validateHeaderValues: true,
-    sanitizeHeaders: true,
-    maxHeaderValueLength: 2048,
-    maxHeaderCount: 40,
-    removeDangerousHeaders: false
-  )
-}
-
-// MARK: - Configuration Component
-
-extension HeaderSecurityMiddleware: ConfigurationComponent {
-  public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
-    configuration.requestMiddlewares.append(self)
-  }
-}
-
-// MARK: - Header Security Utilities
-
-public struct HeaderSecurity {
-  /// Validates a header name according to RFC 7230
-  public static func isValidHeaderName(_ name: String) -> Bool {
-    guard !name.isEmpty else { return false }
-
-    // Header names must be tokens (RFC 7230)
-    let tokenCharacters = CharacterSet.alphanumerics
-      .union(CharacterSet(charactersIn: "!#$%&'*+-.^_`|~"))
-
-    return name.rangeOfCharacter(from: tokenCharacters.inverted) == nil
   }
 
-  /// Validates a header value according to RFC 7230
-  public static func isValidHeaderValue(_ value: String) -> Bool {
-    // Header values can contain any VCHAR, WSP, or obs-text
-    // VCHAR = %x21-7E (visible characters)
-    // WSP = SP / HTAB
-    // obs-text = %x80-FF (obsolete text)
-
-    for char in value.unicodeScalars {
-      let code = char.value
-
-      // VCHAR (visible characters)
-      if code >= 0x21 && code <= 0x7E {
-        continue
-      }
-
-      // WSP (space and tab)
-      if code == 0x20 || code == 0x09 {
-        continue
-      }
-
-      // obs-text (extended ASCII)
-      if code >= 0x80 && code <= 0xFF {
-        continue
-      }
-
-      // Invalid character
-      return false
-    }
-
-    return true
-  }
-
-  /// Sanitizes a header value by removing invalid characters
-  public static func sanitizeHeaderValue(_ value: String) -> String {
-    String(
-      value.unicodeScalars.compactMap { char in
-        let code = char.value
-
-        // Keep VCHAR, WSP, and obs-text
-        if (code >= 0x21 && code <= 0x7E) || code == 0x20 || code == 0x09
-          || (code >= 0x80 && code <= 0xFF)
-        {
-          return Character(char)
-        }
-
-        return nil
-      }
+  private func validateHeaderCharacters(_ value: String, request: HTTPRequest) throws {
+    let invalidCharacters = CharacterSet.controlCharacters.subtracting(
+      CharacterSet(charactersIn: "\t")
     )
+
+    if value.rangeOfCharacter(from: invalidCharacters) != nil {
+      if configuration.sanitizeHeaders.rawValue {
+        return
+      }
+
+      throw securityError(
+        "Invalid control characters in header value: \(value.prefix(50))",
+        request: request
+      )
+    }
   }
 
-  /// Checks if a string contains header injection patterns
-  public static func containsInjectionAttempt(_ value: String) -> Bool {
-    let injectionPatterns = [
-      "\r\n", "\n", "\r",
-      "%0d%0a", "%0a", "%0d",
-      "\\r\\n", "\\n", "\\r",
-    ]
+  private func validateHeaderContent(_ value: String, request: HTTPRequest) throws {
+    if containsInjectionPattern(value) {
+      throw securityError(
+        "Potential header injection in value: \(value.prefix(50))",
+        request: request
+      )
+    }
 
-    let lowercaseValue = value.lowercased()
-    return injectionPatterns.contains { lowercaseValue.contains($0) }
+    if containsSuspiciousPatterns(value) {
+      throw securityError("Suspicious patterns detected in header value", request: request)
+    }
+  }
+
+  private func securityError(_ message: String, request: HTTPRequest) -> HTTPError {
+    HTTPError(
+      category: .security(.headerInjection, message: HTTPErrorDetail(message)),
+      request: request
+    )
   }
 }

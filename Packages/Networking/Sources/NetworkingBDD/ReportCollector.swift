@@ -29,118 +29,26 @@ import Foundation
 ///   All mutable state (`results` array) is protected by an internal `NSLock`.
 ///   All public methods synchronize access through this lock.
 public final class ReportCollector: @unchecked Sendable {
-  // MARK: - Types
-
-  /// A collected test result.
-  public struct TestResult: Sendable {
-    public let id: UUID
-    public let featureName: String
-    public let scenarioName: String
-    public let status: Status
-    public let duration: TimeInterval
-    public let steps: [StepResult]
-    public let error: String?
-    public let timestamp: Date
-    public let tags: [String]
-
-    public enum Status: String, Sendable, Codable {
-      case passed
-      case failed
-      case skipped
-      case pending
-    }
-
-    public init(
-      id: UUID = UUID(),
-      featureName: String,
-      scenarioName: String,
-      status: Status,
-      duration: TimeInterval,
-      steps: [StepResult],
-      error: String?,
-      timestamp: Date = Date(),
-      tags: [String] = []
-    ) {
-      self.id = id
-      self.featureName = featureName
-      self.scenarioName = scenarioName
-      self.status = status
-      self.duration = duration
-      self.steps = steps
-      self.error = error
-      self.timestamp = timestamp
-      self.tags = tags
-    }
-  }
-
-  /// A collected step result.
-  public struct StepResult: Sendable, Codable {
-    public let keyword: String
-    public let text: String
-    public let status: TestResult.Status
-    public let duration: TimeInterval
-    public let error: String?
-
-    public init(
-      keyword: String,
-      text: String,
-      status: TestResult.Status,
-      duration: TimeInterval,
-      error: String?
-    ) {
-      self.keyword = keyword
-      self.text = text
-      self.status = status
-      self.duration = duration
-      self.error = error
-    }
-  }
-
-  /// Aggregated report data.
-  public struct ReportData: Sendable {
-    public let title: String
-    public let timestamp: Date
-    public let duration: TimeInterval
-    public let features: [FeatureReport]
-    public let summary: Summary
-
-    public struct FeatureReport: Sendable {
-      public let name: String
-      public let scenarios: [TestResult]
-      public let passedCount: Int
-      public let failedCount: Int
-      public let skippedCount: Int
-      public let duration: TimeInterval
-    }
-
-    public struct Summary: Sendable {
-      public let totalScenarios: Int
-      public let passedScenarios: Int
-      public let failedScenarios: Int
-      public let skippedScenarios: Int
-      public let pendingScenarios: Int
-      public let totalSteps: Int
-      public let passedSteps: Int
-      public let failedSteps: Int
-      public let totalDuration: TimeInterval
-      public let passRate: Double
-    }
-  }
-
   // MARK: - Properties
+
+  private struct Snapshot {
+    let results: [TestResult]
+    let start: Date
+    let end: Date
+  }
 
   private let lock = NSLock()
   private var results: [TestResult] = []
   private var startTime: Date?
   private var endTime: Date?
-  private let title: String
+  private let title: BDDReportTitle
 
   // MARK: - Initialization
 
   /// Creates a report collector.
   ///
   /// - Parameter title: Title for the generated report
-  public init(title: String = "BDD Test Report") {
+  public init(title: BDDReportTitle = BDDReportTitle(rawValue: "BDD Test Report")) {
     self.title = title
   }
 
@@ -161,6 +69,7 @@ public final class ReportCollector: @unchecked Sendable {
     }
   }
 
+  // swiftlint:disable function_parameter_count
   /// Records a scenario result.
   ///
   /// - Parameters:
@@ -172,13 +81,13 @@ public final class ReportCollector: @unchecked Sendable {
   ///   - error: Error message if failed
   ///   - tags: Scenario tags
   public func recordScenario(
-    feature: String,
-    scenario: String,
+    feature: BDDFeatureName,
+    scenario: BDDScenarioName,
     status: TestResult.Status,
-    duration: TimeInterval,
+    duration: MeasurementDuration,
     steps: [StepResult],
-    error: String? = nil,
-    tags: [String] = []
+    error: BDDFailureMessage? = nil,
+    tags: [BDDTagText] = []
   ) {
     let result = TestResult(
       featureName: feature,
@@ -194,6 +103,7 @@ public final class ReportCollector: @unchecked Sendable {
       results.append(result)
     }
   }
+  // swiftlint:enable function_parameter_count
 
   /// Records a result from BDDTestRunner.
   public func record(_ result: BDDTestRunner.ScenarioResult) {
@@ -203,7 +113,7 @@ public final class ReportCollector: @unchecked Sendable {
         text: step.text,
         status: mapStatus(step.status),
         duration: step.duration,
-        error: step.error?.localizedDescription
+        error: step.error.map { BDDFailureMessage($0.localizedDescription) }
       )
     }
 
@@ -213,7 +123,7 @@ public final class ReportCollector: @unchecked Sendable {
       status: mapStatus(result.status),
       duration: result.duration,
       steps: steps,
-      error: result.error?.localizedDescription
+      error: result.error.map { BDDFailureMessage($0.localizedDescription) }
     )
   }
 
@@ -232,56 +142,14 @@ public final class ReportCollector: @unchecked Sendable {
   ///
   /// - Returns: Report data for rendering
   public func generateReport() -> ReportData {
-    let currentResults = lock.withLock { results }
-    let start = lock.withLock { startTime ?? Date() }
-    let end = lock.withLock { endTime ?? Date() }
-
-    // Group by feature
-    let groupedByFeature = Dictionary(grouping: currentResults) { $0.featureName }
-
-    let features = groupedByFeature.map { featureName, scenarios in
-      ReportData.FeatureReport(
-        name: featureName,
-        scenarios: scenarios,
-        passedCount: scenarios.filter { $0.status == .passed }.count,
-        failedCount: scenarios.filter { $0.status == .failed }.count,
-        skippedCount: scenarios.filter { $0.status == .skipped }.count,
-        duration: scenarios.reduce(0) { $0 + $1.duration }
-      )
-    }.sorted { $0.name < $1.name }
-
-    // Calculate summary
-    let totalScenarios = currentResults.count
-    let passedScenarios = currentResults.filter { $0.status == .passed }.count
-    let failedScenarios = currentResults.filter { $0.status == .failed }.count
-    let skippedScenarios = currentResults.filter { $0.status == .skipped }.count
-    let pendingScenarios = currentResults.filter { $0.status == .pending }.count
-
-    let allSteps = currentResults.flatMap { $0.steps }
-    let totalSteps = allSteps.count
-    let passedSteps = allSteps.filter { $0.status == .passed }.count
-    let failedSteps = allSteps.filter { $0.status == .failed }.count
-
-    let totalDuration = end.timeIntervalSince(start)
-    let passRate = totalScenarios > 0 ? Double(passedScenarios) / Double(totalScenarios) * 100 : 0
-
-    let summary = ReportData.Summary(
-      totalScenarios: totalScenarios,
-      passedScenarios: passedScenarios,
-      failedScenarios: failedScenarios,
-      skippedScenarios: skippedScenarios,
-      pendingScenarios: pendingScenarios,
-      totalSteps: totalSteps,
-      passedSteps: passedSteps,
-      failedSteps: failedSteps,
-      totalDuration: totalDuration,
-      passRate: passRate
-    )
+    let snapshot = reportSnapshot()
+    let features = featureReports(from: snapshot.results)
+    let summary = buildSummary(from: snapshot.results, start: snapshot.start, end: snapshot.end)
 
     return ReportData(
       title: title,
-      timestamp: start,
-      duration: totalDuration,
+      timestamp: snapshot.start,
+      duration: summary.totalDuration,
       features: features,
       summary: summary
     )
@@ -299,5 +167,87 @@ public final class ReportCollector: @unchecked Sendable {
   /// Returns all collected results.
   public func getAllResults() -> [TestResult] {
     lock.withLock { results }
+  }
+
+  private func reportSnapshot() -> Snapshot {
+    lock.withLock {
+      Snapshot(results: results, start: startTime ?? Date(), end: endTime ?? Date())
+    }
+  }
+
+  private func featureReports(from currentResults: [TestResult]) -> [ReportData.FeatureReport] {
+    let groupedByFeature = Dictionary(grouping: currentResults) { $0.featureName }
+
+    return
+      groupedByFeature
+      .map(buildFeatureReport(name:scenarios:))
+      .sorted { $0.name < $1.name }
+  }
+
+  private func buildFeatureReport(
+    name featureName: BDDFeatureName,
+    scenarios: [TestResult]
+  ) -> ReportData.FeatureReport {
+    ReportData.FeatureReport(
+      name: featureName,
+      scenarios: scenarios,
+      passedCount: scenarioCount(with: .passed, in: scenarios),
+      failedCount: scenarioCount(with: .failed, in: scenarios),
+      skippedCount: scenarioCount(with: .skipped, in: scenarios),
+      duration: scenarios.reduce(MeasurementDuration(0)) { $0 + $1.duration }
+    )
+  }
+
+  private func buildSummary(
+    from currentResults: [TestResult],
+    start: Date,
+    end: Date
+  ) -> ReportData.Summary {
+    let totalScenarios = BDDScenarioCount(currentResults.count)
+    let passedScenarios = scenarioCount(with: .passed, in: currentResults)
+    let failedScenarios = scenarioCount(with: .failed, in: currentResults)
+    let skippedScenarios = scenarioCount(with: .skipped, in: currentResults)
+    let pendingScenarios = scenarioCount(with: .pending, in: currentResults)
+    let allSteps = currentResults.flatMap(\.steps)
+    let totalDuration = MeasurementDuration(end.timeIntervalSince(start))
+
+    return ReportData.Summary(
+      totalScenarios: totalScenarios,
+      passedScenarios: passedScenarios,
+      failedScenarios: failedScenarios,
+      skippedScenarios: skippedScenarios,
+      pendingScenarios: pendingScenarios,
+      totalSteps: BDDStepCount(allSteps.count),
+      passedSteps: stepCount(with: .passed, in: allSteps),
+      failedSteps: stepCount(with: .failed, in: allSteps),
+      totalDuration: totalDuration,
+      passRate: calculatePassRate(passed: passedScenarios, total: totalScenarios)
+    )
+  }
+
+  private func scenarioCount(
+    with status: TestResult.Status,
+    in scenarios: [TestResult]
+  ) -> BDDScenarioCount {
+    BDDScenarioCount(scenarios.filter { $0.status == status }.count)
+  }
+
+  private func stepCount(
+    with status: TestResult.Status,
+    in steps: [StepResult]
+  ) -> BDDStepCount {
+    BDDStepCount(steps.filter { $0.status == status }.count)
+  }
+
+  private func calculatePassRate(
+    passed: BDDScenarioCount,
+    total: BDDScenarioCount
+  ) -> BDDPassRate {
+    guard total.rawValue > 0 else {
+      return BDDPassRate(0)
+    }
+
+    let percentage = Double(passed.rawValue) / Double(total.rawValue) * 100
+    return BDDPassRate(percentage)
   }
 }

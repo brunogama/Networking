@@ -30,39 +30,41 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
 
   public struct Configuration: Sendable {
     /// Maximum number of retry attempts (not including the initial attempt)
-    public let maxAttempts: Int
+    public let maxAttempts: RetryAttemptCount
 
     /// Base delay for the first retry
-    public let baseDelay: TimeInterval
+    public let baseDelay: RetryDelay
 
     /// Maximum delay between retries
-    public let maxDelay: TimeInterval
+    public let maxDelay: RetryDelay
 
     /// Multiplier for exponential backoff
-    public let backoffMultiplier: Double
+    public let backoffMultiplier: BackoffMultiplier
 
     /// Jitter strategy to use for retry delays
     public let jitterStrategy: JitterStrategy
 
     /// Predicate to determine if a request should be retried for the given error
-    public let shouldRetry: @Sendable (HTTPError, Int) -> Bool
+    public let shouldRetry: @Sendable (HTTPError, RetryAttemptCount) -> RetryDecision
 
     /// Function to determine if retry should be attempted based on response
-    public let shouldRetryResponse: @Sendable (HTTPResponse, Int) -> Bool
+    public let shouldRetryResponse: @Sendable (HTTPResponse, RetryAttemptCount) -> RetryDecision
 
     /// Custom delay calculator (overrides exponential backoff if provided)
-    public let customDelayCalculator: (@Sendable (Int, TimeInterval) -> TimeInterval)?
+    public let customDelayCalculator: (@Sendable (RetryAttemptCount, RetryDelay) -> RetryDelay)?
 
     public init(
-      maxAttempts: Int = 3,
-      baseDelay: TimeInterval = 1.0,
-      maxDelay: TimeInterval = 60.0,
-      backoffMultiplier: Double = 2.0,
+      maxAttempts: RetryAttemptCount = 3,
+      baseDelay: RetryDelay = 1.0,
+      maxDelay: RetryDelay = 60.0,
+      backoffMultiplier: BackoffMultiplier = 2.0,
       jitterStrategy: JitterStrategy = .equal,
-      shouldRetry: @escaping @Sendable (HTTPError, Int) -> Bool = Self.defaultShouldRetry,
-      shouldRetryResponse: @escaping @Sendable (HTTPResponse, Int) -> Bool = Self
+      shouldRetry: @escaping @Sendable (HTTPError, RetryAttemptCount) -> RetryDecision = Self
+        .defaultShouldRetry,
+      shouldRetryResponse: @escaping @Sendable (HTTPResponse, RetryAttemptCount) -> RetryDecision =
+        Self
         .defaultShouldRetryResponse,
-      customDelayCalculator: (@Sendable (Int, TimeInterval) -> TimeInterval)? = nil
+      customDelayCalculator: (@Sendable (RetryAttemptCount, RetryDelay) -> RetryDelay)? = nil
     ) {
       self.maxAttempts = maxAttempts
       self.baseDelay = baseDelay
@@ -75,20 +77,35 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
     }
 
     /// Default predicate for determining if an error should be retried
-    public static func defaultShouldRetry(_ error: HTTPError, _ attempt: Int) -> Bool {
+    public static func defaultShouldRetry(
+      _ error: HTTPError,
+      _ attempt: RetryAttemptCount
+    ) -> RetryDecision {
       switch error.category {
-      case .network(.noConnection), .network(.connectionLost), .network(.serverUnreachable):
-        return true
+      case .network(let networkError):
+        return RetryDecision(shouldRetryNetworkError(networkError, attempt: attempt))
 
-      case .network(.dnsFailure):
-        return attempt <= 1  // Only retry DNS failures once
-      case .http(let status) where status.rawValue >= 500:
-        return true
-      case .http(let status) where status.rawValue == 429:  // Too Many Requests
-        return true
+      case .http(let status):
+        return RetryDecision(status.rawValue >= 500 || status.rawValue == 429)
 
       case .timeout:
+        return RetryDecision(true)
+
+      default:
+        return RetryDecision(false)
+      }
+    }
+
+    private static func shouldRetryNetworkError(
+      _ networkError: HTTPError.NetworkError,
+      attempt: RetryAttemptCount
+    ) -> Bool {
+      switch networkError {
+      case .noConnection, .connectionLost, .serverUnreachable:
         return true
+
+      case .dnsFailure:
+        return attempt <= 1
 
       default:
         return false
@@ -98,18 +115,18 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
     /// Default predicate for determining if a response should trigger a retry
     public static func defaultShouldRetryResponse(
       _ response: HTTPResponse,
-      _ attempt: Int
-    ) -> Bool {
+      _ attempt: RetryAttemptCount
+    ) -> RetryDecision {
       // Generally, we don't retry successful responses
       // This is mainly for custom logic where a 200 response might indicate a temporary issue
-      false
+      RetryDecision(false)
     }
   }
 
   // MARK: - Properties
 
   private let configuration: Configuration
-  private let client: any HTTPClient
+  let client: any HTTPClient
 
   // State for decorrelated jitter (using actor for thread-safe access)
   private let jitterState = JitterState()
@@ -127,59 +144,23 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
     _ error: HTTPError,
     for request: HTTPRequest
   ) async throws -> HTTPResponse {
-    guard configuration.shouldRetry(error, 0) else {
+    guard configuration.shouldRetry(error, 0).rawValue else {
       throw error
     }
 
     var lastAttemptError = error
 
-    for attempt in 1...configuration.maxAttempts {
-      do {
-        if attempt > 1 {
-          let delay = await calculateDelay(for: attempt - 1)
-          try await Task.sleep(for: .seconds(delay))
-        }
-
-        let response = try await client.execute(request)
-
-        // Check if the response indicates we should retry
-        if configuration.shouldRetryResponse(response, attempt)
-          && attempt < configuration.maxAttempts
-        {
-          // Convert response to error for retry logic
-          let responseError = HTTPError(
-            category: .http(response.status),
-            request: request,
-            response: response
-          )
-          lastAttemptError = responseError
-          continue
-        }
-
+    for attemptValue in 1...configuration.maxAttempts.rawValue {
+      let attempt = RetryAttemptCount(attemptValue)
+      switch try await executeRetryAttempt(request, attempt: attempt) {
+      case .success(let response):
         return response
-      } catch let retryError as HTTPError {
+
+      case .retry(let retryError):
         lastAttemptError = retryError
-
-        if attempt == configuration.maxAttempts || !configuration.shouldRetry(retryError, attempt) {
-          throw retryError
-        }
-        // Continue to next iteration for retry
-      } catch {
-        // Convert non-HTTP errors
-        let httpError = HTTPError(
-          category: .network(.serverUnreachable),
-          request: request,
-          underlyingError: error
-        )
-        lastAttemptError = httpError
-
-        if attempt == configuration.maxAttempts || !configuration.shouldRetry(httpError, attempt) {
-          throw httpError
-        }
       }
     }
 
-    // If we've exhausted all retries, throw the last error
     throw lastAttemptError
   }
 
@@ -188,296 +169,122 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
   /// Returns the delay that would be calculated for a given attempt
   /// - Parameter attempt: The attempt number (1-based)
   /// - Returns: The delay in seconds
-  public func calculateDelayForAttempt(_ attempt: Int) async -> TimeInterval {
+  public func calculateDelayForAttempt(_ attempt: RetryAttemptCount) async -> RetryDelay {
     await calculateDelay(for: attempt)
   }
 
   // MARK: - Private Methods
 
-  private func calculateDelay(for attempt: Int) async -> TimeInterval {
-    // Use custom delay calculator if provided
+  private func calculateDelay(for attempt: RetryAttemptCount) async -> RetryDelay {
     if let customCalculator = configuration.customDelayCalculator {
       let delay = customCalculator(attempt, configuration.baseDelay)
-      return min(max(delay, 0), configuration.maxDelay)
+      return RetryDelay(min(max(delay.rawValue, 0), configuration.maxDelay.rawValue))
     }
 
-    // Calculate base exponential backoff
-    let exponentialDelay =
-      configuration.baseDelay * pow(configuration.backoffMultiplier, Double(attempt - 1))
-    let cappedDelay = min(exponentialDelay, configuration.maxDelay)
+    let cappedDelay = min(exponentialBackoff(for: attempt), configuration.maxDelay.rawValue)
+    let finalDelay = await jitteredDelay(for: cappedDelay)
 
-    // Apply jitter based on strategy
-    let finalDelay: TimeInterval
+    Task { await jitterState.setLastDelay(RetryDelay(finalDelay)) }
+
+    return RetryDelay(max(finalDelay, 0))
+  }
+
+  private func exponentialBackoff(for attempt: RetryAttemptCount) -> Double {
+    configuration.baseDelay.rawValue
+      * pow(configuration.backoffMultiplier.rawValue, Double(attempt.rawValue - 1))
+  }
+
+  private func jitteredDelay(for cappedDelay: Double) async -> Double {
     switch configuration.jitterStrategy {
     case .none:
-      finalDelay = cappedDelay
+      return cappedDelay
 
     case .full:
-      // Random delay between 0 and cappedDelay
-      finalDelay = Double.random(in: 0...cappedDelay)
+      return Double.random(in: 0...cappedDelay)
 
     case .equal:
-      // Random delay between cappedDelay/2 and cappedDelay
-      finalDelay = Double.random(in: (cappedDelay / 2)...cappedDelay)
+      return Double.random(in: (cappedDelay / 2)...cappedDelay)
 
     case .decorrelated:
-      // Decorrelated jitter uses previous delay as base
-      let lastDelay = await jitterState.lastDelay
-      let base = max(configuration.baseDelay, lastDelay / 3)
-      let jitteredDelay = Double.random(in: base...(cappedDelay * 3))
-      finalDelay = min(jitteredDelay, configuration.maxDelay)
-    }
-
-    // Update last delay for decorrelated jitter
-    Task { await jitterState.setLastDelay(finalDelay) }
-
-    return max(finalDelay, 0)  // Ensure non-negative delay
-  }
-}
-
-// MARK: - Recovery Strategy Integration
-
-extension RetryMiddleware {
-  /// Configuration that includes recovery strategy integration
-  public struct RecoveryConfiguration: Sendable {
-    /// The underlying retry configuration
-    public let retryConfig: Configuration
-
-    /// Recovery strategies to apply before retry logic
-    public let recoveryStrategies: [any ErrorRecoveryStrategies.RecoveryStrategy]
-
-    /// Whether to use recovery strategies first or retry first
-    public let prioritizeRecovery: Bool
-
-    public init(
-      retryConfig: Configuration = Configuration(),
-      recoveryStrategies: [any ErrorRecoveryStrategies.RecoveryStrategy] = [],
-      prioritizeRecovery: Bool = true
-    ) {
-      self.retryConfig = retryConfig
-      self.recoveryStrategies = recoveryStrategies
-      self.prioritizeRecovery = prioritizeRecovery
+      return await decorrelatedDelay(cappedDelay: cappedDelay)
     }
   }
 
-  /// Enhanced retry middleware with recovery strategy integration
-  public struct WithRecoveryStrategies: HTTPErrorMiddleware {
-    private let recoveryConfig: RecoveryConfiguration
-    private let baseMiddleware: RetryMiddleware
+  private func decorrelatedDelay(cappedDelay: Double) async -> Double {
+    let lastDelay = await jitterState.lastDelay
+    let base = max(configuration.baseDelay.rawValue, lastDelay.rawValue / 3)
+    let jitteredDelay = Double.random(in: base...(cappedDelay * 3))
+    return min(jitteredDelay, configuration.maxDelay.rawValue)
+  }
 
-    public init(configuration: RecoveryConfiguration, client: any HTTPClient) {
-      self.recoveryConfig = configuration
-      self.baseMiddleware = RetryMiddleware(
-        configuration: configuration.retryConfig,
-        client: client
-      )
+  private func applyRetryDelayIfNeeded(for attempt: RetryAttemptCount) async throws {
+    guard attempt > 1 else {
+      return
     }
 
-    public func handleError(
-      _ error: HTTPError,
-      for request: HTTPRequest
-    ) async throws -> HTTPResponse {
-      if recoveryConfig.prioritizeRecovery {
-        // Try recovery strategies first, then fall back to retry
-        if let recoveredResponse = await tryRecoveryStrategies(error, request: request) {
-          return recoveredResponse
-        }
+    let delay = await calculateDelay(for: attempt - 1)
+    try await Task.sleep(for: .seconds(delay.rawValue))
+  }
 
-        // If recovery fails, use standard retry logic
-        return try await baseMiddleware.handleError(error, for: request)
-      } else {
-        // Try retry first, then recovery on final failure
-        do {
-          return try await baseMiddleware.handleError(error, for: request)
-        } catch let finalError as HTTPError {
-          // If retry exhausted, try recovery strategies
-          if let recoveredResponse = await tryRecoveryStrategies(finalError, request: request) {
-            return recoveredResponse
-          }
-          throw finalError
-        }
-      }
-    }
-
-    private func tryRecoveryStrategies(
-      _ error: HTTPError,
-      request: HTTPRequest
-    ) async -> HTTPResponse? {
-      for strategy in recoveryConfig.recoveryStrategies {
-        if strategy.canRecover(from: error) {
-          do {
-            return try await strategy.recover(
-              from: error,
-              request: request,
-              using: baseMiddleware.client
-            )
-          } catch {
-            // Continue to next strategy
-            continue
-          }
-        }
-      }
+  private func retryResponseError(
+    for response: HTTPResponse,
+    request: HTTPRequest,
+    attempt: RetryAttemptCount
+  ) -> HTTPError? {
+    guard configuration.shouldRetryResponse(response, attempt).rawValue else {
       return nil
     }
-  }
-}
 
-// MARK: - Convenience Factory Methods
-
-extension RetryMiddleware {
-  /// Creates a retry middleware with aggressive retry settings
-  /// - Parameter client: The HTTP client to use
-  /// - Returns: A configured retry middleware with shorter delays and more attempts
-  public static func aggressive(client: any HTTPClient) -> RetryMiddleware {
-    RetryMiddleware(
-      configuration: Configuration(
-        maxAttempts: 5,
-        baseDelay: 0.5,
-        maxDelay: 10.0,
-        backoffMultiplier: 1.5,
-        jitterStrategy: .equal
-      ),
-      client: client
-    )
-  }
-
-  /// Creates a retry middleware with conservative retry settings
-  /// - Parameter client: The HTTP client to use
-  /// - Returns: A configured retry middleware with longer delays and fewer attempts
-  public static func conservative(client: any HTTPClient) -> RetryMiddleware {
-    RetryMiddleware(
-      configuration: Configuration(
-        maxAttempts: 2,
-        baseDelay: 2.0,
-        maxDelay: 30.0,
-        backoffMultiplier: 2.0,
-        jitterStrategy: .full
-      ),
-      client: client
-    )
-  }
-
-  /// Creates a retry middleware optimized for network-related errors only
-  /// - Parameter client: The HTTP client to use
-  /// - Returns: A configured retry middleware that only retries network errors
-  public static func networkErrorsOnly(client: any HTTPClient) -> RetryMiddleware {
-    RetryMiddleware(
-      configuration: Configuration(
-        shouldRetry: { error, attempt in
-          switch error.category {
-          case .network:
-            return attempt <= 3
-
-          case .timeout:
-            return attempt <= 2
-
-          default:
-            return false
-          }
-        }
-      ),
-      client: client
-    )
-  }
-
-  /// Creates a retry middleware with custom jitter strategy
-  /// - Parameters:
-  ///   - client: The HTTP client to use
-  ///   - jitterStrategy: The jitter strategy to apply
-  /// - Returns: A configured retry middleware with the specified jitter strategy
-  public static func withJitter(
-    client: any HTTPClient,
-    jitterStrategy: JitterStrategy
-  ) -> RetryMiddleware {
-    RetryMiddleware(
-      configuration: Configuration(jitterStrategy: jitterStrategy),
-      client: client
-    )
-  }
-
-  /// Creates an enhanced retry middleware with authentication recovery
-  /// - Parameters:
-  ///   - client: The HTTP client to use
-  ///   - tokenRefreshHandler: Handler for refreshing authentication tokens
-  /// - Returns: A retry middleware with authentication recovery strategy
-  public static func withAuthenticationRecovery(
-    client: any HTTPClient,
-    tokenRefreshHandler: @escaping @Sendable () async throws -> String
-  ) -> WithRecoveryStrategies {
-    let recoveryConfig = RecoveryConfiguration(
-      recoveryStrategies: [
-        ErrorRecoveryStrategies.AuthenticationRefreshStrategy(
-          tokenRefreshHandler: tokenRefreshHandler
-        ),
-        ErrorRecoveryStrategies.standardRetry(),
-      ]
-    )
-    return WithRecoveryStrategies(configuration: recoveryConfig, client: client)
-  }
-
-  /// Creates a comprehensive retry middleware with multiple recovery strategies
-  /// - Parameters:
-  ///   - client: The HTTP client to use
-  ///   - tokenRefreshHandler: Handler for refreshing authentication tokens (optional)
-  /// - Returns: A retry middleware with comprehensive recovery strategies
-  public static func comprehensive(
-    client: any HTTPClient,
-    tokenRefreshHandler: (@Sendable () async throws -> String)? = nil
-  ) -> WithRecoveryStrategies {
-    var strategies: [any ErrorRecoveryStrategies.RecoveryStrategy] = []
-
-    if let tokenHandler = tokenRefreshHandler {
-      strategies.append(
-        ErrorRecoveryStrategies.AuthenticationRefreshStrategy(
-          tokenRefreshHandler: tokenHandler
-        )
-      )
+    guard attempt < configuration.maxAttempts else {
+      return nil
     }
 
-    let additionalStrategies: [any ErrorRecoveryStrategies.RecoveryStrategy] = [
-      ErrorRecoveryStrategies.standardRetry(),
-      ErrorRecoveryStrategies.CircuitBreakerRecoveryStrategy(),
-    ]
-    strategies.append(contentsOf: additionalStrategies)
-
-    let recoveryConfig = RecoveryConfiguration(
-      retryConfig: Configuration(maxAttempts: 3, baseDelay: 1.0),
-      recoveryStrategies: strategies,
-      prioritizeRecovery: true
+    return HTTPError(
+      category: .http(response.status),
+      request: request,
+      response: response
     )
-
-    return WithRecoveryStrategies(configuration: recoveryConfig, client: client)
   }
 
-  /// Creates a retry middleware with custom recovery strategies
-  /// - Parameters:
-  ///   - client: The HTTP client to use
-  ///   - strategies: Custom recovery strategies to use
-  ///   - retryConfig: Optional custom retry configuration
-  ///   - prioritizeRecovery: Whether to try recovery before retry (default: true)
-  /// - Returns: A retry middleware with custom recovery strategies
-  public static func withRecoveryStrategies(
-    client: any HTTPClient,
-    strategies: [any ErrorRecoveryStrategies.RecoveryStrategy],
-    retryConfig: Configuration = Configuration(),
-    prioritizeRecovery: Bool = true
-  ) -> WithRecoveryStrategies {
-    let recoveryConfig = RecoveryConfiguration(
-      retryConfig: retryConfig,
-      recoveryStrategies: strategies,
-      prioritizeRecovery: prioritizeRecovery
+  private func rethrowIfRetryShouldStop(_ error: HTTPError, attempt: RetryAttemptCount) throws {
+    if attempt == configuration.maxAttempts || !configuration.shouldRetry(error, attempt).rawValue {
+      throw error
+    }
+  }
+
+  private func wrapRetryError(_ error: any Error, request: HTTPRequest) -> HTTPError {
+    HTTPError(
+      category: .network(.serverUnreachable),
+      request: request,
+      underlyingError: error
     )
-    return WithRecoveryStrategies(configuration: recoveryConfig, client: client)
+  }
+
+  private func executeRetryAttempt(
+    _ request: HTTPRequest,
+    attempt: RetryAttemptCount
+  ) async throws -> RetryAttemptOutcome {
+    do {
+      try await applyRetryDelayIfNeeded(for: attempt)
+      let response = try await client.execute(request)
+
+      if let responseError = retryResponseError(for: response, request: request, attempt: attempt) {
+        return .retry(responseError)
+      }
+
+      return .success(response)
+    } catch let httpError as HTTPError {
+      try rethrowIfRetryShouldStop(httpError, attempt: attempt)
+      return .retry(httpError)
+    } catch {
+      let httpError = wrapRetryError(error, request: request)
+      try rethrowIfRetryShouldStop(httpError, attempt: attempt)
+      return .retry(httpError)
+    }
   }
 }
 
-// MARK: - Jitter State Management
-
-/// Actor to manage jitter state in a thread-safe way
-private actor JitterState {
-  private(set) var lastDelay: TimeInterval = 0
-
-  func setLastDelay(_ delay: TimeInterval) {
-    lastDelay = delay
-  }
+private enum RetryAttemptOutcome {
+  case success(HTTPResponse)
+  case retry(HTTPError)
 }

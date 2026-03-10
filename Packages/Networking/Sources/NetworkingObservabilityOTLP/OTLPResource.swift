@@ -1,7 +1,8 @@
+import NetworkingCore
 import NetworkingObservability
 import Foundation
 #if canImport(UIKit)
-  import UIKit
+import UIKit
 #endif
 
 /// Semantic convention attribute keys for OTLP resources.
@@ -10,37 +11,45 @@ import Foundation
 /// See: https://opentelemetry.io/docs/specs/semconv/resource/
 public enum ResourceAttributes {
   /// Service name identifier
-  public static let serviceName = "service.name"
+  public static let serviceName = ResourceAttributeName(rawValue: "service.name")
 
   /// Service version (e.g., "1.2.3")
-  public static let serviceVersion = "service.version"
+  public static let serviceVersion = ResourceAttributeName(rawValue: "service.version")
 
   /// Unique service instance identifier
-  public static let serviceInstanceId = "service.instance.id"
+  public static let serviceInstanceId = ResourceAttributeName(rawValue: "service.instance.id")
 
   /// Deployment environment (e.g., "production", "staging")
-  public static let deploymentEnvironment = "deployment.environment"
+  public static let deploymentEnvironment = ResourceAttributeName(
+    rawValue: "deployment.environment"
+  )
 
   /// Telemetry SDK name
-  public static let telemetrySdkName = "telemetry.sdk.name"
+  public static let telemetrySdkName = ResourceAttributeName(rawValue: "telemetry.sdk.name")
 
   /// Telemetry SDK version
-  public static let telemetrySdkVersion = "telemetry.sdk.version"
+  public static let telemetrySdkVersion = ResourceAttributeName(
+    rawValue: "telemetry.sdk.version"
+  )
 
   /// Telemetry SDK language (e.g., "swift")
-  public static let telemetrySdkLanguage = "telemetry.sdk.language"
+  public static let telemetrySdkLanguage = ResourceAttributeName(
+    rawValue: "telemetry.sdk.language"
+  )
 
   /// Operating system type (e.g., "ios", "macos")
-  public static let osType = "os.type"
+  public static let osType = ResourceAttributeName(rawValue: "os.type")
 
   /// Operating system version
-  public static let osVersion = "os.version"
+  public static let osVersion = ResourceAttributeName(rawValue: "os.version")
 
   /// Device identifier
-  public static let deviceId = "device.id"
+  public static let deviceId = ResourceAttributeName(rawValue: "device.id")
 
   /// Device model identifier (e.g., "iPhone14,2")
-  public static let deviceModelIdentifier = "device.model.identifier"
+  public static let deviceModelIdentifier = ResourceAttributeName(
+    rawValue: "device.model.identifier"
+  )
 }
 
 /// Service resource attributes attached to all exported spans and metrics.
@@ -67,19 +76,19 @@ public enum ResourceAttributes {
 /// ```
 public struct OTLPResource: Sendable, Equatable {
   /// Service name (required for meaningful traces)
-  public let serviceName: String
+  public let serviceName: ServiceName
 
   /// Service version (e.g., from Bundle.main)
-  public let serviceVersion: String?
+  public let serviceVersion: ServiceVersion?
 
   /// Unique instance identifier (e.g., device UUID)
-  public let serviceInstanceId: String?
+  public let serviceInstanceId: ServiceInstanceIdentifier?
 
   /// Deployment environment (production, staging, development)
-  public let deploymentEnvironment: String?
+  public let deploymentEnvironment: DeploymentEnvironmentName?
 
   /// Additional custom attributes
-  public let customAttributes: [String: String]
+  public let customAttributes: [ResourceAttributeName: ResourceAttributeValue]
 
   /// Creates a new OTLP resource with the specified attributes.
   ///
@@ -90,11 +99,11 @@ public struct OTLPResource: Sendable, Equatable {
   ///   - deploymentEnvironment: Deployment environment (default: nil)
   ///   - customAttributes: Additional custom attributes (default: empty)
   public init(
-    serviceName: String = "unknown",
-    serviceVersion: String? = nil,
-    serviceInstanceId: String? = nil,
-    deploymentEnvironment: String? = nil,
-    customAttributes: [String: String] = [:]
+    serviceName: ServiceName = ServiceName(rawValue: "unknown"),
+    serviceVersion: ServiceVersion? = nil,
+    serviceInstanceId: ServiceInstanceIdentifier? = nil,
+    deploymentEnvironment: DeploymentEnvironmentName? = nil,
+    customAttributes: [ResourceAttributeName: ResourceAttributeValue] = [:]
   ) {
     self.serviceName = serviceName
     self.serviceVersion = serviceVersion
@@ -127,32 +136,32 @@ extension OTLPResource {
   /// // serviceVersion: "1.2.3+456"
   /// // customAttributes: ["os.type": "ios", "telemetry.sdk.language": "swift"]
   /// ```
-  public static func autoDetect(serviceName: String? = nil) -> OTLPResource {
+  public static func autoDetect(serviceName: ServiceName? = nil) -> OTLPResource {
     let bundle = Bundle.main
-    let name = serviceName ?? bundle.bundleIdentifier ?? "unknown"
+    let name = serviceName ?? ServiceName(bundle.bundleIdentifier ?? "unknown")
     let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String
     let buildNumber = bundle.infoDictionary?["CFBundleVersion"] as? String
     let fullVersion = [version, buildNumber].compactMap { $0 }.joined(separator: "+")
 
-    var customAttrs: [String: String] = [
+    var customAttrs: [ResourceAttributeName: ResourceAttributeValue] = [
       ResourceAttributes.telemetrySdkName: "Networking",
       ResourceAttributes.telemetrySdkLanguage: "swift",
     ]
 
     #if os(iOS)
-      customAttrs[ResourceAttributes.osType] = "ios"
+    customAttrs[ResourceAttributes.osType] = "ios"
     #elseif os(macOS)
-      customAttrs[ResourceAttributes.osType] = "macos"
+    customAttrs[ResourceAttributes.osType] = "macos"
     #elseif os(tvOS)
-      customAttrs[ResourceAttributes.osType] = "tvos"
+    customAttrs[ResourceAttributes.osType] = "tvos"
     #elseif os(watchOS)
-      customAttrs[ResourceAttributes.osType] = "watchos"
+    customAttrs[ResourceAttributes.osType] = "watchos"
     #endif
 
     return OTLPResource(
       serviceName: name,
-      serviceVersion: fullVersion.isEmpty ? nil : fullVersion,
-      serviceInstanceId: UUID().uuidString,
+      serviceVersion: fullVersion.isEmpty ? nil : ServiceVersion(fullVersion),
+      serviceInstanceId: ServiceInstanceIdentifier(UUID().uuidString),
       customAttributes: customAttrs
     )
   }
@@ -178,19 +187,19 @@ extension OTLPResource {
   /// let attrs = resource.toAttributes()
   /// // ["service.name": "my-app", "service.version": "1.0.0"]
   /// ```
-  public func toAttributes() -> [String: String] {
-    var attrs: [String: String] = [
-      ResourceAttributes.serviceName: serviceName
+  public func toAttributes() -> [ResourceAttributeName: ResourceAttributeValue] {
+    var attrs: [ResourceAttributeName: ResourceAttributeValue] = [
+      ResourceAttributes.serviceName: ResourceAttributeValue(serviceName.rawValue)
     ]
 
     if let version = serviceVersion {
-      attrs[ResourceAttributes.serviceVersion] = version
+      attrs[ResourceAttributes.serviceVersion] = ResourceAttributeValue(version.rawValue)
     }
     if let instanceId = serviceInstanceId {
-      attrs[ResourceAttributes.serviceInstanceId] = instanceId
+      attrs[ResourceAttributes.serviceInstanceId] = ResourceAttributeValue(instanceId.rawValue)
     }
     if let env = deploymentEnvironment {
-      attrs[ResourceAttributes.deploymentEnvironment] = env
+      attrs[ResourceAttributes.deploymentEnvironment] = ResourceAttributeValue(env.rawValue)
     }
 
     for (key, value) in customAttributes {

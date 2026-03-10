@@ -2,8 +2,48 @@ import NetworkingObservability
 import Foundation
 
 #if canImport(OSLog)
-  import OSLog
+import OSLog
 #endif
+
+private struct OTLPMetricPayload: Encodable {
+  let resourceMetrics: [OTLPResourceMetric]
+}
+
+private struct OTLPResourceMetric: Encodable {
+  let resource: OTLPMetricPayloadResource
+  let scopeMetrics: [OTLPScopeMetric]
+}
+
+private struct OTLPMetricPayloadResource: Encodable {
+  let attributes: [[String: String]]
+}
+
+private struct OTLPScopeMetric: Encodable {
+  let metrics: [OTLPEncodedMetric]
+}
+
+private struct OTLPEncodedMetric: Encodable {
+  let name: String
+  let description: String
+  let unit: String
+  let gauge: OTLPMetricGaugeData?
+  let sum: OTLPMetricSumData?
+}
+
+private struct OTLPMetricGaugeData: Encodable {
+  let dataPoints: [OTLPMetricPoint]
+}
+
+private struct OTLPMetricSumData: Encodable {
+  let dataPoints: [OTLPMetricPoint]
+  let isMonotonic: Bool
+}
+
+private struct OTLPMetricPoint: Encodable {
+  let timeUnixNano: String
+  let asDouble: Double?
+  let asInt: String?
+}
 
 /// OTLP metrics exporter that conforms to the existing MetricsCollector protocol.
 ///
@@ -35,7 +75,7 @@ public actor OTLPMetricsCollector: MetricsCollector {
   private var eventCount: Int = 0
 
   #if canImport(OSLog)
-    private let logger = Logger(subsystem: "Networking", category: "OTLPMetricsCollector")
+  private let logger = Logger(subsystem: "Networking", category: "OTLPMetricsCollector")
   #endif
 
   // MARK: - Initialization
@@ -71,16 +111,16 @@ public actor OTLPMetricsCollector: MetricsCollector {
 
     // Log significant events
     #if canImport(OSLog)
-      switch event {
-      case .circuitBreakerTripped(let endpoint, let reason):
-        logger.warning("Circuit breaker tripped for \(endpoint): \(reason)")
+    switch event {
+    case .circuitBreakerTripped(let endpoint, let reason):
+      logger.warning("Circuit breaker tripped for \(endpoint): \(reason)")
 
-      case .rateLimitHit(_, let limit, _):
-        logger.warning("Rate limit hit: \(limit)")
+    case .rateLimitHit(_, let limit, _):
+      logger.warning("Rate limit hit: \(limit)")
 
-      default:
-        break
-      }
+    default:
+      break
+    }
     #endif
   }
 
@@ -97,7 +137,7 @@ public actor OTLPMetricsCollector: MetricsCollector {
     metricBuffer.append(contentsOf: dataPoints)
 
     // Flush if buffer is getting large
-    if metricBuffer.count >= configuration.batchSize {
+    if metricBuffer.count >= configuration.batchSize.rawValue {
       await flushBuffer()
     }
   }
@@ -115,7 +155,7 @@ public actor OTLPMetricsCollector: MetricsCollector {
 
   private func flushIfNeeded() async {
     let elapsed = Date().timeIntervalSince(lastFlush)
-    if elapsed >= configuration.flushInterval && !metricBuffer.isEmpty {
+    if elapsed >= configuration.flushInterval.rawValue && !metricBuffer.isEmpty {
       await flushBuffer()
     }
   }
@@ -133,17 +173,17 @@ public actor OTLPMetricsCollector: MetricsCollector {
 
   private func exportToOTLP(_ dataPoints: [OTLPMetricConverter.MetricDataPoint]) async {
     // Build the metrics endpoint URL (OTLP HTTP uses /v1/metrics)
-    let endpoint = configuration.endpoint.appendingPathComponent("v1/metrics")
+    let endpoint = configuration.endpoint.appendingPathComponent("v1/metrics").rawValue
 
     // Create request
     var request = URLRequest(url: endpoint)
     request.httpMethod = "POST"
     request.setValue("application/x-protobuf", forHTTPHeaderField: "Content-Type")
-    request.timeoutInterval = configuration.timeout
+    request.timeoutInterval = configuration.timeout.rawValue
 
     // Add auth headers
     for (key, value) in configuration.headers {
-      request.setValue(value, forHTTPHeaderField: key)
+      request.setValue(value.rawValue, forHTTPHeaderField: key.rawValue)
     }
 
     // Build payload
@@ -156,17 +196,17 @@ public actor OTLPMetricsCollector: MetricsCollector {
       if let httpResponse = response as? HTTPURLResponse {
         if (200..<300).contains(httpResponse.statusCode) {
           #if canImport(OSLog)
-            logger.debug("Exported \(dataPoints.count) metric data points to OTLP")
+          logger.debug("Exported \(dataPoints.count) metric data points to OTLP")
           #endif
         } else {
           #if canImport(OSLog)
-            logger.warning("OTLP metrics export failed with status \(httpResponse.statusCode)")
+          logger.warning("OTLP metrics export failed with status \(httpResponse.statusCode)")
           #endif
         }
       }
     } catch {
       #if canImport(OSLog)
-        logger.error("Failed to export metrics: \(error.localizedDescription)")
+      logger.error("Failed to export metrics: \(error.localizedDescription)")
       #endif
     }
   }
@@ -174,116 +214,77 @@ public actor OTLPMetricsCollector: MetricsCollector {
   private func buildOTLPMetricsPayload(
     _ dataPoints: [OTLPMetricConverter.MetricDataPoint]
   ) throws -> Data {
-    // Build a simplified JSON representation for OTLP HTTP/JSON
-    // In production, this would ideally use OpenTelemetry's protobuf encoder,
-    // but we use JSON as a pragmatic fallback for maximum compatibility
-    struct OTLPMetricPayload: Encodable {
-      let resourceMetrics: [ResourceMetric]
-
-      struct ResourceMetric: Encodable {
-        let resource: ResourceAttributes
-        let scopeMetrics: [ScopeMetric]
-
-        struct ResourceAttributes: Encodable {
-          let attributes: [[String: String]]
-        }
-
-        struct ScopeMetric: Encodable {
-          let metrics: [Metric]
-
-          struct Metric: Encodable {
-            let name: String
-            let description: String
-            let unit: String
-            let gauge: GaugeData?
-            let sum: SumData?
-
-            struct GaugeData: Encodable {
-              let dataPoints: [DataPoint]
-            }
-
-            struct SumData: Encodable {
-              let dataPoints: [DataPoint]
-              let isMonotonic: Bool
-            }
-
-            struct DataPoint: Encodable {
-              let timeUnixNano: String
-              let asDouble: Double?
-              let asInt: String?
-            }
-          }
-        }
-      }
-    }
-
-    // Convert data points to OTLP format
-    typealias Metric = OTLPMetricPayload.ResourceMetric.ScopeMetric.Metric
-    typealias DataPoint = Metric.DataPoint
-
-    var metrics: [Metric] = []
-
-    for dp in dataPoints {
-      let dataPoint: DataPoint
-
-      switch dp.value {
-      case .int(let val):
-        dataPoint = DataPoint(
-          timeUnixNano: String(Int64(dp.timestamp.timeIntervalSince1970 * 1_000_000_000)),
-          asDouble: nil,
-          asInt: String(val)
-        )
-
-      case .double(let val):
-        dataPoint = DataPoint(
-          timeUnixNano: String(Int64(dp.timestamp.timeIntervalSince1970 * 1_000_000_000)),
-          asDouble: val,
-          asInt: nil
-        )
-
-      case .histogram:
-        // Histogram handling simplified - would need full OTLP histogram structure
-        continue
-      }
-
-      let metric: Metric
-
-      switch dp.type {
-      case .counter:
-        metric = Metric(
-          name: dp.name,
-          description: dp.description,
-          unit: dp.unit,
-          gauge: nil,
-          sum: Metric.SumData(dataPoints: [dataPoint], isMonotonic: true)
-        )
-
-      case .gauge, .histogram:
-        metric = Metric(
-          name: dp.name,
-          description: dp.description,
-          unit: dp.unit,
-          gauge: Metric.GaugeData(dataPoints: [dataPoint]),
-          sum: nil
-        )
-      }
-
-      metrics.append(metric)
-    }
+    let metrics = dataPoints.compactMap(encodeMetric)
 
     let payload = OTLPMetricPayload(
       resourceMetrics: [
-        .init(
-          resource: .init(
-            attributes: configuration.resource.toAttributes().map { ["\($0.key)": $0.value] }
+        OTLPResourceMetric(
+          resource: OTLPMetricPayloadResource(
+            attributes: configuration.resource.toAttributes().map {
+              [$0.key.rawValue: $0.value.rawValue]
+            }
           ),
-          scopeMetrics: [.init(metrics: metrics)]
+          scopeMetrics: [OTLPScopeMetric(metrics: metrics)]
         )
       ]
     )
 
     let encoder = JSONEncoder()
     return try encoder.encode(payload)
+  }
+
+  private func encodeMetric(
+    _ dataPoint: OTLPMetricConverter.MetricDataPoint
+  ) -> OTLPEncodedMetric? {
+    guard let encodedPoint = encodeDataPoint(dataPoint) else {
+      return nil
+    }
+
+    switch dataPoint.type {
+    case .counter:
+      return OTLPEncodedMetric(
+        name: dataPoint.name.rawValue,
+        description: dataPoint.description.rawValue,
+        unit: dataPoint.unit.rawValue,
+        gauge: nil,
+        sum: OTLPMetricSumData(dataPoints: [encodedPoint], isMonotonic: true)
+      )
+
+    case .gauge, .histogram:
+      return OTLPEncodedMetric(
+        name: dataPoint.name.rawValue,
+        description: dataPoint.description.rawValue,
+        unit: dataPoint.unit.rawValue,
+        gauge: OTLPMetricGaugeData(dataPoints: [encodedPoint]),
+        sum: nil
+      )
+    }
+  }
+
+  private func encodeDataPoint(
+    _ dataPoint: OTLPMetricConverter.MetricDataPoint
+  ) -> OTLPMetricPoint? {
+    let timestamp = String(Int64(dataPoint.timestamp.timeIntervalSince1970 * 1_000_000_000))
+
+    switch dataPoint.value {
+    case .int(let value):
+      return OTLPMetricPoint(
+        timeUnixNano: timestamp,
+        asDouble: nil,
+        asInt: String(value.rawValue)
+      )
+
+    case .double(let value):
+      return OTLPMetricPoint(
+        timeUnixNano: timestamp,
+        asDouble: value.rawValue,
+        asInt: nil
+      )
+
+    case .histogram:
+      // Histogram handling simplified - would need full OTLP histogram structure.
+      return nil
+    }
   }
 
   // MARK: - Public Methods

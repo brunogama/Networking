@@ -41,10 +41,10 @@ import Foundation
 )
 public struct CachingInterceptor: ResponseInterceptor, Sendable {
   /// Time-to-live for cached responses in seconds
-  public let ttl: TimeInterval
+  public let ttl: CacheMaxAge
 
   /// Maximum number of cached entries (default: 100)
-  public let maxEntries: Int
+  public let maxEntries: CacheEntryLimit
 
   private let cache: ResponseCache
 
@@ -53,10 +53,13 @@ public struct CachingInterceptor: ResponseInterceptor, Sendable {
   /// - Parameters:
   ///   - ttl: Time-to-live for cache entries in seconds (default: 300 = 5 minutes)
   ///   - maxEntries: Maximum number of cache entries (default: 100)
-  public init(ttl: TimeInterval = 300, maxEntries: Int = 100) {
+  public init(
+    ttl: CacheMaxAge = CacheMaxAge(rawValue: 300),
+    maxEntries: CacheEntryLimit = CacheEntryLimit(rawValue: 100)
+  ) {
     self.ttl = ttl
     self.maxEntries = maxEntries
-    self.cache = ResponseCache(maxEntries: maxEntries)
+    self.cache = ResponseCache(maxEntries: maxEntries.rawValue)
   }
 
   // MARK: - ResponseInterceptor
@@ -76,7 +79,7 @@ public struct CachingInterceptor: ResponseInterceptor, Sendable {
     // Store response in cache with TTL
     let entry = CacheEntry(
       response: response,
-      expiresAt: Date().addingTimeInterval(ttl)
+      expiresAt: Date().addingTimeInterval(ttl.rawValue)
     )
 
     await cache.set(entry, forKey: cacheKey)
@@ -94,10 +97,17 @@ public struct CachingInterceptor: ResponseInterceptor, Sendable {
   /// - Returns: Cached response if available and valid, nil otherwise
   public func getCachedResponse(
     for method: HTTPMethod,
+    path: RequestPathPattern
+  ) async -> HTTPResponse? {
+    let cacheKey = "\(method.rawValue):\(path.rawValue)"
+    return await cache.get(forKey: cacheKey)
+  }
+
+  package func getCachedResponse(
+    for method: HTTPMethod,
     path: String
   ) async -> HTTPResponse? {
-    let cacheKey = "\(method.rawValue):\(path)"
-    return await cache.get(forKey: cacheKey)
+    await getCachedResponse(for: method, path: RequestPathPattern(path))
   }
 
   /// Clears all cached responses.

@@ -44,8 +44,10 @@ import FoundationNetworking
 @available(
   *,
   deprecated,
-  message:
-    "MockResponseInterceptor exists to support the compatibility interceptor layer. Prefer mock middleware in new tests."
+  message: """
+    MockResponseInterceptor exists to support the compatibility interceptor layer. \
+    Prefer mock middleware in new tests.
+    """
 )
 public final class MockResponseInterceptor: ResponseInterceptor, MockVerifiable, @unchecked Sendable
 {
@@ -128,19 +130,19 @@ public final class MockResponseInterceptor: ResponseInterceptor, MockVerifiable,
   /// Stub interceptor to trigger retry
   ///
   /// - Parameter delay: Optional retry delay
-  public func stubRetry(after delay: TimeInterval? = nil) {
+  public func stubRetry(after delay: MockTimeAdjustment? = nil) {
     queue.sync(flags: .barrier) {
       _interceptHandler = { _, _ in
-        .retry(after: delay)
+        .retry(after: delay.map { RetryDelay($0.rawValue) })
       }
     }
   }
 
   // MARK: - MockVerifiable Conformance
 
-  nonisolated public var callCount: Int {
+  nonisolated public var callCount: MockVerificationCount {
     get async {
-      queue.sync { _interceptCount }
+      MockVerificationCount(queue.sync { _interceptCount })
     }
   }
 
@@ -157,10 +159,11 @@ public final class MockResponseInterceptor: ResponseInterceptor, MockVerifiable,
   ///
   /// - Parameter index: Index of response to retrieve
   /// - Returns: Captured response at index, or nil if out of bounds
-  public func getResponse(at index: Int) -> HTTPResponse? {
+  public func getResponse(at index: MockResponseIndex) -> HTTPResponse? {
     queue.sync {
-      guard index >= 0 && index < _capturedResponses.count else { return nil }
-      return _capturedResponses[index]
+      let rawIndex = index.rawValue
+      guard rawIndex >= 0 && rawIndex < _capturedResponses.count else { return nil }
+      return _capturedResponses[rawIndex]
     }
   }
 

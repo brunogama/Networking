@@ -1,10 +1,17 @@
+import NetworkingCore
 import NetworkingObservability
 import Foundation
 
+public typealias OTLPCollectorEndpoint = HTTPRequestURL
+public typealias OTLPExportTimeout = RequestTimeout
+public typealias OTLPBatchSize = RequestCount
+public typealias OTLPFlushInterval = MetricsReportingInterval
+public typealias OTLPRedactedAttributeName = TraceAttributeKey
+
 /// Protocol supported by OTLP exporters.
-public enum OTLPProtocol: String, Sendable {
-  case http = "http/protobuf"
-  case grpc = "grpc"  // Future: requires grpc-swift
+public enum OTLPProtocol: Sendable {
+  case http
+  case grpc  // Future: requires grpc-swift
 }
 
 /// Configuration for OpenTelemetry Protocol (OTLP) exporters.
@@ -34,19 +41,19 @@ public enum OTLPProtocol: String, Sendable {
 /// - `OTEL_SERVICE_VERSION`: Service version
 public struct OTLPConfiguration: Sendable {
   /// The OTLP collector endpoint URL (e.g., http://localhost:4318)
-  public let endpoint: URL
+  public let endpoint: OTLPCollectorEndpoint
 
   /// Custom headers for authentication (e.g., Authorization, API keys)
-  public let headers: [String: String]
+  public let headers: HTTPHeaders
 
   /// Request timeout for OTLP exports
-  public let timeout: TimeInterval
+  public let timeout: OTLPExportTimeout
 
   /// Maximum number of spans/metrics to batch before export
-  public let batchSize: Int
+  public let batchSize: OTLPBatchSize
 
   /// How often to flush batched data (seconds)
-  public let flushInterval: TimeInterval
+  public let flushInterval: OTLPFlushInterval
 
   /// Protocol to use for OTLP export
   public let `protocol`: OTLPProtocol
@@ -55,7 +62,7 @@ public struct OTLPConfiguration: Sendable {
   public let resource: OTLPResource
 
   /// Attributes to redact from spans/metrics (security)
-  public let redactedAttributes: Set<String>
+  public let redactedAttributes: Set<OTLPRedactedAttributeName>
 
   /// Creates a new OTLP configuration with the specified parameters.
   ///
@@ -69,14 +76,14 @@ public struct OTLPConfiguration: Sendable {
   ///   - resource: Service resource attributes (default: auto-detected)
   ///   - redactedAttributes: Attributes to redact (default: security-sensitive attributes)
   public init(
-    endpoint: URL,
-    headers: [String: String] = [:],
-    timeout: TimeInterval = 10.0,
-    batchSize: Int = 512,
-    flushInterval: TimeInterval = 5.0,
+    endpoint: OTLPCollectorEndpoint,
+    headers: HTTPHeaders = HTTPHeaders(),
+    timeout: OTLPExportTimeout = 10.0,
+    batchSize: OTLPBatchSize = 512,
+    flushInterval: OTLPFlushInterval = 5.0,
     protocol: OTLPProtocol = .http,
     resource: OTLPResource = OTLPResource(),
-    redactedAttributes: Set<String> = Self.defaultRedactedAttributes
+    redactedAttributes: Set<OTLPRedactedAttributeName> = Self.defaultRedactedAttributes
   ) {
     self.endpoint = endpoint
     self.headers = headers
@@ -88,17 +95,47 @@ public struct OTLPConfiguration: Sendable {
     self.redactedAttributes = redactedAttributes
   }
 
+  package init(
+    endpoint: URL,
+    headers: [String: String] = [:],
+    timeout: TimeInterval = 10.0,
+    batchSize: Int = 512,
+    flushInterval: TimeInterval = 5.0,
+    protocol: OTLPProtocol = .http,
+    resource: OTLPResource = OTLPResource(),
+    redactedAttributes: Set<String>? = nil
+  ) {
+    self.init(
+      endpoint: OTLPCollectorEndpoint(endpoint),
+      headers: HTTPHeaders(headers),
+      timeout: OTLPExportTimeout(timeout),
+      batchSize: OTLPBatchSize(batchSize),
+      flushInterval: OTLPFlushInterval(flushInterval),
+      protocol: `protocol`,
+      resource: resource,
+      redactedAttributes: Self.makeRedactedAttributes(
+        redactedAttributes ?? Set(Self.defaultRedactedAttributes.map(\.rawValue))
+      )
+    )
+  }
+
   /// Default attributes that should be redacted for security.
   ///
   /// These attributes typically contain sensitive information and should not be
   /// exported to telemetry backends to prevent credential leakage.
-  public static let defaultRedactedAttributes: Set<String> = [
+  public static let defaultRedactedAttributes: Set<OTLPRedactedAttributeName> = [
     "http.request.header.authorization",
     "http.request.header.cookie",
     "http.request.header.x-api-key",
     "user.password",
     "user.token",
   ]
+
+  private static func makeRedactedAttributes<S: Sequence>(
+    _ values: S
+  ) -> Set<OTLPRedactedAttributeName> where S.Element == String {
+    Set(values.map { OTLPRedactedAttributeName($0) })
+  }
 }
 
 // MARK: - Environment-Based Configuration
@@ -136,13 +173,14 @@ extension OTLPConfiguration {
     }
 
     let headers = parseHeaders(
-      ProcessInfo.processInfo.environment["OTEL_EXPORTER_OTLP_HEADERS"])
+      ProcessInfo.processInfo.environment["OTEL_EXPORTER_OTLP_HEADERS"]
+    )
     let serviceName = ProcessInfo.processInfo.environment["OTEL_SERVICE_NAME"] ?? "unknown"
     let serviceVersion = ProcessInfo.processInfo.environment["OTEL_SERVICE_VERSION"]
 
     let resource = OTLPResource(
-      serviceName: serviceName,
-      serviceVersion: serviceVersion
+      serviceName: ServiceName(serviceName),
+      serviceVersion: serviceVersion.map { ServiceVersion($0) }
     )
 
     return OTLPConfiguration(
@@ -185,7 +223,8 @@ extension OTLPConfiguration {
   public func validate() throws {
     guard endpoint.scheme == "http" || endpoint.scheme == "https" else {
       throw OTLPConfigurationError.invalidEndpoint(
-        "Endpoint must use http or https scheme")
+        "Endpoint must use http or https scheme"
+      )
     }
     guard timeout > 0 else {
       throw OTLPConfigurationError.invalidTimeout("Timeout must be positive")
@@ -199,11 +238,11 @@ extension OTLPConfiguration {
 /// Errors that can occur during OTLP configuration validation.
 public enum OTLPConfigurationError: Error, Sendable {
   /// The endpoint URL is invalid or uses an unsupported scheme.
-  case invalidEndpoint(String)
+  case invalidEndpoint(HTTPErrorMessage)
 
   /// The timeout value is invalid (must be positive).
-  case invalidTimeout(String)
+  case invalidTimeout(HTTPErrorMessage)
 
   /// The batch size is invalid (must be positive).
-  case invalidBatchSize(String)
+  case invalidBatchSize(HTTPErrorMessage)
 }

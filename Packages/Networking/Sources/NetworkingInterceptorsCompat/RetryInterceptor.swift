@@ -50,13 +50,13 @@ import Foundation
 )
 public struct RetryInterceptor: ResponseInterceptor, Sendable {
   /// Maximum number of retry attempts (not including original request)
-  public let maxAttempts: Int
+  public let maxAttempts: RetryAttemptCount
 
   /// Base delay in seconds for exponential backoff
-  public let baseDelay: TimeInterval
+  public let baseDelay: RetryDelay
 
   /// Maximum delay cap in seconds to prevent excessive waiting
-  public let maxDelay: TimeInterval
+  public let maxDelay: RetryDelay
 
   /// Creates a retry interceptor with exponential backoff.
   ///
@@ -65,13 +65,25 @@ public struct RetryInterceptor: ResponseInterceptor, Sendable {
   ///   - baseDelay: Base delay for exponential backoff in seconds (default: 1.0)
   ///   - maxDelay: Maximum delay cap in seconds (default: 60.0)
   public init(
-    maxAttempts: Int = 3,
-    baseDelay: TimeInterval = 1.0,
-    maxDelay: TimeInterval = 60.0
+    maxAttempts: RetryAttemptCount = 3,
+    baseDelay: RetryDelay = 1.0,
+    maxDelay: RetryDelay = 60.0
   ) {
     self.maxAttempts = maxAttempts
     self.baseDelay = baseDelay
     self.maxDelay = maxDelay
+  }
+
+  package init(
+    maxAttempts: Int,
+    baseDelay: TimeInterval,
+    maxDelay: TimeInterval
+  ) {
+    self.init(
+      maxAttempts: RetryAttemptCount(maxAttempts),
+      baseDelay: RetryDelay(baseDelay),
+      maxDelay: RetryDelay(maxDelay)
+    )
   }
 
   // MARK: - ResponseInterceptor
@@ -86,7 +98,7 @@ public struct RetryInterceptor: ResponseInterceptor, Sendable {
     }
 
     // Check if we've exceeded max attempts
-    guard context.attemptCount < maxAttempts else {
+    guard context.attemptCount < maxAttempts.rawValue else {
       return .proceed
     }
 
@@ -127,18 +139,18 @@ public struct RetryInterceptor: ResponseInterceptor, Sendable {
   ///
   /// Jitter is random value between 0 and 0.1 * calculated delay to prevent
   /// synchronized retries (thundering herd). Final result is capped at maxDelay.
-  private func calculateDelay(attemptCount: Int) -> TimeInterval {
+  private func calculateDelay(attemptCount: RetryAttemptCount) -> RetryDelay {
     // Exponential backoff: baseDelay * (2 ^ attemptCount)
-    let exponentialDelay = baseDelay * pow(2.0, Double(attemptCount))
+    let exponentialDelay = baseDelay.rawValue * pow(2.0, Double(attemptCount.rawValue))
 
     // Cap at maxDelay
-    let cappedDelay = min(exponentialDelay, maxDelay)
+    let cappedDelay = min(exponentialDelay, maxDelay.rawValue)
 
     // Add jitter (0-10% of delay) to prevent thundering herd
     let jitter = Double.random(in: 0...(cappedDelay * 0.1))
 
     // Ensure final delay never exceeds maxDelay (jitter could push it over)
-    return min(cappedDelay + jitter, maxDelay)
+    return RetryDelay(min(cappedDelay + jitter, maxDelay.rawValue))
   }
 }
 

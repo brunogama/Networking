@@ -264,7 +264,7 @@ public struct ThenSteps: Sendable {
 /// Protocol for steps that provide a description.
 public protocol DescribableStep: ScenarioStep {
   /// Human-readable description of this step.
-  var stepDescription: String { get }
+  var stepDescription: BDDStepText { get }
 }
 
 // MARK: - Type-Erased Step Wrappers
@@ -274,7 +274,7 @@ public struct AnyGivenStep: GivenStep {
   private let _setup: @Sendable (ScenarioContext) async throws -> Void
 
   /// The description of the wrapped step.
-  public let stepDescription: String?
+  public let stepDescription: BDDStepText?
 
   /// Creates a type-erased wrapper.
   public init<S: GivenStep>(_ step: S) {
@@ -284,7 +284,7 @@ public struct AnyGivenStep: GivenStep {
 
   /// Creates a wrapper from a closure.
   public init(
-    description: String? = nil,
+    description: BDDStepText? = nil,
     setup: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) {
     self._setup = setup
@@ -301,7 +301,7 @@ public struct AnyWhenStep: WhenStep {
   private let _perform: @Sendable (ScenarioContext) async throws -> Void
 
   /// The description of the wrapped step.
-  public let stepDescription: String?
+  public let stepDescription: BDDStepText?
 
   /// Creates a type-erased wrapper.
   public init<S: WhenStep>(_ step: S) {
@@ -311,7 +311,7 @@ public struct AnyWhenStep: WhenStep {
 
   /// Creates a wrapper from a closure.
   public init(
-    description: String? = nil,
+    description: BDDStepText? = nil,
     perform: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) {
     self._perform = perform
@@ -328,7 +328,7 @@ public struct AnyThenStep: ThenStep {
   private let _verify: @Sendable (ScenarioContext) throws -> Void
 
   /// The description of the wrapped step.
-  public let stepDescription: String?
+  public let stepDescription: BDDStepText?
 
   /// Creates a type-erased wrapper.
   public init<S: ThenStep>(_ step: S) {
@@ -338,7 +338,7 @@ public struct AnyThenStep: ThenStep {
 
   /// Creates a wrapper from a closure.
   public init(
-    description: String? = nil,
+    description: BDDStepText? = nil,
     verify: @escaping @Sendable (ScenarioContext) throws -> Void
   ) {
     self._verify = verify

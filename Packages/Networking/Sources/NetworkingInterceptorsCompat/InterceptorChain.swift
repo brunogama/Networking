@@ -62,8 +62,10 @@ import NetworkingRuntime
 @available(
   *,
   deprecated,
-  message:
-    "InterceptorChain is a compatibility API. Prefer NetworkClient middleware composition for new runtime behavior."
+  message: """
+    InterceptorChain is a compatibility API.
+    Prefer NetworkClient middleware composition for new runtime behavior.
+    """
 )
 public struct InterceptorChain: Sendable {
   // MARK: - Properties
@@ -179,18 +181,18 @@ public struct InterceptorChain: Sendable {
   // MARK: - Convenience Methods
 
   /// Checks if the chain has any request interceptors.
-  public var hasRequestInterceptors: Bool {
-    !requestInterceptors.isEmpty
+  public var hasRequestInterceptors: InterceptorPresenceFlag {
+    InterceptorPresenceFlag(!requestInterceptors.isEmpty)
   }
 
   /// Checks if the chain has any response interceptors.
-  public var hasResponseInterceptors: Bool {
-    !responseInterceptors.isEmpty
+  public var hasResponseInterceptors: InterceptorPresenceFlag {
+    InterceptorPresenceFlag(!responseInterceptors.isEmpty)
   }
 
   /// Checks if the chain has any interceptors at all.
-  public var isEmpty: Bool {
-    requestInterceptors.isEmpty && responseInterceptors.isEmpty
+  public var isEmpty: InterceptorPresenceFlag {
+    InterceptorPresenceFlag(requestInterceptors.isEmpty && responseInterceptors.isEmpty)
   }
 
   // MARK: - Monoid Operations
@@ -229,12 +231,12 @@ public struct InterceptorChain: Sendable {
   // MARK: - Accessors for Testing
 
   /// Returns the count of request interceptors for testing purposes.
-  public var requestInterceptorCount: Int {
-    requestInterceptors.count
+  public var requestInterceptorCount: InterceptorCount {
+    InterceptorCount(requestInterceptors.count)
   }
 
   /// Returns the count of response interceptors for testing purposes.
-  public var responseInterceptorCount: Int {
-    responseInterceptors.count
+  public var responseInterceptorCount: InterceptorCount {
+    InterceptorCount(responseInterceptors.count)
   }
 }

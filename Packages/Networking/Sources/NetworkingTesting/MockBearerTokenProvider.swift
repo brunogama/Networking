@@ -52,8 +52,8 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
 
   // MARK: - State Tracking
 
-  private var stubbedToken: String?
-  private var stubbedRefreshToken: String?
+  private var stubbedToken: BearerTokenValue?
+  private var stubbedRefreshToken: BearerTokenValue?
   private var tokenFetchError: Error?
   private var refreshError: Error?
   private var tokenFetchCount: Int = 0
@@ -74,7 +74,7 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   ///
   /// - Returns: Stubbed token string, or nil if not stubbed
   /// - Throws: Stubbed error if configured via `stubTokenFetchError(_:)`
-  public func getCurrentToken() async throws -> String? {
+  public func getCurrentToken() async throws -> BearerTokenValue? {
     queue.sync(flags: .barrier) {
       tokenFetchCount += 1
       capturedTokenRequests.append(Date())
@@ -95,7 +95,7 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   ///
   /// - Returns: Stubbed refresh token string
   /// - Throws: Stubbed error if configured, or `MockError.notStubbed` if no token stubbed
-  public func refreshToken() async throws -> String {
+  public func refreshToken() async throws -> BearerTokenValue {
     queue.sync(flags: .barrier) {
       refreshCount += 1
       capturedRefreshRequests.append(Date())
@@ -119,7 +119,7 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   /// Stub the token to be returned by `getCurrentToken()`
   ///
   /// - Parameter token: Token string to return
-  public func stubToken(_ token: String) {
+  public func stubToken(_ token: BearerTokenValue) {
     queue.sync(flags: .barrier) {
       stubbedToken = token
     }
@@ -128,7 +128,7 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   /// Stub the token to be returned by `refreshToken()`
   ///
   /// - Parameter token: Refresh token string to return
-  public func stubRefreshToken(_ token: String) {
+  public func stubRefreshToken(_ token: BearerTokenValue) {
     queue.sync(flags: .barrier) {
       stubbedRefreshToken = token
     }
@@ -171,8 +171,8 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   /// Total number of calls made to this mock (token fetch + refresh)
   ///
   /// Conforms to `MockVerifiable` protocol for shared verification methods.
-  nonisolated public var callCount: Int {
-    get async { queue.sync { tokenFetchCount + refreshCount } }
+  nonisolated public var callCount: MockVerificationCount {
+    get async { MockVerificationCount(queue.sync { tokenFetchCount + refreshCount }) }
   }
 
   // MARK: - Verification Methods
@@ -181,8 +181,10 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   ///
   /// - Parameter times: Expected number of token fetch calls (default: 1)
   /// - Throws: `MockError.unexpectedCallCount` if actual count doesn't match
-  public func verifyTokenFetched(times: Int = 1) throws {
-    let actual = queue.sync { tokenFetchCount }
+  public func verifyTokenFetched(
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actual = MockVerificationCount(queue.sync { tokenFetchCount })
     guard actual == times else {
       throw MockError.unexpectedCallCount(expected: times, actual: actual)
     }
@@ -192,8 +194,10 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   ///
   /// - Parameter times: Expected number of refresh calls (default: 1)
   /// - Throws: `MockError.unexpectedCallCount` if actual count doesn't match
-  public func verifyRefreshed(times: Int = 1) throws {
-    let actual = queue.sync { refreshCount }
+  public func verifyRefreshed(
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actual = MockVerificationCount(queue.sync { refreshCount })
     guard actual == times else {
       throw MockError.unexpectedCallCount(expected: times, actual: actual)
     }
@@ -228,14 +232,14 @@ public final class MockBearerTokenProvider: BearerTokenProvider,
   /// Get the count of token fetch requests
   ///
   /// - Returns: Number of times `getCurrentToken()` was called
-  public func getTokenFetchCount() -> Int {
-    queue.sync { tokenFetchCount }
+  public func getTokenFetchCount() -> MockVerificationCount {
+    MockVerificationCount(queue.sync { tokenFetchCount })
   }
 
   /// Get the count of refresh token requests
   ///
   /// - Returns: Number of times `refreshToken()` was called
-  public func getRefreshCount() -> Int {
-    queue.sync { refreshCount }
+  public func getRefreshCount() -> MockVerificationCount {
+    MockVerificationCount(queue.sync { refreshCount })
   }
 }

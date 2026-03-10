@@ -15,8 +15,8 @@ import NetworkingCore
 ///
 /// ```swift
 /// struct CustomHeader: RequestComponent {
-///     let name: String
-///     let value: String
+///     let name: HTTPHeaderName
+///     let value: HTTPHeaderValue
 ///
 ///     func apply(to request: inout RequestBuilder.PartialRequest) throws {
 ///         request.headers[name] = value
@@ -95,10 +95,10 @@ public struct RequestBuilder {
   /// Internal structure for building requests.
   public struct PartialRequest: Sendable {
     public var method: HTTPMethod = .get
-    public var url: URL?
-    public var headers: [String: String] = [:]
-    public var body: Data?
-    public var timeout: TimeInterval = 30.0
+    public var url: HTTPRequestURL?
+    public var headers: HTTPHeaders = [:]
+    public var body: HTTPBody?
+    public var timeout = NetworkingCore.RequestTimeout(30.0)
 
     public init() {}
   }
@@ -167,68 +167,84 @@ public struct RequestBuilder {
 // MARK: - HTTP Method Components
 
 public struct GET: RequestComponent {
-  private let path: String
+  private let path: RequestPathPattern
 
-  public init(_ path: String) {
+  public init(_ path: RequestPathPattern) {
     self.path = path
+  }
+
+  package init(_ path: String) {
+    self.init(RequestPathPattern(path))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .get
     if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
+      request.url = existingURL.appendingPathComponent(path.rawValue)
     } else {
-      request.url = URL(string: path)
+      request.url = URL(string: path.rawValue).map { HTTPRequestURL($0) }
     }
   }
 }
 public struct POST: RequestComponent {
-  private let path: String
+  private let path: RequestPathPattern
 
-  public init(_ path: String) {
+  public init(_ path: RequestPathPattern) {
     self.path = path
+  }
+
+  package init(_ path: String) {
+    self.init(RequestPathPattern(path))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .post
     if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
+      request.url = existingURL.appendingPathComponent(path.rawValue)
     } else {
-      request.url = URL(string: path)
+      request.url = URL(string: path.rawValue).map { HTTPRequestURL($0) }
     }
   }
 }
 
 public struct PUT: RequestComponent {
-  private let path: String
+  private let path: RequestPathPattern
 
-  public init(_ path: String) {
+  public init(_ path: RequestPathPattern) {
     self.path = path
+  }
+
+  package init(_ path: String) {
+    self.init(RequestPathPattern(path))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .put
     if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
+      request.url = existingURL.appendingPathComponent(path.rawValue)
     } else {
-      request.url = URL(string: path)
+      request.url = URL(string: path.rawValue).map { HTTPRequestURL($0) }
     }
   }
 }
 
 public struct DELETE: RequestComponent {
-  private let path: String
+  private let path: RequestPathPattern
 
-  public init(_ path: String) {
+  public init(_ path: RequestPathPattern) {
     self.path = path
+  }
+
+  package init(_ path: String) {
+    self.init(RequestPathPattern(path))
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
     request.method = .delete
     if let existingURL = request.url {
-      request.url = existingURL.appendingPathComponent(path)
+      request.url = existingURL.appendingPathComponent(path.rawValue)
     } else {
-      request.url = URL(string: path)
+      request.url = URL(string: path.rawValue).map { HTTPRequestURL($0) }
     }
   }
 }

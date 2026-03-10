@@ -1,6 +1,9 @@
 import Foundation
 import NetworkingCore
 
+// swiftlint:disable file_length
+// swiftlint:disable type_body_length
+
 /// Comprehensive error handling middleware system with Swift 6 compliance
 public struct ErrorMiddleware: Sendable {
   // MARK: - Error Processing Pipeline Protocol
@@ -23,17 +26,17 @@ public struct ErrorMiddleware: Sendable {
   /// Context information for error processing
   public struct ErrorContext: Sendable {
     public let timestamp: Date
-    public let attemptNumber: Int
-    public let userAgent: String?
-    public let sessionId: String?
-    public let additionalMetadata: [String: String]
+    public let attemptNumber: RetryAttemptCount
+    public let userAgent: HTTPUserAgentValue?
+    public let sessionId: SessionIdentifier?
+    public let additionalMetadata: [ErrorContextMetadataKey: ErrorContextMetadataValue]
 
     public init(
       timestamp: Date = Date(),
-      attemptNumber: Int = 1,
-      userAgent: String? = nil,
-      sessionId: String? = nil,
-      additionalMetadata: [String: String] = [:]
+      attemptNumber: RetryAttemptCount = 1,
+      userAgent: HTTPUserAgentValue? = nil,
+      sessionId: SessionIdentifier? = nil,
+      additionalMetadata: [ErrorContextMetadataKey: ErrorContextMetadataValue] = [:]
     ) {
       self.timestamp = timestamp
       self.attemptNumber = attemptNumber
@@ -149,15 +152,17 @@ public struct ErrorMiddleware: Sendable {
 
   /// Sanitizes errors by removing sensitive information before logging or reporting
   public struct ErrorSanitizationProcessor: ErrorProcessor {
-    private let sensitiveHeaders: Set<String>
-    private let sensitiveQueryParams: Set<String>
+    private let sensitiveHeaders: Set<HTTPHeaderName>
+    private let sensitiveQueryParams: Set<QueryParameterName>
 
     public init(
-      sensitiveHeaders: Set<String> = ["Authorization", "X-API-Key", "Cookie"],
-      sensitiveQueryParams: Set<String> = ["access_token", "password", "secret"]
+      sensitiveHeaders: Set<HTTPHeaderName> = ["authorization", "x-api-key", "cookie"],
+      sensitiveQueryParams: Set<QueryParameterName> = ["access_token", "password", "secret"]
     ) {
-      self.sensitiveHeaders = Set(sensitiveHeaders.map { $0.lowercased() })
-      self.sensitiveQueryParams = Set(sensitiveQueryParams.map { $0.lowercased() })
+      self.sensitiveHeaders = Set(sensitiveHeaders.map { HTTPHeaderName($0.lowercased()) })
+      self.sensitiveQueryParams = Set(
+        sensitiveQueryParams.map { QueryParameterName($0.lowercased()) }
+      )
     }
 
     public func process(
@@ -180,24 +185,23 @@ public struct ErrorMiddleware: Sendable {
     private func sanitizeRequest(_ request: HTTPRequest) -> HTTPRequest {
       // Sanitize headers
       var sanitizedHeaders = request.headers
-      for header in sanitizedHeaders.keys {
-        if sensitiveHeaders.contains(header.lowercased()) {
-          sanitizedHeaders[header] = "***REDACTED***"
-        }
+      for header in sanitizedHeaders.keys
+      where sensitiveHeaders.contains(HTTPHeaderName(header.lowercased())) {
+        sanitizedHeaders[header] = "***REDACTED***"
       }
 
       // Sanitize URL query parameters
       var urlComponents = URLComponents(url: request.url, resolvingAgainstBaseURL: false)
       if let queryItems = urlComponents?.queryItems {
         urlComponents?.queryItems = queryItems.map { item in
-          if sensitiveQueryParams.contains(item.name.lowercased()) {
+          if sensitiveQueryParams.contains(QueryParameterName(item.name.lowercased())) {
             return URLQueryItem(name: item.name, value: "***REDACTED***")
           }
           return item
         }
       }
 
-      let sanitizedURL = urlComponents?.url ?? request.url
+      let sanitizedURL = urlComponents?.url.map { HTTPRequestURL($0) } ?? request.url
 
       return HTTPRequest(
         method: request.method,
@@ -215,12 +219,12 @@ public struct ErrorMiddleware: Sendable {
   public struct ErrorRecoveryProcessor: ErrorProcessor {
     private let recoveryStrategy: any ErrorRecoveryStrategies.RecoveryStrategy
     private let httpClient: any HTTPClient
-    private let maxAttempts: Int
+    private let maxAttempts: RetryAttemptCount
 
     public init(
       recoveryStrategy: any ErrorRecoveryStrategies.RecoveryStrategy,
       httpClient: any HTTPClient,
-      maxAttempts: Int = 3
+      maxAttempts: RetryAttemptCount = 3
     ) {
       self.recoveryStrategy = recoveryStrategy
       self.httpClient = httpClient
@@ -233,12 +237,12 @@ public struct ErrorMiddleware: Sendable {
       context: ErrorContext
     ) async -> HTTPError {
       // Check if we've exceeded max attempts
-      if context.attemptNumber > maxAttempts {
+      if context.attemptNumber.rawValue > maxAttempts {
         return error
       }
 
       // Check if the strategy can recover from this error
-      guard recoveryStrategy.canRecover(from: error) else {
+      guard recoveryStrategy.canRecover(from: error).rawValue else {
         return error
       }
 
@@ -403,8 +407,12 @@ extension ErrorMiddleware {
     public init() {}
 
     public func report(_ error: HTTPError, context: ErrorContext) async {
-      print("🔴 HTTP Error: \(error.debugDescription)")
-      print("   Context: \(context)")
+      writeToStandardError("🔴 HTTP Error: \(error.debugDescription)")
+      writeToStandardError("   Context: \(context)")
+    }
+
+    private func writeToStandardError(_ message: String) {
+      FileHandle.standardError.write(Data("\(message)\n".utf8))
     }
   }
 
@@ -427,3 +435,6 @@ extension ErrorMiddleware {
     }
   }
 }
+
+// swiftlint:enable type_body_length
+// swiftlint:enable file_length

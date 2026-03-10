@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 
 /// Provides actionable error information and recovery suggestions for HTTP errors
@@ -14,20 +15,20 @@ public struct ActionableErrorInfo: Sendable {
       case contactSupport  // Requires external assistance
     }
 
-    public let title: String
-    public let description: String
+    public let title: RecoveryActionTitle
+    public let description: RecoveryActionDescription
     public let type: ActionType
-    public let estimatedDuration: TimeInterval?
-    public let prerequisite: String?
-    public let canAutoExecute: Bool
+    public let estimatedDuration: RequestTimeout?
+    public let prerequisite: RecoveryActionPrerequisite?
+    public let canAutoExecute: RecoveryActionAutomationFlag
 
     public init(
-      title: String,
-      description: String,
+      title: RecoveryActionTitle,
+      description: RecoveryActionDescription,
       type: ActionType,
-      estimatedDuration: TimeInterval? = nil,
-      prerequisite: String? = nil,
-      canAutoExecute: Bool = false
+      estimatedDuration: RequestTimeout? = nil,
+      prerequisite: RecoveryActionPrerequisite? = nil,
+      canAutoExecute: RecoveryActionAutomationFlag = RecoveryActionAutomationFlag(rawValue: false)
     ) {
       self.title = title
       self.description = description
@@ -36,22 +37,40 @@ public struct ActionableErrorInfo: Sendable {
       self.prerequisite = prerequisite
       self.canAutoExecute = canAutoExecute
     }
+
+    package init(
+      title: String,
+      description: String,
+      type: ActionType,
+      estimatedDuration: TimeInterval? = nil,
+      prerequisite: String? = nil,
+      canAutoExecute: Bool = false
+    ) {
+      self.init(
+        title: RecoveryActionTitle(rawValue: title),
+        description: RecoveryActionDescription(rawValue: description),
+        type: type,
+        estimatedDuration: estimatedDuration.map(RequestTimeout.init(rawValue:)),
+        prerequisite: prerequisite.map(RecoveryActionPrerequisite.init(rawValue:)),
+        canAutoExecute: RecoveryActionAutomationFlag(rawValue: canAutoExecute)
+      )
+    }
   }
 
   /// Contextual information about when and why the error occurred
   public struct ErrorContext: Sendable {
     public let timestamp: Date
-    public let attemptNumber: Int
+    public let attemptNumber: ActionAttemptCount
     public let networkCondition: NetworkCondition
     public let deviceState: DeviceState
-    public let userAction: String?
+    public let userAction: UserActionName?
 
     public init(
       timestamp: Date = Date(),
-      attemptNumber: Int = 1,
+      attemptNumber: ActionAttemptCount = ActionAttemptCount(rawValue: 1),
       networkCondition: NetworkCondition = .unknown,
       deviceState: DeviceState = .normal,
-      userAction: String? = nil
+      userAction: UserActionName? = nil
     ) {
       self.timestamp = timestamp
       self.attemptNumber = attemptNumber
@@ -91,10 +110,10 @@ public struct ActionableErrorInfo: Sendable {
   public let recoveryActions: [RecoveryAction]
 
   /// User-friendly error summary
-  public let userMessage: String
+  public let userMessage: UserMessageText
 
   /// Technical details for debugging
-  public let technicalSummary: String
+  public let technicalSummary: TechnicalSummaryText
 
   /// Impact level of this error on user experience
   public let impactLevel: ImpactLevel
@@ -122,8 +141,8 @@ public struct ActionableErrorInfo: Sendable {
     error: HTTPError,
     context: ErrorContext = ErrorContext(),
     recoveryActions: [RecoveryAction] = [],
-    userMessage: String? = nil,
-    technicalSummary: String? = nil,
+    userMessage: UserMessageText? = nil,
+    technicalSummary: TechnicalSummaryText? = nil,
     impactLevel: ImpactLevel? = nil,
     confidenceLevel: ConfidenceLevel? = nil
   ) {
@@ -163,6 +182,25 @@ public struct ActionableErrorInfo: Sendable {
 // MARK: - Analysis Implementation
 
 extension ActionableErrorInfo {
+  private static func action(
+    title: String,
+    description: String,
+    type: RecoveryAction.ActionType,
+    estimatedDuration: TimeInterval? = nil,
+    prerequisite: String? = nil,
+    canAutoExecute: Bool = false
+  ) -> RecoveryAction {
+    RecoveryAction(
+      title: RecoveryActionTitle(rawValue: title),
+      description: RecoveryActionDescription(rawValue: description),
+      type: type,
+      estimatedDuration: estimatedDuration.map(RequestTimeout.init(rawValue:)),
+      prerequisite: prerequisite.map(RecoveryActionPrerequisite.init(rawValue:)),
+      canAutoExecute: RecoveryActionAutomationFlag(rawValue: canAutoExecute)
+    )
+  }
+
+  // swiftlint:disable cyclomatic_complexity
   /// Generates contextually appropriate recovery actions for the error
   private static func generateRecoveryActions(
     for error: HTTPError,
@@ -204,7 +242,9 @@ extension ActionableErrorInfo {
     // Sort by effectiveness probability and action type priority
     return sortActionsByEffectiveness(actions, for: error, context: context)
   }
+  // swiftlint:enable cyclomatic_complexity
 
+  // swiftlint:disable:next cyclomatic_complexity function_body_length
   private static func networkRecoveryActions(
     _ networkError: HTTPError.NetworkError,
     context: ErrorContext
@@ -310,6 +350,7 @@ extension ActionableErrorInfo {
     }
   }
 
+  // swiftlint:disable:next cyclomatic_complexity function_body_length
   private static func httpRecoveryActions(
     _ status: HTTPStatus,
     context: ErrorContext
@@ -463,7 +504,7 @@ extension ActionableErrorInfo {
   }
 
   private static func decodingRecoveryActions(
-    _ message: String,
+    _ message: HTTPErrorDetail,
     context: ErrorContext
   ) -> [RecoveryAction] {
     [
@@ -492,7 +533,7 @@ extension ActionableErrorInfo {
   }
 
   private static func encodingRecoveryActions(
-    _ message: String,
+    _ message: HTTPErrorDetail,
     context: ErrorContext
   ) -> [RecoveryAction] {
     [
@@ -533,7 +574,7 @@ extension ActionableErrorInfo {
   }
 
   private static func configurationRecoveryActions(
-    _ message: String,
+    _ message: HTTPErrorDetail,
     context: ErrorContext
   ) -> [RecoveryAction] {
     [
@@ -562,8 +603,8 @@ extension ActionableErrorInfo {
   }
 
   private static func customRecoveryActions(
-    type: String,
-    message: String,
+    type: HTTPErrorTypeName,
+    message: HTTPErrorDetail,
     context: ErrorContext
   ) -> [RecoveryAction] {
     if type.lowercased() == "security" {
@@ -586,11 +627,13 @@ extension ActionableErrorInfo {
     } else {
       return [
         RecoveryAction(
-          title: "Review \(type) Configuration",
-          description: "Check the configuration for \(type.lowercased()) issues",
+          title: RecoveryActionTitle("Review \(type) Configuration"),
+          description: RecoveryActionDescription(
+            "Check the configuration for \(type.lowercased()) issues"
+          ),
           type: .systemConfiguration,
-          estimatedDuration: 300,
-          canAutoExecute: false
+          estimatedDuration: RequestTimeout(rawValue: 300),
+          canAutoExecute: RecoveryActionAutomationFlag(rawValue: false)
         ),
         RecoveryAction(
           title: "Contact Support",
@@ -613,7 +656,7 @@ extension ActionableErrorInfo {
           title: "Wait Before Retry",
           description: "Wait longer before attempting again",
           type: .delayed,
-          estimatedDuration: Double(context.attemptNumber * 30),
+          estimatedDuration: Double(context.attemptNumber.rawValue * 30),
           canAutoExecute: true
         )
       )
@@ -667,61 +710,26 @@ extension ActionableErrorInfo {
     for error: HTTPError,
     context: ErrorContext
   ) -> Int {
-    var priority = 0
-
-    // Prioritize auto-executable actions
-    if action.canAutoExecute {
-      priority -= 10
-    }
-
-    // Prioritize by action type
-    switch action.type {
-    case .immediate:
-      priority += 0
-
-    case .delayed:
-      priority += 5
-
-    case .userInteraction:
-      priority += 10
-
-    case .systemConfiguration:
-      priority += 15
-
-    case .contactSupport:
-      priority += 20
-    }
-
-    // Consider estimated duration
-    if let duration = action.estimatedDuration {
-      priority += Int(duration / 60)  // Add 1 per minute
-    }
-
-    // Consider context factors
-    if context.attemptNumber > 3 {
-      // Prioritize contact support for repeated failures
-      if action.type == .contactSupport {
-        priority -= 5
-      }
-    }
-
-    return priority
+    autoExecuteAdjustment(for: action)
+      + actionTypePriority(for: action.type)
+      + durationPriorityAdjustment(for: action)
+      + repeatedFailurePriorityAdjustment(for: action, context: context)
   }
 
   /// Generates a user-friendly message for the error
   private static func generateUserMessage(
     for error: HTTPError,
     context: ErrorContext
-  ) -> String {
+  ) -> UserMessageText {
     let baseMessage = error.userFriendlyDescription
 
     // Add context-sensitive information
     if context.attemptNumber > 1 {
-      return "\(baseMessage) This is attempt #\(context.attemptNumber)."
+      return UserMessageText("\(baseMessage) This is attempt #\(context.attemptNumber).")
     }
 
     if context.networkCondition == .poor {
-      return "\(baseMessage) Your network connection appears to be weak."
+      return UserMessageText("\(baseMessage) Your network connection appears to be weak.")
     }
 
     return baseMessage
@@ -731,8 +739,8 @@ extension ActionableErrorInfo {
   private static func generateTechnicalSummary(
     for error: HTTPError,
     context: ErrorContext
-  ) -> String {
-    var summary = error.debugDescription
+  ) -> TechnicalSummaryText {
+    var summary = error.debugSummary.rawValue
 
     summary +=
       "\nContext: Attempt \(context.attemptNumber), Network: \(context.networkCondition), Device: \(context.deviceState)"
@@ -741,7 +749,7 @@ extension ActionableErrorInfo {
       summary += "\nTriggered by: \(userAction)"
     }
 
-    return summary
+    return TechnicalSummaryText(summary)
   }
 
   /// Determines the impact level of the error
@@ -769,30 +777,64 @@ extension ActionableErrorInfo {
     for error: HTTPError,
     context: ErrorContext
   ) -> ConfidenceLevel {
-    // Lower confidence for repeated failures takes precedence
     if context.attemptNumber > 3 {
       return .low
     }
 
-    // Higher confidence for transient errors (if not repeated)
-    if error.isTransientError {
+    if error.isTransientError.rawValue {
       return .high
     }
 
-    // Medium confidence for well-understood error types
+    return confidenceLevel(for: error)
+  }
+
+  private static func autoExecuteAdjustment(for action: RecoveryAction) -> Int {
+    action.canAutoExecute.rawValue ? -10 : 0
+  }
+
+  // swiftlint:disable:next cyclomatic_complexity
+  private static func actionTypePriority(for type: RecoveryAction.ActionType) -> Int {
+    switch type {
+    case .immediate:
+      return 0
+    case .delayed:
+      return 5
+    case .userInteraction:
+      return 10
+    case .systemConfiguration:
+      return 15
+    case .contactSupport:
+      return 20
+    }
+  }
+
+  private static func durationPriorityAdjustment(for action: RecoveryAction) -> Int {
+    guard let duration = action.estimatedDuration else {
+      return 0
+    }
+
+    return Int(duration.rawValue / 60)
+  }
+
+  private static func repeatedFailurePriorityAdjustment(
+    for action: RecoveryAction,
+    context: ErrorContext
+  ) -> Int {
+    guard context.attemptNumber > 3, action.type == .contactSupport else {
+      return 0
+    }
+
+    return -5
+  }
+
+  private static func confidenceLevel(for error: HTTPError) -> ConfidenceLevel {
     switch error.category {
-    case .network(.noConnection), .network(.connectionLost):
+    case .network(.noConnection), .network(.connectionLost), .cancelled:
       return .veryHigh
-
-    case .http(let status) where [401, 403, 404, 429].contains(status.rawValue):
+    case .http(let status) where [401, 403, 404, 429].contains(status.codeValue):
       return .high
-
     case .timeout:
       return .high
-
-    case .cancelled:
-      return .veryHigh
-
     default:
       return .medium
     }
@@ -804,7 +846,7 @@ extension ActionableErrorInfo {
 extension ActionableErrorInfo {
   /// Returns only actions that can be automatically executed
   public var autoExecutableActions: [RecoveryAction] {
-    recoveryActions.filter(\.canAutoExecute)
+    recoveryActions.filter { $0.canAutoExecute.rawValue }
   }
 
   /// Returns actions that require user interaction
@@ -818,13 +860,18 @@ extension ActionableErrorInfo {
   }
 
   /// Returns total estimated time to resolve the issue
-  public var estimatedResolutionTime: TimeInterval {
-    recoveryActions.compactMap(\.estimatedDuration).min() ?? 300
+  public var estimatedResolutionTime: EstimatedResolutionTime {
+    recoveryActions.compactMap(\.estimatedDuration).min().map {
+      EstimatedResolutionTime($0.rawValue)
+    }
+      ?? EstimatedResolutionTime(rawValue: 300)
   }
 
   /// Returns whether this error is likely to resolve automatically
-  public var isLikelyToResolveAutomatically: Bool {
-    !autoExecutableActions.isEmpty && confidenceLevel.rawValue >= ConfidenceLevel.medium.rawValue
+  public var isLikelyToResolveAutomatically: AutomaticResolutionFlag {
+    AutomaticResolutionFlag(
+      !autoExecutableActions.isEmpty && confidenceLevel.rawValue >= ConfidenceLevel.medium.rawValue
+    )
   }
 }
 
@@ -835,23 +882,23 @@ extension ActionableErrorInfo.ImpactLevel: Comparable {
     lhs.rawValue < rhs.rawValue
   }
 
-  public var rawValue: Int {
+  public var rawValue: ImpactLevelRank {
     switch self {
-    case .minimal: return 1
-    case .moderate: return 2
-    case .significant: return 3
-    case .critical: return 4
+    case .minimal: return ImpactLevelRank(rawValue: 1)
+    case .moderate: return ImpactLevelRank(rawValue: 2)
+    case .significant: return ImpactLevelRank(rawValue: 3)
+    case .critical: return ImpactLevelRank(rawValue: 4)
     }
   }
 }
 
 extension ActionableErrorInfo.ConfidenceLevel {
-  public var rawValue: Int {
+  public var rawValue: ConfidenceLevelRank {
     switch self {
-    case .low: return 1
-    case .medium: return 2
-    case .high: return 3
-    case .veryHigh: return 4
+    case .low: return ConfidenceLevelRank(rawValue: 1)
+    case .medium: return ConfidenceLevelRank(rawValue: 2)
+    case .high: return ConfidenceLevelRank(rawValue: 3)
+    case .veryHigh: return ConfidenceLevelRank(rawValue: 4)
     }
   }
 }

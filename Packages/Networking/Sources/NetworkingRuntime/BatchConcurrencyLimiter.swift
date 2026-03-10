@@ -48,7 +48,7 @@ import NetworkingCore
 /// suspension, not the order they started waiting.
 public actor BatchConcurrencyLimiter {
   /// Maximum number of concurrent tasks allowed.
-  private let maxConcurrency: Int
+  private let maxConcurrency: BatchConcurrencyLimit
 
   /// Current number of tasks holding slots.
   private var currentCount = 0
@@ -56,9 +56,9 @@ public actor BatchConcurrencyLimiter {
   /// Creates a concurrency limiter.
   ///
   /// - Parameter maxConcurrency: Maximum concurrent tasks (0 = unlimited)
-  public init(maxConcurrency: Int) {
+  public init(maxConcurrency: BatchConcurrencyLimit) {
     // 0 means unlimited, convert to Int.max for consistent comparison logic
-    self.maxConcurrency = maxConcurrency == 0 ? Int.max : maxConcurrency
+    self.maxConcurrency = maxConcurrency == 0 ? BatchConcurrencyLimit(Int.max) : maxConcurrency
   }
 
   /// Acquires a concurrency slot, suspending if the limit is reached.
@@ -73,7 +73,7 @@ public actor BatchConcurrencyLimiter {
   /// a slot. This keeps threads available for other tasks instead of blocking.
   public func acquire() async {
     // Cooperative suspension pattern - yield until a slot is available
-    while currentCount >= maxConcurrency {
+    while currentCount >= maxConcurrency.rawValue {
       await Task.yield()
     }
 

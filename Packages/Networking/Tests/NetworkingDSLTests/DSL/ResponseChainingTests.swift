@@ -48,7 +48,7 @@ struct ResponseChainingTests {
     @Test("decode() throws on empty body")
     func decodeThrowsOnEmptyBody() throws {
         let request = HTTPRequest(method: .get, url: URL(string: "https://api.test.com/user")!)
-        let response = HTTPResponse(request: request, status: .ok, body: nil)
+        let response = HTTPResponse(request: request, status: .ok, body: Optional<HTTPBody>.none)
 
         #expect(throws: HTTPError.self) {
             try response.decode(ChainingTestUser.self)
@@ -58,7 +58,7 @@ struct ResponseChainingTests {
     @Test("decodeIfPresent() returns nil on failure")
     func decodeIfPresentReturnsNilOnFailure() {
         let request = HTTPRequest(method: .get, url: URL(string: "https://api.test.com/user")!)
-        let response = HTTPResponse(request: request, status: .ok, body: nil)
+        let response = HTTPResponse(request: request, status: .ok, body: Optional<HTTPBody>.none)
 
         let decoded = response.decodeIfPresent(ChainingTestUser.self)
 

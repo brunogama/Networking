@@ -83,7 +83,7 @@ struct InterceptorChainBehaviorTests {
     let cachedResponse = await cache.getCachedResponse(for: .get, path: "/api/data")
     let cachedBody = try #require(cachedResponse?.body)
 
-    #expect(cachedBody == Data("cached data".utf8))
+    #expect(cachedBody.rawValue == Data("cached data".utf8))
   }
 
   @Test("When composing chains, applies interceptors in the configured order")
@@ -112,11 +112,11 @@ struct InterceptorChainBehaviorTests {
   @Test("When the chain is empty, passes requests through unchanged")
   func passesRequestsThroughUnchangedWhenTheChainIsEmpty() async throws {
     let chain = InterceptorChain(requestInterceptors: [])
-    let originalHeaders = ["X-Custom": "value"]
-    let originalBody = Data("body".utf8)
+    let originalHeaders = HTTPHeaders(["X-Custom": "value"])
+    let originalBody = HTTPBody(Data("body".utf8))
     var request = HTTPRequest(
       method: .post,
-      url: URL(string: "https://api.example.com/empty")!,
+      url: HTTPRequestURL(URL(string: "https://api.example.com/empty")!),
       headers: originalHeaders,
       body: originalBody
     )
@@ -160,13 +160,22 @@ struct InterceptorChainBehaviorTests {
   }
 
   private static func makeRequest(path: String) -> HTTPRequest {
-    HTTPRequest(method: .get, path: path, baseURL: "https://api.example.com")
+    HTTPRequest(
+      method: .get,
+      path: RequestPathPattern(path),
+      baseURL: BaseURLText("https://api.example.com")
+    )
   }
 
   private static func makeContext(
     path: String,
     method: HTTPMethod = .get
   ) -> InterceptorContext {
-    InterceptorContext(path: path, method: method, attemptCount: 0, metadata: [:])
+    InterceptorContext(
+      path: RequestPathPattern(path),
+      method: method,
+      attemptCount: 0,
+      metadata: [:]
+    )
   }
 }

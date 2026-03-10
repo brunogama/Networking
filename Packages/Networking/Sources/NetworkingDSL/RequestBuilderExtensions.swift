@@ -17,6 +17,7 @@ extension HTTPRequest {
 
 // MARK: - Request Composition Operators
 
+// swiftlint:disable static_operator
 /// Combines a request with additional components.
 /// - Parameters:
 ///   - lhs: The base HTTPRequest
@@ -43,6 +44,7 @@ public func + (lhs: HTTPRequest, rhs: [any RequestComponent]) throws -> HTTPRequ
 public func |> (lhs: HTTPRequest, rhs: any RequestComponent) throws -> HTTPRequest {
   try lhs + rhs
 }
+// swiftlint:enable static_operator
 
 extension HTTPRequest {
   /// Creates an HTTPRequest by combining this request with additional components.
@@ -86,7 +88,7 @@ public struct EnvironmentAware: RequestComponent {
     case development
     case staging
     case production
-    case custom(String)
+    case custom(HTTPEnvironmentName)
   }
 
   private let environment: Environment
@@ -138,9 +140,9 @@ public struct CacheControl: RequestComponent {
   public enum Directive: Sendable {
     case noCache
     case noStore
-    case maxAge(TimeInterval)
+    case maxAge(CacheMaxAge)
     case mustRevalidate
-    case custom(String)
+    case custom(CacheDirectiveText)
   }
 
   private let directives: [Directive]
@@ -150,24 +152,27 @@ public struct CacheControl: RequestComponent {
   }
 
   public func apply(to request: inout RequestBuilder.PartialRequest) throws {
-    let directiveStrings = directives.map { directive in
-      switch directive {
-      case .noCache: return "no-cache"
-      case .noStore: return "no-store"
-      case .maxAge(let seconds): return "max-age=\(Int(seconds))"
-      case .mustRevalidate: return "must-revalidate"
-      case .custom(let value): return value
-      }
-    }
+    let directiveStrings = directives.map(directiveString(for:))
     request.headers["Cache-Control"] = directiveStrings.joined(separator: ", ")
+  }
+
+  // swiftlint:disable:next cyclomatic_complexity
+  private func directiveString(for directive: Directive) -> String {
+    switch directive {
+    case .noCache: return "no-cache"
+    case .noStore: return "no-store"
+    case .maxAge(let seconds): return "max-age=\(seconds.rawValue)"
+    case .mustRevalidate: return "must-revalidate"
+    case .custom(let value): return value.rawValue
+    }
   }
 }
 
 /// Component that adds ETags for conditional requests.
 public struct IfNoneMatch: RequestComponent {
-  private let etag: String
+  private let etag: HTTPHeaderValue
 
-  public init(_ etag: String) {
+  public init(_ etag: HTTPHeaderValue) {
     self.etag = etag
   }
 

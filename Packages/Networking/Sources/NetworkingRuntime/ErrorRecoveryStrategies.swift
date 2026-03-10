@@ -1,7 +1,9 @@
+// swiftlint:disable file_length
 import Foundation
 import NetworkingCore
 
-/// Defines strategies for recovering from HTTP errors with Swift 6 compliance
+// Defines strategies for recovering from HTTP errors with Swift 6 compliance.
+// swiftlint:disable:next type_body_length
 public struct ErrorRecoveryStrategies: Sendable {
   // MARK: - Recovery Strategy Protocol
 
@@ -20,28 +22,28 @@ public struct ErrorRecoveryStrategies: Sendable {
     ) async throws -> HTTPResponse
 
     /// Determines if this strategy can handle the given error
-    func canRecover(from error: HTTPError) -> Bool
+    func canRecover(from error: HTTPError) -> RetryDecision
 
     /// The maximum number of recovery attempts for this strategy
-    var maxRecoveryAttempts: Int { get }
+    var maxRecoveryAttempts: RetryAttemptCount { get }
   }
 
   // MARK: - Automatic Retry Strategy
 
   /// Implements automatic retry logic for transient errors
   public struct AutomaticRetryStrategy: RecoveryStrategy {
-    private let maxAttempts: Int
-    private let baseDelay: TimeInterval
-    private let backoffMultiplier: Double
-    private let jitterFactor: Double
+    private let maxAttempts: RetryAttemptCount
+    private let baseDelay: RetryDelay
+    private let backoffMultiplier: BackoffMultiplier
+    private let jitterFactor: JitterFactor
 
-    public var maxRecoveryAttempts: Int { maxAttempts }
+    public var maxRecoveryAttempts: RetryAttemptCount { maxAttempts }
 
     public init(
-      maxAttempts: Int = 3,
-      baseDelay: TimeInterval = 1.0,
-      backoffMultiplier: Double = 2.0,
-      jitterFactor: Double = 0.1
+      maxAttempts: RetryAttemptCount = RetryAttemptCount(rawValue: 3),
+      baseDelay: RetryDelay = RetryDelay(rawValue: 1.0),
+      backoffMultiplier: BackoffMultiplier = BackoffMultiplier(rawValue: 2.0),
+      jitterFactor: JitterFactor = JitterFactor(rawValue: 0.1)
     ) {
       self.maxAttempts = maxAttempts
       self.baseDelay = baseDelay
@@ -49,8 +51,8 @@ public struct ErrorRecoveryStrategies: Sendable {
       self.jitterFactor = jitterFactor
     }
 
-    public func canRecover(from error: HTTPError) -> Bool {
-      error.isTransientError
+    public func canRecover(from error: HTTPError) -> RetryDecision {
+      RetryDecision(error.isTransientError.rawValue)
     }
 
     public func recover(
@@ -60,9 +62,9 @@ public struct ErrorRecoveryStrategies: Sendable {
     ) async throws -> HTTPResponse {
       var lastError = error
 
-      for attempt in 1...maxAttempts {
+      for attempt in 1...maxAttempts.rawValue {
         let delay = calculateDelay(for: attempt)
-        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        try await Task.sleep(nanoseconds: UInt64(delay.rawValue * 1_000_000_000))
 
         do {
           return try await client.execute(request)
@@ -70,7 +72,7 @@ public struct ErrorRecoveryStrategies: Sendable {
           lastError = recoveryError
 
           // Stop retrying if the new error is not recoverable
-          if !canRecover(from: recoveryError) {
+          if !canRecover(from: recoveryError).rawValue {
             break
           }
         } catch {
@@ -86,10 +88,12 @@ public struct ErrorRecoveryStrategies: Sendable {
       throw lastError
     }
 
-    private func calculateDelay(for attempt: Int) -> TimeInterval {
-      let exponentialDelay = baseDelay * pow(backoffMultiplier, Double(attempt - 1))
-      let jitter = Double.random(in: -jitterFactor...jitterFactor) * exponentialDelay
-      return max(0.1, exponentialDelay + jitter)  // Minimum 100ms delay
+    private func calculateDelay(for attempt: Int) -> RetryDelay {
+      let exponentialDelay =
+        baseDelay.rawValue * pow(backoffMultiplier.rawValue, Double(attempt - 1))
+      let jitter =
+        Double.random(in: -jitterFactor.rawValue...jitterFactor.rawValue) * exponentialDelay
+      return RetryDelay(max(0.1, exponentialDelay + jitter))  // Minimum 100ms delay
     }
   }
 
@@ -97,29 +101,30 @@ public struct ErrorRecoveryStrategies: Sendable {
 
   /// Handles authentication token refresh scenarios
   public struct AuthenticationRefreshStrategy: RecoveryStrategy {
-    private let tokenRefreshHandler: @Sendable () async throws -> String
-    private let headerName: String
-    private let tokenPrefix: String
+    private let tokenRefreshHandler: @Sendable () async throws -> BearerTokenValue
+    private let headerName: HTTPHeaderName
+    private let tokenPrefix: AuthorizationTokenPrefix
 
-    public let maxRecoveryAttempts: Int = 1  // Only try once per authentication error
+    public let maxRecoveryAttempts =
+      RetryAttemptCount(rawValue: 1)  // Only try once per authentication error
 
     public init(
-      headerName: String = "Authorization",
-      tokenPrefix: String = "Bearer ",
-      tokenRefreshHandler: @escaping @Sendable () async throws -> String
+      headerName: HTTPHeaderName = HTTPHeaderName(rawValue: "Authorization"),
+      tokenPrefix: AuthorizationTokenPrefix = AuthorizationTokenPrefix(rawValue: "Bearer "),
+      tokenRefreshHandler: @escaping @Sendable () async throws -> BearerTokenValue
     ) {
       self.headerName = headerName
       self.tokenPrefix = tokenPrefix
       self.tokenRefreshHandler = tokenRefreshHandler
     }
 
-    public func canRecover(from error: HTTPError) -> Bool {
+    public func canRecover(from error: HTTPError) -> RetryDecision {
       switch error.category {
       case .http(let status):
-        return status.rawValue == 401
+        return RetryDecision(status.rawValue == 401)
 
       default:
-        return false
+        return RetryDecision(false)
       }
     }
 
@@ -133,7 +138,7 @@ public struct ErrorRecoveryStrategies: Sendable {
 
       // Create a new request with the refreshed token
       var updatedHeaders = request.headers
-      updatedHeaders[headerName] = "\(tokenPrefix)\(newToken)"
+      updatedHeaders[headerName] = HTTPHeaderValue("\(tokenPrefix)\(newToken)")
 
       let updatedRequest = HTTPRequest(
         method: request.method,
@@ -159,23 +164,23 @@ public struct ErrorRecoveryStrategies: Sendable {
     }
 
     private var state: State = .closed
-    private var failureCount: Int = 0
+    private var failureCount = RetryAttemptCount(rawValue: 0)
     private var lastFailureTime: Date?
-    private let failureThreshold: Int
-    private let recoveryTimeout: TimeInterval
+    private let failureThreshold: RetryAttemptCount
+    private let recoveryTimeout: RetryDelay
 
-    nonisolated public let maxRecoveryAttempts: Int = 1
+    nonisolated public let maxRecoveryAttempts = RetryAttemptCount(rawValue: 1)
 
     public init(
-      failureThreshold: Int = 5,
-      recoveryTimeout: TimeInterval = 60.0
+      failureThreshold: RetryAttemptCount = RetryAttemptCount(rawValue: 5),
+      recoveryTimeout: RetryDelay = RetryDelay(rawValue: 60.0)
     ) {
       self.failureThreshold = failureThreshold
       self.recoveryTimeout = recoveryTimeout
     }
 
-    nonisolated public func canRecover(from error: HTTPError) -> Bool {
-      error.isServerError
+    nonisolated public func canRecover(from error: HTTPError) -> RetryDecision {
+      RetryDecision(error.isServerError.rawValue)
     }
 
     public func recover(
@@ -224,7 +229,7 @@ public struct ErrorRecoveryStrategies: Sendable {
       case .open:
         // Check if we should transition to half-open
         if let lastFailure = lastFailureTime,
-          now.timeIntervalSince(lastFailure) >= recoveryTimeout
+          now.timeIntervalSince(lastFailure) >= recoveryTimeout.rawValue
         {
           state = .halfOpen
           return .halfOpen
@@ -243,7 +248,7 @@ public struct ErrorRecoveryStrategies: Sendable {
     }
 
     private func recordFailure() {
-      failureCount += 1
+      failureCount = RetryAttemptCount(failureCount.rawValue + 1)
       lastFailureTime = Date()
 
       if failureCount >= failureThreshold {
@@ -258,16 +263,16 @@ public struct ErrorRecoveryStrategies: Sendable {
   public struct CompositeRecoveryStrategy: RecoveryStrategy {
     private let strategies: [any RecoveryStrategy]
 
-    public var maxRecoveryAttempts: Int {
-      strategies.map(\.maxRecoveryAttempts).max() ?? 0
+    public var maxRecoveryAttempts: RetryAttemptCount {
+      strategies.map(\.maxRecoveryAttempts).max() ?? RetryAttemptCount(rawValue: 0)
     }
 
     public init(strategies: [any RecoveryStrategy]) {
       self.strategies = strategies
     }
 
-    public func canRecover(from error: HTTPError) -> Bool {
-      strategies.contains { $0.canRecover(from: error) }
+    public func canRecover(from error: HTTPError) -> RetryDecision {
+      RetryDecision(strategies.contains { $0.canRecover(from: error).rawValue })
     }
 
     public func recover(
@@ -278,23 +283,21 @@ public struct ErrorRecoveryStrategies: Sendable {
       var lastError = error
 
       // Try each strategy in order
-      for strategy in strategies {
-        if strategy.canRecover(from: lastError) {
-          do {
-            return try await strategy.recover(
-              from: lastError,
-              request: request,
-              using: client
-            )
-          } catch let recoveryError as HTTPError {
-            lastError = recoveryError
-          } catch {
-            lastError = HTTPError(
-              category: .network(.serverUnreachable),
-              request: request,
-              underlyingError: error
-            )
-          }
+      for strategy in strategies where strategy.canRecover(from: lastError).rawValue {
+        do {
+          return try await strategy.recover(
+            from: lastError,
+            request: request,
+            using: client
+          )
+        } catch let recoveryError as HTTPError {
+          lastError = recoveryError
+        } catch {
+          lastError = HTTPError(
+            category: .network(.serverUnreachable),
+            request: request,
+            underlyingError: error
+          )
         }
       }
 
@@ -308,13 +311,13 @@ public struct ErrorRecoveryStrategies: Sendable {
   public struct CustomRecoveryStrategy: RecoveryStrategy {
     private let recoveryHandler:
       @Sendable (HTTPError, HTTPRequest, any HTTPClient) async throws -> HTTPResponse
-    private let canRecoverPredicate: @Sendable (HTTPError) -> Bool
+    private let canRecoverPredicate: @Sendable (HTTPError) -> RetryDecision
 
-    public let maxRecoveryAttempts: Int
+    public let maxRecoveryAttempts: RetryAttemptCount
 
     public init(
-      maxRecoveryAttempts: Int = 1,
-      canRecover: @escaping @Sendable (HTTPError) -> Bool,
+      maxRecoveryAttempts: RetryAttemptCount = RetryAttemptCount(rawValue: 1),
+      canRecover: @escaping @Sendable (HTTPError) -> RetryDecision,
       recovery:
         @escaping @Sendable (HTTPError, HTTPRequest, any HTTPClient) async throws ->
         HTTPResponse
@@ -324,7 +327,7 @@ public struct ErrorRecoveryStrategies: Sendable {
       self.recoveryHandler = recovery
     }
 
-    public func canRecover(from error: HTTPError) -> Bool {
+    public func canRecover(from error: HTTPError) -> RetryDecision {
       canRecoverPredicate(error)
     }
 
@@ -343,8 +346,8 @@ public struct ErrorRecoveryStrategies: Sendable {
 extension ErrorRecoveryStrategies {
   /// Creates a standard retry strategy for common transient errors
   public static func standardRetry(
-    maxAttempts: Int = 3,
-    baseDelay: TimeInterval = 1.0
+    maxAttempts: RetryAttemptCount = 3,
+    baseDelay: RetryDelay = 1.0
   ) -> AutomaticRetryStrategy {
     AutomaticRetryStrategy(
       maxAttempts: maxAttempts,
@@ -376,7 +379,7 @@ extension ErrorRecoveryStrategies {
 
   /// Creates a comprehensive recovery strategy combining multiple approaches
   public static func comprehensive(
-    tokenRefreshHandler: @escaping @Sendable () async throws -> String
+    tokenRefreshHandler: @escaping @Sendable () async throws -> BearerTokenValue
   ) -> CompositeRecoveryStrategy {
     CompositeRecoveryStrategy(strategies: [
       AuthenticationRefreshStrategy(tokenRefreshHandler: tokenRefreshHandler),

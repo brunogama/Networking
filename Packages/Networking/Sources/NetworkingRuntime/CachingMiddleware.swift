@@ -1,6 +1,9 @@
 import Foundation
 import NetworkingCore
 
+// swiftlint:disable file_length
+
+// swiftlint:disable type_body_length
 /// Middleware that provides response caching with TTL, cache invalidation, and flexible storage strategies.
 public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   // MARK: - Cache Entry
@@ -10,30 +13,30 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     public let response: HTTPResponse
     public let cachedAt: Date
     public let expiresAt: Date
-    public let etag: String?
-    public let lastModified: String?
+    public let etag: HTTPHeaderValue?
+    public let lastModified: HTTPHeaderValue?
 
     internal init(
       response: HTTPResponse,
-      ttl: TimeInterval,
-      etag: String? = nil,
-      lastModified: String? = nil
+      ttl: CacheMaxAge,
+      etag: HTTPHeaderValue? = nil,
+      lastModified: HTTPHeaderValue? = nil
     ) {
       self.response = response
       self.cachedAt = Date()
-      self.expiresAt = Date().addingTimeInterval(ttl)
+      self.expiresAt = Date().addingTimeInterval(ttl.rawValue)
       self.etag = etag
       self.lastModified = lastModified
     }
 
     /// Returns true if the cache entry has expired
-    public var isExpired: Bool {
-      Date() > expiresAt
+    public var isExpired: CacheExpirationFlag {
+      CacheExpirationFlag(Date() > expiresAt)
     }
 
     /// Returns the age of the cache entry in seconds
-    public var age: TimeInterval {
-      Date().timeIntervalSince(cachedAt)
+    public var age: CacheEntryAge {
+      CacheEntryAge(Date().timeIntervalSince(cachedAt))
     }
   }
 
@@ -42,13 +45,13 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   /// Protocol for cache storage implementations
   public protocol CacheStorage: Sendable {
     /// Retrieves a cached entry for the given key
-    func get(_ key: String) async -> CacheEntry?
+    func get(_ key: CacheKey) async -> CacheEntry?
 
     /// Stores a cache entry with the given key
-    func set(_ key: String, entry: CacheEntry) async
+    func set(_ key: CacheKey, entry: CacheEntry) async
 
     /// Removes a cached entry for the given key
-    func remove(_ key: String) async
+    func remove(_ key: CacheKey) async
 
     /// Removes all cached entries
     func removeAll() async
@@ -57,13 +60,13 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     func removeExpired() async
 
     /// Removes cached entries by tags (for advanced storage implementations)
-    func removeByTags(_ tags: [String]) async
+    func removeByTags(_ tags: [CacheTagName]) async
 
     /// Removes cached entries matching a pattern (for advanced storage implementations)
-    func removeByPattern(_ pattern: String) async
+    func removeByPattern(_ pattern: CacheInvalidationPattern) async
 
     /// Removes specific keys (for advanced storage implementations)
-    func removeByKeys(_ keys: [String]) async
+    func removeByKeys(_ keys: [CacheKey]) async
   }
 
   // MARK: - Configuration
@@ -71,42 +74,42 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   /// Configuration for caching behavior
   public struct Configuration: Sendable {
     /// Default time-to-live for cached responses
-    public let defaultTTL: TimeInterval
+    public let defaultTTL: CacheMaxAge
 
     /// Maximum size of the cache storage
-    public let maxCacheSize: Int?
+    public let maxCacheSize: CacheEntryLimit?
 
     /// Predicate to determine if a request should be cached
-    public let shouldCache: @Sendable (HTTPRequest, HTTPResponse) -> Bool
+    public let shouldCache: @Sendable (HTTPRequest, HTTPResponse) -> CacheDecision
 
     /// Function to generate cache keys from requests
-    public let cacheKeyGenerator: @Sendable (HTTPRequest) -> String
+    public let cacheKeyGenerator: @Sendable (HTTPRequest) -> CacheKey
 
     /// Function to generate cache keys with metadata support
-    public let intelligentCacheKeyGenerator: @Sendable (HTTPRequest, CacheMetadata?) -> String
+    public let intelligentCacheKeyGenerator: @Sendable (HTTPRequest, CacheMetadata?) -> CacheKey
 
     /// Function to determine TTL for specific responses
-    public let ttlCalculator: @Sendable (HTTPRequest, HTTPResponse) -> TimeInterval
+    public let ttlCalculator: @Sendable (HTTPRequest, HTTPResponse) -> CacheMaxAge
 
     /// Function to extract cache metadata from request attributes
     public let metadataExtractor: @Sendable (HTTPRequest) -> CacheMetadata?
 
     /// Whether to use conditional requests (If-None-Match, If-Modified-Since)
-    public let useConditionalRequests: Bool
+    public let useConditionalRequests: CacheRevalidationFlag
 
     public init(
-      defaultTTL: TimeInterval = 300.0,  // 5 minutes
-      maxCacheSize: Int? = 100,
-      shouldCache: @escaping @Sendable (HTTPRequest, HTTPResponse) -> Bool = Self
+      defaultTTL: CacheMaxAge = 300.0,  // 5 minutes
+      maxCacheSize: CacheEntryLimit? = 100,
+      shouldCache: @escaping @Sendable (HTTPRequest, HTTPResponse) -> CacheDecision = Self
         .defaultShouldCache,
-      cacheKeyGenerator: @escaping @Sendable (HTTPRequest) -> String = Self.defaultCacheKey,
-      intelligentCacheKeyGenerator: @escaping @Sendable (HTTPRequest, CacheMetadata?) -> String =
+      cacheKeyGenerator: @escaping @Sendable (HTTPRequest) -> CacheKey = Self.defaultCacheKey,
+      intelligentCacheKeyGenerator: @escaping @Sendable (HTTPRequest, CacheMetadata?) -> CacheKey =
         Self.defaultIntelligentCacheKey,
-      ttlCalculator: @escaping @Sendable (HTTPRequest, HTTPResponse) -> TimeInterval = Self
+      ttlCalculator: @escaping @Sendable (HTTPRequest, HTTPResponse) -> CacheMaxAge = Self
         .defaultTTLCalculator,
       metadataExtractor: @escaping @Sendable (HTTPRequest) -> CacheMetadata? = Self
         .defaultMetadataExtractor,
-      useConditionalRequests: Bool = true
+      useConditionalRequests: CacheRevalidationFlag = true
     ) {
       self.defaultTTL = defaultTTL
       self.maxCacheSize = maxCacheSize
@@ -119,13 +122,15 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     }
 
     /// Default predicate for determining if a response should be cached
-    public static func defaultShouldCache(_ request: HTTPRequest, _ response: HTTPResponse) -> Bool
-    {
+    public static func defaultShouldCache(
+      _ request: HTTPRequest,
+      _ response: HTTPResponse
+    ) -> CacheDecision {
       // Only cache GET requests
       guard request.method == .get else { return false }
 
       // Only cache successful responses
-      guard response.status.isSuccess else { return false }
+      guard response.status.isSuccess.rawValue else { return false }
 
       // Don't cache responses with Cache-Control: no-cache or no-store
       if let cacheControl = response.headers["Cache-Control"]?.lowercased() {
@@ -138,15 +143,15 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     }
 
     /// Default cache key generator
-    public static func defaultCacheKey(_ request: HTTPRequest) -> String {
-      "\(request.method.rawValue):\(request.url.absoluteString)"
+    public static func defaultCacheKey(_ request: HTTPRequest) -> CacheKey {
+      CacheKey("\(request.method.rawValue.rawValue):\(request.url.absoluteString)")
     }
 
     /// Intelligent cache key generator that considers metadata
     public static func defaultIntelligentCacheKey(
       _ request: HTTPRequest,
       _ metadata: CacheMetadata?
-    ) -> String {
+    ) -> CacheKey {
       // Use custom key if provided
       if let customKey = metadata?.customKey {
         return customKey
@@ -165,7 +170,7 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
       // Include tags in key for better cache segmentation
       let tagsHash = metadata?.tags.sorted().joined(separator: ",").hashValue
 
-      return "\(request.method.rawValue):\(normalizedURL):\(tagsHash ?? 0)"
+      return CacheKey("\(request.method.rawValue.rawValue):\(normalizedURL):\(tagsHash ?? 0)")
     }
 
     /// Default metadata extractor (placeholder for macro-generated code)
@@ -179,33 +184,49 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     public static func defaultTTLCalculator(
       _ request: HTTPRequest,
       _ response: HTTPResponse
-    ) -> TimeInterval {
-      // Check for Cache-Control max-age
-      if let cacheControl = response.headers["Cache-Control"] {
-        let components = cacheControl.lowercased().components(separatedBy: ",")
-        for component in components {
-          let trimmed = component.trimmingCharacters(in: .whitespaces)
-          if trimmed.hasPrefix("max-age=") {
-            let maxAgeString = String(trimmed.dropFirst(8))
-            if let maxAge = TimeInterval(maxAgeString) {
-              return maxAge
-            }
-          }
-        }
+    ) -> CacheMaxAge {
+      if let cacheControlTTL = cacheControlTTL(from: response) {
+        return cacheControlTTL
       }
 
-      // Check for Expires header
-      if let expiresString = response.headers["Expires"] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-        if let expiresDate = formatter.date(from: expiresString) {
-          let ttl = expiresDate.timeIntervalSinceNow
-          return max(ttl, 0)  // Don't return negative TTL
-        }
+      if let expiresHeaderTTL = expiresHeaderTTL(from: response) {
+        return expiresHeaderTTL
       }
 
-      // Default TTL
       return 300.0  // 5 minutes
+    }
+
+    private static func cacheControlTTL(from response: HTTPResponse) -> CacheMaxAge? {
+      guard let cacheControl = response.headers["Cache-Control"] else {
+        return nil
+      }
+
+      let components = cacheControl.lowercased().components(separatedBy: ",")
+      for component in components {
+        let trimmed = component.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("max-age=") else { continue }
+
+        let maxAgeString = String(trimmed.dropFirst(8))
+        guard let maxAge = TimeInterval(maxAgeString) else { continue }
+        return CacheMaxAge(maxAge)
+      }
+
+      return nil
+    }
+
+    private static func expiresHeaderTTL(from response: HTTPResponse) -> CacheMaxAge? {
+      guard let expiresString = response.headers["Expires"] else {
+        return nil
+      }
+
+      let formatter = DateFormatter()
+      formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+      guard let expiresDate = formatter.date(from: expiresString) else {
+        return nil
+      }
+
+      let ttl = expiresDate.timeIntervalSinceNow
+      return CacheMaxAge(max(ttl, 0))
     }
   }
 
@@ -216,7 +237,7 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   private let client: any HTTPClient
 
   // REENTRANCY-SAFE: track in-flight requests to deduplicate concurrent fetches
-  private var inFlightRequests: [String: Task<HTTPResponse, Error>] = [:]
+  private var inFlightRequests: [CacheKey: Task<HTTPResponse, Error>] = [:]
 
   // MARK: - Initialization
 
@@ -246,9 +267,9 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
 
     if let cachedEntry = await storage.get(cacheKey) {
-      if !cachedEntry.isExpired {
+      if !cachedEntry.isExpired.rawValue {
         // We have a valid cached response, but we might want to use conditional requests
-        if configuration.useConditionalRequests {
+        if configuration.useConditionalRequests.rawValue {
           return addConditionalHeaders(to: request, entry: cachedEntry)
         }
       }
@@ -267,7 +288,7 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     let metadata = configuration.metadataExtractor(request)
 
     // Handle cache invalidation first
-    if let metadata = metadata, metadata.isInvalidating {
+    if let metadata = metadata, metadata.isInvalidating.rawValue {
       await handleCacheInvalidation(metadata: metadata)
     }
 
@@ -290,7 +311,7 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     }
 
     // Check if we should cache this response
-    if shouldCacheResponse(request: request, response: response, metadata: metadata) {
+    if shouldCacheResponse(request: request, response: response, metadata: metadata).rawValue {
       let ttl = determineTTL(request: request, response: response, metadata: metadata)
 
       let entry = CacheEntry(
@@ -320,7 +341,9 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
 
   /// Invalidates cache entries matching a predicate
   /// - Parameter predicate: Function to determine which entries to invalidate
-  public func invalidateEntries(matching predicate: @Sendable (String) -> Bool) async {
+  public func invalidateEntries(
+    matching predicate: @Sendable (CacheKey) -> CacheInvalidationFlag
+  ) async {
     // This is a simplified implementation. A full implementation would require
     // the storage to support enumeration of keys.
     // For now, we'll just clear all entries if needed
@@ -337,19 +360,19 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
 
   /// Invalidates cache entries by tags
   /// - Parameter tags: Tags to invalidate
-  public func invalidateByTags(_ tags: [String]) async {
+  public func invalidateByTags(_ tags: [CacheTagName]) async {
     await storage.removeByTags(tags)
   }
 
   /// Invalidates cache entries by pattern
   /// - Parameter pattern: Pattern to match against cache keys
-  public func invalidateByPattern(_ pattern: String) async {
+  public func invalidateByPattern(_ pattern: CacheInvalidationPattern) async {
     await storage.removeByPattern(pattern)
   }
 
   /// Invalidates specific cache keys
   /// - Parameter keys: Keys to invalidate
-  public func invalidateByKeys(_ keys: [String]) async {
+  public func invalidateByKeys(_ keys: [CacheKey]) async {
     await storage.removeByKeys(keys)
   }
 
@@ -361,7 +384,7 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   /// - Returns: Array of results indicating success/failure for each request
   public func warmCache(
     requests: [HTTPRequest],
-    concurrency: Int = 4
+    concurrency: CachePreloadConcurrency = 4
   ) async -> [WarmCacheResult] {
     let semaphore = AsyncSemaphore(value: concurrency)
 
@@ -398,7 +421,7 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
       let metadata = configuration.metadataExtractor(request)
       let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
 
-      if let existingEntry = await storage.get(cacheKey), !existingEntry.isExpired {
+      if let existingEntry = await storage.get(cacheKey), !existingEntry.isExpired.rawValue {
         return .alreadyCached(key: cacheKey)
       }
 
@@ -434,31 +457,13 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   ) async {
     switch strategy {
     case .sequential:
-      for pattern in patterns {
-        await executePreloadPattern(pattern)
-      }
+      await preloadSequentially(patterns)
 
     case .concurrent(let maxConcurrency):
-      await withTaskGroup(of: Void.self) { group in
-        let semaphore = AsyncSemaphore(value: maxConcurrency)
-
-        for pattern in patterns {
-          group.addTask {
-            await semaphore.wait()
-            await self.executePreloadPattern(pattern)
-            await semaphore.signal()
-          }
-        }
-      }
+      await preloadConcurrently(patterns, maxConcurrency: maxConcurrency)
 
     case .prioritized:
-      let sortedPatterns = patterns.sorted { lhs, rhs in
-        lhs.priority > rhs.priority
-      }
-
-      for pattern in sortedPatterns {
-        await executePreloadPattern(pattern)
-      }
+      await preloadPrioritized(patterns)
     }
   }
 
@@ -469,17 +474,17 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   @discardableResult
   public func intelligentPrefetch(
     basedOn request: HTTPRequest,
-    depth: Int = 1
-  ) async -> Int {
+    depth: CachePrefetchDepth = 1
+  ) async -> CachePrefetchCount {
     guard depth > 0 else { return 0 }
 
-    var prefetchedCount = 0
+    var prefetchedCount: CachePrefetchCount = 0
     let relatedRequests = generateRelatedRequests(from: request, depth: depth)
 
     for relatedRequest in relatedRequests {
       let result = await prefetchSingle(request: relatedRequest)
       if case .success = result {
-        prefetchedCount += 1
+        prefetchedCount = CachePrefetchCount(prefetchedCount.rawValue + 1)
       }
     }
 
@@ -511,11 +516,11 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     request: HTTPRequest,
     response: HTTPResponse,
     metadata: CacheMetadata?
-  ) -> Bool {
+  ) -> CacheDecision {
     // If we have metadata with custom caching rules, override default behavior
     if let metadata = metadata {
       // Don't cache responses from invalidating requests
-      if metadata.isInvalidating {
+      if metadata.isInvalidating.rawValue {
         return false
       }
 
@@ -533,10 +538,10 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     request: HTTPRequest,
     response: HTTPResponse,
     metadata: CacheMetadata?
-  ) -> TimeInterval {
+  ) -> CacheMaxAge {
     // Use metadata TTL if provided
     if let metadataTTL = metadata?.ttl {
-      return metadataTTL
+      return CacheMaxAge(metadataTTL.rawValue)
     }
 
     return configuration.ttlCalculator(request, response)
@@ -567,62 +572,112 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   /// Executes a preload pattern
   private func executePreloadPattern(_ pattern: CachePreloadPattern) async {
     let requests = pattern.generateRequests()
-    let results = await warmCache(requests: requests, concurrency: pattern.concurrency)
-
-    // Log or handle results if needed
-    let successCount = results.compactMap {
-      if case .success = $0 { return $0 } else { return nil }
-    }.count
-
-    print("Preload pattern executed: \(successCount)/\(requests.count) requests cached")
+    _ = await warmCache(requests: requests, concurrency: pattern.concurrency)
   }
 
   /// Generates related requests based on current request
   private func generateRelatedRequests(
     from request: HTTPRequest,
-    depth: Int
+    depth: CachePrefetchDepth
   ) -> [HTTPRequest] {
     var relatedRequests: [HTTPRequest] = []
-
-    // Basic heuristics for generating related requests
-    // This is a simplified implementation - in a real scenario you'd have
-    // more sophisticated logic based on your API patterns
 
     let urlString = request.url.absoluteString
     let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)
 
-    // If it's a detail endpoint, prefetch the list endpoint
-    if urlString.contains("/users/") && request.method == .get {
-      if let baseURL = components?.url?.deletingLastPathComponent() {
-        let listRequest = HTTPRequest(method: .get, url: baseURL)
-        relatedRequests.append(listRequest)
-      }
+    if let listRequest = relatedListRequest(
+      for: request,
+      urlString: urlString,
+      components: components
+    ) {
+      relatedRequests.append(listRequest)
     }
 
-    // If it's a list endpoint, prefetch common detail endpoints
-    if urlString.hasSuffix("/users") && request.method == .get && depth > 1 {
-      // This would typically be based on your application's usage patterns
-      for id in ["1", "2", "3"] {  // Common IDs
-        if let detailURL = URL(string: "\(urlString)/\(id)") {
-          let detailRequest = HTTPRequest(method: .get, url: detailURL)
-          relatedRequests.append(detailRequest)
-        }
-      }
-    }
+    relatedRequests.append(
+      contentsOf: relatedDetailRequests(for: request, urlString: urlString, depth: depth)
+    )
 
     return relatedRequests
   }
+
+  private func preloadSequentially(_ patterns: [CachePreloadPattern]) async {
+    for pattern in patterns {
+      await executePreloadPattern(pattern)
+    }
+  }
+
+  private func preloadConcurrently(
+    _ patterns: [CachePreloadPattern],
+    maxConcurrency: CachePreloadConcurrency
+  ) async {
+    await withTaskGroup(of: Void.self) { group in
+      let semaphore = AsyncSemaphore(value: maxConcurrency)
+
+      for pattern in patterns {
+        group.addTask {
+          await semaphore.wait()
+          await self.executePreloadPattern(pattern)
+          await semaphore.signal()
+        }
+      }
+    }
+  }
+
+  private func preloadPrioritized(_ patterns: [CachePreloadPattern]) async {
+    let sortedPatterns = patterns.sorted { lhs, rhs in
+      lhs.priority > rhs.priority
+    }
+
+    for pattern in sortedPatterns {
+      await executePreloadPattern(pattern)
+    }
+  }
+
+  private func relatedListRequest(
+    for request: HTTPRequest,
+    urlString: String,
+    components: URLComponents?
+  ) -> HTTPRequest? {
+    guard urlString.contains("/users/"), request.method == .get else {
+      return nil
+    }
+
+    guard let baseURL = components?.url?.deletingLastPathComponent() else {
+      return nil
+    }
+
+    return HTTPRequest(method: .get, url: baseURL)
+  }
+
+  private func relatedDetailRequests(
+    for request: HTTPRequest,
+    urlString: String,
+    depth: CachePrefetchDepth
+  ) -> [HTTPRequest] {
+    guard urlString.hasSuffix("/users"), request.method == .get, depth > 1 else {
+      return []
+    }
+
+    return ["1", "2", "3"].compactMap { id in
+      guard let detailURL = URL(string: "\(urlString)/\(id)") else {
+        return nil
+      }
+
+      return HTTPRequest(method: .get, url: detailURL)
+    }
+  }
 }
+// swiftlint:enable type_body_length
 
 // MARK: - Cache Warming Support Types
 
 /// Result of a cache warming operation
 public enum WarmCacheResult: Sendable {
-  case success(key: String, response: HTTPResponse)
-  case alreadyCached(key: String)
+  case success(key: CacheKey, response: HTTPResponse)
+  case alreadyCached(key: CacheKey)
   case failure(request: HTTPRequest, error: any Error)
 
-  public var isSuccess: Bool {
+  public var isSuccess: CacheWarmSuccessFlag {
     switch self {
     case .success, .alreadyCached:
       return true
@@ -632,13 +687,13 @@ public enum WarmCacheResult: Sendable {
     }
   }
 
-  public var cacheKey: String {
+  public var cacheKey: CacheKey {
     switch self {
     case .success(let key, _), .alreadyCached(let key):
       return key
 
     case .failure(let request, _):
-      return request.url.absoluteString
+      return CacheKey(request.url.absoluteString)
     }
   }
 }
@@ -646,21 +701,21 @@ public enum WarmCacheResult: Sendable {
 /// Strategy for preloading cache entries
 public enum CachePreloadStrategy: Sendable {
   case sequential
-  case concurrent(maxConcurrency: Int)
+  case concurrent(maxConcurrency: CachePreloadConcurrency)
   case prioritized
 }
 
 /// Pattern for cache preloading
 public struct CachePreloadPattern: Sendable {
-  public let name: String
-  public let priority: Int
-  public let concurrency: Int
+  public let name: CachePatternName
+  public let priority: CachePreloadPriority
+  public let concurrency: CachePreloadConcurrency
   public let requestGenerator: @Sendable () -> [HTTPRequest]
 
   public init(
-    name: String,
-    priority: Int = 0,
-    concurrency: Int = 2,
+    name: CachePatternName,
+    priority: CachePreloadPriority = 0,
+    concurrency: CachePreloadConcurrency = 2,
     requestGenerator: @escaping @Sendable () -> [HTTPRequest]
   ) {
     self.name = name
@@ -676,18 +731,18 @@ public struct CachePreloadPattern: Sendable {
 
 /// Simple async semaphore for controlling concurrency
 public actor AsyncSemaphore {
-  private let maxCount: Int
-  private var currentCount: Int
+  private let maxCount: CachePreloadConcurrency
+  private var currentCount: CachePreloadConcurrency
   private var waiters: [CheckedContinuation<Void, Never>] = []
 
-  public init(value: Int) {
+  public init(value: CachePreloadConcurrency) {
     self.maxCount = value
     self.currentCount = value
   }
 
   public func wait() async {
     if currentCount > 0 {
-      currentCount -= 1
+      currentCount = CachePreloadConcurrency(currentCount.rawValue - 1)
     } else {
       await withTaskCancellationHandler {
         await withCheckedContinuation { continuation in
@@ -726,154 +781,4 @@ public actor AsyncSemaphore {
   }
 }
 
-// MARK: - Memory Cache Storage
-
-/// A simple in-memory cache storage implementation
-public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
-  private var cache: [String: CachingMiddleware.CacheEntry] = [:]
-  private let maxSize: Int?
-
-  /// Creates a new memory cache storage
-  /// - Parameter maxSize: Maximum number of entries to store
-  public init(maxSize: Int? = 100) {
-    self.maxSize = maxSize
-  }
-
-  public func get(_ key: String) async -> CachingMiddleware.CacheEntry? {
-    guard let entry = cache[key] else {
-      return nil
-    }
-    // Check expiration and remove if expired
-    if entry.isExpired {
-      cache.removeValue(forKey: key)
-      return nil
-    }
-    return entry
-  }
-
-  public func set(_ key: String, entry: CachingMiddleware.CacheEntry) async {
-    // Remove expired entries before adding new one
-    await removeExpired()
-
-    // Check size limit
-    if let maxSize = maxSize, cache.count >= maxSize {
-      // Remove oldest entry (simple LRU approximation)
-      let oldestKey = cache.min { lhs, rhs in
-        lhs.value.cachedAt < rhs.value.cachedAt
-      }?.key
-
-      if let keyToRemove = oldestKey {
-        cache.removeValue(forKey: keyToRemove)
-      }
-    }
-
-    cache[key] = entry
-  }
-
-  public func remove(_ key: String) async {
-    cache.removeValue(forKey: key)
-  }
-
-  public func removeAll() async {
-    cache.removeAll()
-  }
-
-  public func removeExpired() async {
-    let now = Date()
-    cache = cache.filter { _, entry in
-      now <= entry.expiresAt
-    }
-  }
-
-  public func removeByTags(_ tags: [String]) async {
-    // Note: Basic memory cache doesn't store tag metadata
-    // This is a placeholder implementation
-    // In a real scenario, you'd store tag metadata with entries
-  }
-
-  public func removeByPattern(_ pattern: String) async {
-    // Simple pattern matching for cache keys
-    let regex: NSRegularExpression?
-    do {
-      // Convert shell-style pattern to regex
-      let regexPattern =
-        pattern
-        .replacingOccurrences(of: "*", with: ".*")
-        .replacingOccurrences(of: "?", with: ".")
-      regex = try NSRegularExpression(pattern: regexPattern, options: [])
-    } catch {
-      return  // Invalid pattern, skip
-    }
-
-    guard let regex = regex else { return }
-
-    let keysToRemove = cache.keys.filter { key in
-      let range = NSRange(location: 0, length: key.utf16.count)
-      return regex.firstMatch(in: key, options: [], range: range) != nil
-    }
-
-    for key in keysToRemove {
-      cache.removeValue(forKey: key)
-    }
-  }
-
-  public func removeByKeys(_ keys: [String]) async {
-    for key in keys {
-      cache.removeValue(forKey: key)
-    }
-  }
-
-  /// Returns the current cache size
-  public var size: Int {
-    get async { cache.count }
-  }
-}
-
-// MARK: - Convenience Factory
-
-extension CachingMiddleware {
-  /// Creates a caching middleware with default memory storage
-  /// - Parameters:
-  ///   - client: The HTTP client to use
-  ///   - ttl: Default time-to-live for cached responses
-  ///   - maxCacheSize: Maximum number of entries in the cache
-  /// - Returns: A configured caching middleware
-  public static func withMemoryStorage(
-    client: any HTTPClient,
-    ttl: TimeInterval = 300.0,
-    maxCacheSize: Int = 100
-  ) -> CachingMiddleware {
-    let storage = MemoryCacheStorage(maxSize: maxCacheSize)
-    let configuration = Configuration(
-      defaultTTL: ttl,
-      maxCacheSize: maxCacheSize
-    )
-
-    return CachingMiddleware(
-      configuration: configuration,
-      storage: storage,
-      client: client
-    )
-  }
-
-  /// Creates a caching middleware with custom configuration
-  /// - Parameters:
-  ///   - client: The HTTP client to use
-  ///   - customConfiguration: Custom configuration closure
-  /// - Returns: A configured caching middleware
-  public static func withCustomConfiguration(
-    client: any HTTPClient,
-    customConfiguration: (inout Configuration) -> Void
-  ) -> CachingMiddleware {
-    var config = Configuration()
-    customConfiguration(&config)
-
-    let storage = MemoryCacheStorage(maxSize: config.maxCacheSize)
-
-    return CachingMiddleware(
-      configuration: config,
-      storage: storage,
-      client: client
-    )
-  }
-}
+// swiftlint:enable file_length

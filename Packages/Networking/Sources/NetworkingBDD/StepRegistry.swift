@@ -2,6 +2,8 @@ import NetworkingRuntime
 import NetworkingTesting
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - Step Registry
 
 /// Registry for matching Gherkin step text to step definitions.
@@ -39,7 +41,7 @@ public final class StepRegistry: @unchecked Sendable {
   /// A registered step definition.
   public struct StepDefinition: Sendable {
     /// The regex pattern for matching.
-    public let pattern: String
+    public let pattern: BDDStepPattern
 
     /// Compiled regex.
     let regex: NSRegularExpression
@@ -48,7 +50,7 @@ public final class StepRegistry: @unchecked Sendable {
     public let stepType: SemanticStepType
 
     /// The step implementation.
-    let implementation: @Sendable (ScenarioContext, [String]) async throws -> Void
+    let implementation: @Sendable (ScenarioContext, [BDDStepCaptureText]) async throws -> Void
   }
 
   // MARK: - Properties
@@ -70,8 +72,8 @@ public final class StepRegistry: @unchecked Sendable {
   ///   - pattern: Regex pattern for matching step text
   ///   - implementation: The step implementation
   public func given(
-    _ pattern: String,
-    implementation: @escaping @Sendable (ScenarioContext, [String]) async throws -> Void
+    _ pattern: BDDStepPattern,
+    implementation: @escaping @Sendable (ScenarioContext, [BDDStepCaptureText]) async throws -> Void
   ) throws {
     let regex = try compilePattern(pattern)
     let definition = StepDefinition(
@@ -92,8 +94,8 @@ public final class StepRegistry: @unchecked Sendable {
   ///   - pattern: Regex pattern for matching step text
   ///   - implementation: The step implementation
   public func when(
-    _ pattern: String,
-    implementation: @escaping @Sendable (ScenarioContext, [String]) async throws -> Void
+    _ pattern: BDDStepPattern,
+    implementation: @escaping @Sendable (ScenarioContext, [BDDStepCaptureText]) async throws -> Void
   ) throws {
     let regex = try compilePattern(pattern)
     let definition = StepDefinition(
@@ -114,8 +116,8 @@ public final class StepRegistry: @unchecked Sendable {
   ///   - pattern: Regex pattern for matching step text
   ///   - implementation: The step implementation
   public func then(
-    _ pattern: String,
-    implementation: @escaping @Sendable (ScenarioContext, [String]) async throws -> Void
+    _ pattern: BDDStepPattern,
+    implementation: @escaping @Sendable (ScenarioContext, [BDDStepCaptureText]) async throws -> Void
   ) throws {
     let regex = try compilePattern(pattern)
     let definition = StepDefinition(
@@ -142,37 +144,9 @@ public final class StepRegistry: @unchecked Sendable {
   public func findMatch(
     for step: GherkinStep,
     semanticType: SemanticStepType
-  ) throws -> (StepDefinition, [String]) {
-    let definitions: [StepDefinition]
-
-    lock.lock()
-    switch semanticType {
-    case .given:
-      definitions = givenSteps
-    case .when:
-      definitions = whenSteps
-    case .then:
-      definitions = thenSteps
-    }
-    lock.unlock()
-
-    var matches: [(StepDefinition, [String])] = []
-
-    for definition in definitions {
-      if let captures = matchStep(step.text, against: definition.regex) {
-        matches.append((definition, captures))
-      }
-    }
-
-    if matches.isEmpty {
-      throw BDDError.undefinedStep(step.text)
-    }
-
-    if matches.count > 1 {
-      throw BDDError.ambiguousStep(step.text, matchCount: matches.count)
-    }
-
-    return matches[0]
+  ) throws -> (StepDefinition, [BDDStepCaptureText]) {
+    let matches = matchingDefinitions(for: step.text, semanticType: semanticType)
+    return try resolveMatch(matches, for: step.text)
   }
 
   /// Executes a step using the registered definitions.
@@ -199,27 +173,16 @@ public final class StepRegistry: @unchecked Sendable {
   ///   - text: The step text
   ///   - type: The semantic type
   /// - Returns: True if a matching definition exists
-  public func hasDefinition(for text: String, type: SemanticStepType) -> Bool {
-    let definitions: [StepDefinition]
-
-    lock.lock()
-    switch type {
-    case .given:
-      definitions = givenSteps
-    case .when:
-      definitions = whenSteps
-    case .then:
-      definitions = thenSteps
-    }
-    lock.unlock()
-
-    for definition in definitions {
-      if matchStep(text, against: definition.regex) != nil {
-        return true
+  public func hasDefinition(
+    for text: BDDStepText,
+    type: SemanticStepType
+  ) -> BDDDefinitionAvailabilityFlag {
+    let definitions = stepDefinitions(for: type)
+    return BDDDefinitionAvailabilityFlag(
+      definitions.contains { definition in
+        matchStep(text, against: definition.regex) != nil
       }
-    }
-
-    return false
+    )
   }
 
   // MARK: - Clear
@@ -235,30 +198,77 @@ public final class StepRegistry: @unchecked Sendable {
 
   // MARK: - Private Helpers
 
-  private func compilePattern(_ pattern: String) throws -> NSRegularExpression {
+  private func compilePattern(_ pattern: BDDStepPattern) throws -> NSRegularExpression {
     do {
-      return try NSRegularExpression(pattern: "^" + pattern + "$", options: [])
+      return try NSRegularExpression(pattern: "^" + pattern.rawValue + "$", options: [])
     } catch {
-      throw BDDError.invalidStepPattern(pattern: pattern, error: error.localizedDescription)
+      throw BDDError.invalidStepPattern(
+        pattern: pattern,
+        error: UserMessageText(error.localizedDescription)
+      )
     }
   }
 
-  private func matchStep(_ text: String, against regex: NSRegularExpression) -> [String]? {
-    let range = NSRange(text.startIndex..<text.endIndex, in: text)
-    guard let match = regex.firstMatch(in: text, options: [], range: range) else {
+  private func matchStep(
+    _ text: BDDStepText,
+    against regex: NSRegularExpression
+  ) -> [BDDStepCaptureText]? {
+    let rawText = text.rawValue
+    let range = NSRange(rawText.startIndex..<rawText.endIndex, in: rawText)
+    guard let match = regex.firstMatch(in: rawText, options: [], range: range) else {
       return nil
     }
 
-    var captures: [String] = []
+    var captures: [BDDStepCaptureText] = []
     for i in 1..<match.numberOfRanges {
-      if let range = Range(match.range(at: i), in: text) {
-        captures.append(String(text[range]))
+      if let range = Range(match.range(at: i), in: rawText) {
+        captures.append(BDDStepCaptureText(String(rawText[range])))
       } else {
         captures.append("")
       }
     }
 
     return captures
+  }
+
+  private func stepDefinitions(for semanticType: SemanticStepType) -> [StepDefinition] {
+    lock.withLock {
+      switch semanticType {
+      case .given:
+        return givenSteps
+      case .when:
+        return whenSteps
+      case .then:
+        return thenSteps
+      }
+    }
+  }
+
+  private func matchingDefinitions(
+    for stepText: BDDStepText,
+    semanticType: SemanticStepType
+  ) -> [(StepDefinition, [BDDStepCaptureText])] {
+    stepDefinitions(for: semanticType).compactMap { definition in
+      guard let captures = matchStep(stepText, against: definition.regex) else {
+        return nil
+      }
+      return (definition, captures)
+    }
+  }
+
+  private func resolveMatch(
+    _ matches: [(StepDefinition, [BDDStepCaptureText])],
+    for stepText: BDDStepText
+  ) throws -> (StepDefinition, [BDDStepCaptureText]) {
+    if matches.isEmpty {
+      throw BDDError.undefinedStep(stepText)
+    }
+
+    if matches.count > 1 {
+      throw BDDError.ambiguousStep(stepText, matchCount: RequestCount(matches.count))
+    }
+
+    return matches[0]
   }
 }
 
@@ -267,7 +277,7 @@ public final class StepRegistry: @unchecked Sendable {
 extension StepRegistry {
   /// Convenience method to register a Given step with a simple closure.
   public func given(
-    _ pattern: String,
+    _ pattern: BDDStepPattern,
     step: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) throws {
     try given(pattern) { context, _ in
@@ -277,7 +287,7 @@ extension StepRegistry {
 
   /// Convenience method to register a When step with a simple closure.
   public func when(
-    _ pattern: String,
+    _ pattern: BDDStepPattern,
     step: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) throws {
     try when(pattern) { context, _ in
@@ -287,7 +297,7 @@ extension StepRegistry {
 
   /// Convenience method to register a Then step with a simple closure.
   public func then(
-    _ pattern: String,
+    _ pattern: BDDStepPattern,
     step: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) throws {
     try then(pattern) { context, _ in
@@ -313,8 +323,8 @@ public struct StepRegistration: Sendable {
 
   /// Creates a Given step registration.
   public static func given(
-    _ pattern: String,
-    implementation: @escaping @Sendable (ScenarioContext, [String]) async throws -> Void
+    _ pattern: BDDStepPattern,
+    implementation: @escaping @Sendable (ScenarioContext, [BDDStepCaptureText]) async throws -> Void
   ) -> Self {
     Self { registry in
       try registry.given(pattern, implementation: implementation)
@@ -323,8 +333,8 @@ public struct StepRegistration: Sendable {
 
   /// Creates a When step registration.
   public static func when(
-    _ pattern: String,
-    implementation: @escaping @Sendable (ScenarioContext, [String]) async throws -> Void
+    _ pattern: BDDStepPattern,
+    implementation: @escaping @Sendable (ScenarioContext, [BDDStepCaptureText]) async throws -> Void
   ) -> Self {
     Self { registry in
       try registry.when(pattern, implementation: implementation)
@@ -333,8 +343,8 @@ public struct StepRegistration: Sendable {
 
   /// Creates a Then step registration.
   public static func then(
-    _ pattern: String,
-    implementation: @escaping @Sendable (ScenarioContext, [String]) async throws -> Void
+    _ pattern: BDDStepPattern,
+    implementation: @escaping @Sendable (ScenarioContext, [BDDStepCaptureText]) async throws -> Void
   ) -> Self {
     Self { registry in
       try registry.then(pattern, implementation: implementation)
@@ -365,3 +375,4 @@ extension StepRegistry {
     }
   }
 }
+// swiftlint:enable file_length

@@ -2,6 +2,8 @@ import NetworkingRuntime
 import NetworkingTesting
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - Tag Filter
 
 /// Filters scenarios based on tag expressions.
@@ -92,7 +94,7 @@ public struct TagFilter: Sendable {
   ///
   /// - Parameter tagName: Tag name to include
   /// - Returns: Tag filter
-  public static func include(_ tagName: String) -> Self {
+  public static func include(_ tagName: BDDTagText) -> Self {
     Self(.tag(Tag(tagName)))
   }
 
@@ -108,7 +110,7 @@ public struct TagFilter: Sendable {
   ///
   /// - Parameter tagName: Tag name to exclude
   /// - Returns: Tag filter
-  public static func exclude(_ tagName: String) -> Self {
+  public static func exclude(_ tagName: BDDTagText) -> Self {
     Self(.not(.tag(Tag(tagName))))
   }
 
@@ -124,7 +126,7 @@ public struct TagFilter: Sendable {
   ///
   /// - Parameter tagNames: Tag names that must all match
   /// - Returns: Tag filter
-  public static func all(_ tagNames: [String]) -> Self {
+  public static func all(_ tagNames: [BDDTagText]) -> Self {
     Self(.and(tagNames.map { .tag(Tag($0)) }))
   }
 
@@ -140,7 +142,7 @@ public struct TagFilter: Sendable {
   ///
   /// - Parameter tagNames: Tag names where any must match
   /// - Returns: Tag filter
-  public static func any(_ tagNames: [String]) -> Self {
+  public static func any(_ tagNames: [BDDTagText]) -> Self {
     Self(.or(tagNames.map { .tag(Tag($0)) }))
   }
 
@@ -155,7 +157,7 @@ public struct TagFilter: Sendable {
   ///
   /// - Parameter expressionString: Tag expression string
   /// - Returns: Tag filter (or .all if expression is empty/invalid)
-  public static func expression(_ expressionString: String) -> Self {
+  public static func expression(_ expressionString: BDDTagExpression) -> Self {
     var parser = TagExpressionParser()
     if let expr = parser.parse(expressionString) {
       return Self(expr)
@@ -169,22 +171,27 @@ public struct TagFilter: Sendable {
   ///
   /// - Parameter tags: Tags to check
   /// - Returns: True if tags match the filter
-  public func matches(_ tags: [Tag]) -> Bool {
-    evaluate(expression, against: Set(tags.map { $0.name }))
+  public func matches(_ tags: [Tag]) -> BDDFilterMatchFlag {
+    BDDFilterMatchFlag(evaluate(expression, against: Set(tags.map(\.name))))
   }
 
   /// Checks if the given tag names match this filter.
   ///
   /// - Parameter tagNames: Tag names to check
   /// - Returns: True if tags match the filter
-  public func matches(_ tagNames: [String]) -> Bool {
-    let normalizedTags = Set(tagNames.map { $0.hasPrefix("@") ? $0 : "@\($0)" })
-    return evaluate(expression, against: normalizedTags)
+  public func matches(_ tagNames: [BDDTagText]) -> BDDFilterMatchFlag {
+    let normalizedTags = Set(
+      tagNames.map { tagName in
+        tagName.rawValue.hasPrefix("@") ? tagName : BDDTagText("@\(tagName.rawValue)")
+      }
+    )
+    return BDDFilterMatchFlag(evaluate(expression, against: normalizedTags))
   }
 
   // MARK: - Private Methods
 
-  private func evaluate(_ expr: Expression, against tags: Set<String>) -> Bool {
+  // swiftlint:disable cyclomatic_complexity
+  private func evaluate(_ expr: Expression, against tags: Set<BDDTagText>) -> Bool {
     switch expr {
     case .tag(let tag):
       return tags.contains(tag.name)
@@ -205,6 +212,7 @@ public struct TagFilter: Sendable {
       return false
     }
   }
+  // swiftlint:enable cyclomatic_complexity
 }
 
 // MARK: - Combinators
@@ -260,17 +268,18 @@ private struct TagExpressionParser {
   private var tokens: [String] = []
   private var index: Int = 0
 
-  mutating func parse(_ input: String) -> TagFilter.Expression? {
+  mutating func parse(_ input: BDDTagExpression) -> TagFilter.Expression? {
     tokens = tokenize(input)
     index = 0
     guard !tokens.isEmpty else { return nil }
     return parseExpression()
   }
 
-  private func tokenize(_ input: String) -> [String] {
+  // swiftlint:disable cyclomatic_complexity function_body_length
+  private func tokenize(_ input: BDDTagExpression) -> [String] {
     var tokens: [String] = []
     var current = ""
-    let chars = Array(input.lowercased())
+    let chars = Array(input.rawValue.lowercased())
     var i = 0
 
     while i < chars.count {
@@ -333,6 +342,7 @@ private struct TagExpressionParser {
 
     return tokens
   }
+  // swiftlint:enable cyclomatic_complexity function_body_length
 
   private mutating func parseExpression() -> TagFilter.Expression? {
     parseOr()
@@ -387,17 +397,11 @@ private struct TagExpressionParser {
 
     if token.hasPrefix("@") {
       index += 1
-      return .tag(Tag(token))
+      return .tag(Tag(BDDTagText(token)))
     }
 
     return nil
   }
 }
 
-// MARK: - ExpressibleByStringLiteral
-
-extension TagFilter: ExpressibleByStringLiteral {
-  public init(stringLiteral value: String) {
-    self = TagFilter.expression(value)
-  }
-}
+// swiftlint:enable file_length

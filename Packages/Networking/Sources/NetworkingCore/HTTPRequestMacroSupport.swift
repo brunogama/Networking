@@ -17,18 +17,35 @@ extension HTTPRequest {
   ///
   /// - Note: This is a convenience for macro-generated code. Direct usage should prefer
   ///         the standard initializer with a full URL.
-  public init(method: HTTPMethod, path: String, baseURL: String = "") {
+  public init(
+    method: HTTPMethod,
+    path: RequestPathPattern,
+    baseURL: BaseURLText = BaseURLText(rawValue: "")
+  ) {
     // Combine baseURL and path
-    let urlString = baseURL.isEmpty ? path : "\(baseURL)\(path)"
+    let urlString =
+      baseURL.rawValue.isEmpty ? path.rawValue : "\(baseURL.rawValue)\(path.rawValue)"
     guard let url = URL(string: urlString) else {
       // If URL construction fails, use a placeholder URL
       // In production, this should be caught by validation
       let fallbackURL = URL(string: "http://invalid.url")!
-      self.init(method: method, url: fallbackURL, headers: [:], body: nil, timeout: 30.0)
+      self.init(
+        method: method,
+        url: HTTPRequestURL(fallbackURL),
+        headers: [:],
+        body: nil,
+        timeout: RequestTimeout(rawValue: 30.0)
+      )
       return
     }
 
-    self.init(method: method, url: url, headers: [:], body: nil, timeout: 30.0)
+    self.init(
+      method: method,
+      url: HTTPRequestURL(url),
+      headers: [:],
+      body: nil,
+      timeout: RequestTimeout(rawValue: 30.0)
+    )
   }
 
   /// Adds a query parameter to the request.
@@ -41,13 +58,15 @@ extension HTTPRequest {
   ///   - value: The query parameter value (will be converted to String)
   ///
   /// - Note: This creates a new HTTPRequest instance with the updated URL.
-  public mutating func addQueryParameter<T>(name: String, value: T) {
-    guard var components = URLComponents(url: self.url, resolvingAgainstBaseURL: false) else {
+  public mutating func addQueryParameter<T>(name: HTTPHeaderName, value: T) {
+    guard
+      var components = URLComponents(url: self.url.rawValue, resolvingAgainstBaseURL: false)
+    else {
       return
     }
 
     var queryItems = components.queryItems ?? []
-    queryItems.append(URLQueryItem(name: name, value: "\(value)"))
+    queryItems.append(URLQueryItem(name: name.rawValue, value: "\(value)"))
     components.queryItems = queryItems
 
     guard let newURL = components.url else {
@@ -56,7 +75,7 @@ extension HTTPRequest {
 
     self = HTTPRequest(
       method: self.method,
-      url: newURL,
+      url: HTTPRequestURL(newURL),
       headers: self.headers,
       body: self.body,
       timeout: self.timeout
@@ -70,7 +89,7 @@ extension HTTPRequest {
   /// - Parameter data: The body data to set
   ///
   /// - Note: This creates a new HTTPRequest instance with the updated body.
-  public mutating func setBody(_ data: Data) {
+  public mutating func setBody(_ data: HTTPBody) {
     self = HTTPRequest(
       method: self.method,
       url: self.url,
@@ -89,7 +108,7 @@ extension HTTPRequest {
   ///   - value: The header value
   ///
   /// - Note: This creates a new HTTPRequest instance with the updated headers.
-  public mutating func addHeader(name: String, value: String) {
+  public mutating func addHeader(name: HTTPHeaderName, value: HTTPHeaderValue) {
     var newHeaders = self.headers
     newHeaders[name] = value
 
@@ -109,7 +128,7 @@ extension HTTPRequest {
   /// - Parameter headers: Dictionary of headers to add
   ///
   /// - Note: New headers will override existing headers with the same name.
-  public mutating func setHeaders(_ headers: [String: String]) {
+  public mutating func setHeaders(_ headers: HTTPHeaders) {
     var newHeaders = self.headers
     for (key, value) in headers {
       newHeaders[key] = value

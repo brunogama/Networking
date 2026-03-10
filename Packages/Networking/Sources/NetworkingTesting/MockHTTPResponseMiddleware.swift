@@ -115,7 +115,7 @@ public final class MockHTTPResponseMiddleware: HTTPResponseMiddleware, MockVerif
   /// This is a convenience method for the common case of replacing body data.
   ///
   /// - Parameter body: The new body data to use
-  public func stubReplaceBody(_ body: Data) {
+  public func stubReplaceBody(_ body: HTTPBody) {
     stubTransform { response, _ in
       HTTPResponse(
         request: response.request,
@@ -127,11 +127,15 @@ public final class MockHTTPResponseMiddleware: HTTPResponseMiddleware, MockVerif
     }
   }
 
+  package func stubReplaceBody(_ body: Data) {
+    stubReplaceBody(HTTPBody(body))
+  }
+
   // MARK: - MockVerifiable Conformance
 
   /// The number of times `processResponse` was called.
-  nonisolated public var callCount: Int {
-    get async { queue.sync { processCount }
+  nonisolated public var callCount: MockVerificationCount {
+    get async { MockVerificationCount(queue.sync { processCount })
     }
   }
 

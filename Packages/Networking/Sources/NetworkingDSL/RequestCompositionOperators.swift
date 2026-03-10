@@ -17,83 +17,120 @@ import NetworkingCore
 /// ```
 public enum RequestModifier: Sendable {
   /// Adds a bearer authentication header.
-  case bearerAuth(String)
+  case bearerAuth(BearerTokenValue)
 
   /// Adds a basic authentication header.
-  case basicAuth(username: String, password: String)
+  case basicAuth(username: BasicAuthUsername, password: BasicAuthPassword)
 
   /// Adds a custom header.
-  case header(String, String)
+  case header(HTTPHeaderName, HTTPHeaderValue)
 
   /// Sets the request timeout.
-  case timeout(TimeInterval)
+  case timeout(NetworkingCore.RequestTimeout)
 
   /// Sets the request body data.
-  case body(Data)
+  case body(HTTPBody)
 
   /// Sets a JSON-encodable body.
-  case jsonBody(Data)
+  case jsonBody(HTTPBody)
 
   /// Adds a query parameter to the URL.
-  case queryParam(String, String)
+  case queryParam(QueryParameterName, QueryParameterValue)
 
   /// Applies this modifier to an ``HTTPRequest``, producing a new request.
   ///
   /// - Parameter request: The request to modify
   /// - Returns: A new request with the modification applied
   public func apply(to request: HTTPRequest) -> HTTPRequest {
-    var newHeaders = request.headers
-    var newBody = request.body
-    var newTimeout = request.timeout
-    var newURL = request.url
-
-    switch self {
-    case .bearerAuth(let token):
-      newHeaders["Authorization"] = "Bearer \(token)"
-
-    case .basicAuth(let username, let password):
-      let credentials = "\(username):\(password)"
-      if let data = credentials.data(using: .utf8) {
-        let base64 = data.base64EncodedString()
-        newHeaders["Authorization"] = "Basic \(base64)"
-      }
-
-    case .header(let name, let value):
-      newHeaders[name] = value
-
-    case .timeout(let interval):
-      newTimeout = interval
-
-    case .body(let data):
-      newBody = data
-
-    case .jsonBody(let data):
-      newBody = data
-      newHeaders["Content-Type"] = "application/json"
-
-    case .queryParam(let name, let value):
-      if var components = URLComponents(url: request.url, resolvingAgainstBaseURL: false) {
-        var queryItems = components.queryItems ?? []
-        queryItems.append(URLQueryItem(name: name, value: value))
-        components.queryItems = queryItems
-        if let url = components.url {
-          newURL = url
-        }
-      }
-    }
+    var headers = request.headers
+    applyToHeaders(&headers)
 
     return HTTPRequest(
       method: request.method,
-      url: newURL,
-      headers: newHeaders,
-      body: newBody,
-      timeout: newTimeout
+      url: updatedURL(from: request.url),
+      headers: headers,
+      body: updatedBody(from: request.body),
+      timeout: updatedTimeout(from: request.timeout),
+      id: request.id
     )
+  }
+
+  // swiftlint:disable:next cyclomatic_complexity
+  private func applyToHeaders(_ headers: inout HTTPHeaders) {
+    switch self {
+    case .bearerAuth(let token):
+      headers["Authorization"] = "Bearer \(token)"
+    case .basicAuth(let username, let password):
+      if let value = basicAuthHeaderValue(username: username, password: password) {
+        headers["Authorization"] = value
+      }
+    case .header(let name, let value):
+      headers[name] = value
+    case .jsonBody:
+      headers["Content-Type"] = "application/json"
+    case .queryParam, .timeout, .body:
+      break
+    }
+  }
+
+  private func updatedBody(from body: HTTPBody?) -> HTTPBody? {
+    switch self {
+    case .body(let data), .jsonBody(let data):
+      return data
+    default:
+      return body
+    }
+  }
+
+  private func updatedURL(from url: HTTPRequestURL) -> HTTPRequestURL {
+    switch self {
+    case .queryParam(let name, let value):
+      return queryParameterURL(from: url, name: name, value: value)
+    default:
+      return url
+    }
+  }
+
+  private func updatedTimeout(
+    from timeout: NetworkingCore.RequestTimeout
+  ) -> NetworkingCore.RequestTimeout {
+    if case .timeout(let interval) = self {
+      return interval
+    }
+
+    return timeout
+  }
+
+  private func basicAuthHeaderValue(
+    username: BasicAuthUsername,
+    password: BasicAuthPassword
+  ) -> HTTPHeaderValue? {
+    let credentials = "\(username):\(password)"
+    guard let data = credentials.data(using: .utf8) else {
+      return nil
+    }
+    return HTTPHeaderValue("Basic \(data.base64EncodedString())")
+  }
+
+  private func queryParameterURL(
+    from url: HTTPRequestURL,
+    name: QueryParameterName,
+    value: QueryParameterValue
+  ) -> HTTPRequestURL {
+    guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+      return url
+    }
+
+    var queryItems = components.queryItems ?? []
+    queryItems.append(URLQueryItem(name: name.rawValue, value: value.rawValue))
+    components.queryItems = queryItems
+    return components.url.map { HTTPRequestURL($0) } ?? url
   }
 }
 
 // MARK: - Operator Overloads
 
+// swiftlint:disable static_operator
 /// Composes an ``HTTPRequest`` with a ``RequestModifier`` to produce a new request.
 ///
 /// ```swift
@@ -135,6 +172,7 @@ public func + (lhs: HTTPRequest, rhs: HTTPRequest) -> HTTPRequest {
     timeout: rhs.timeout
   )
 }
+// swiftlint:enable static_operator
 
 // MARK: - Convenience Factory Methods
 
@@ -150,8 +188,8 @@ extension RequestModifier {
     encoder: JSONEncoder = JSONEncoder()
   ) -> RequestModifier {
     guard let data = try? encoder.encode(value) else {
-      return .body(Data())
+      return .body(HTTPBody(Data()))
     }
-    return .jsonBody(data)
+    return .jsonBody(HTTPBody(data))
   }
 }

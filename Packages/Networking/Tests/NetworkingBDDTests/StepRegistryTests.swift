@@ -11,7 +11,7 @@ struct StepRegistryTests {
     let context = ScenarioContext()
 
     try registry.given("the user id is (\\d+)") { stepContext, matches in
-      stepContext.setValue(matches[0], forKey: "userID")
+      stepContext.setValue(matches[0].rawValue, forKey: "userID")
     }
 
     let step = GherkinStep(keyword: .given, text: "the user id is 42")
@@ -20,7 +20,7 @@ struct StepRegistryTests {
     #expect(definition.pattern == "the user id is (\\d+)")
     #expect(definition.stepType == .given)
     #expect(captures == ["42"])
-    #expect(registry.hasDefinition(for: step.text, type: .given))
+    #expect(registry.hasDefinition(for: step.text, type: .given).rawValue)
 
     try await registry.execute(step: step, semanticType: .given, context: context)
 
@@ -45,11 +45,11 @@ struct StepRegistryTests {
         return
       }
 
-      #expect(text == step.text)
+      #expect(text.rawValue == step.text.rawValue)
       #expect(matchCount == 2)
     }
 
     registry.clear()
-    #expect(!registry.hasDefinition(for: step.text, type: .given))
+    #expect(!registry.hasDefinition(for: step.text, type: .given).rawValue)
   }
 }

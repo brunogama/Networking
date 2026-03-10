@@ -30,7 +30,9 @@ public struct ChainedTransformationPipeline<Input: Sendable, Output: Sendable>:
 
     guard let result = current as? Output else {
       throw HTTPError(
-        category: .configuration("Transformation pipeline produced wrong output type")
+        category: .configuration(
+          HTTPErrorDetail(rawValue: "Transformation pipeline produced wrong output type")
+        )
       )
     }
 
@@ -117,7 +119,7 @@ extension AsyncTransformationChain {
 
 /// Async JSON decoder transformer
 public struct AsyncJSONDecoderTransformer<T: Decodable & Sendable>: AsyncResponseTransformer {
-  public typealias Input = Data
+  public typealias Input = HTTPBody
   public typealias Output = T
 
   private let decoder: JSONDecoder
@@ -128,14 +130,16 @@ public struct AsyncJSONDecoderTransformer<T: Decodable & Sendable>: AsyncRespons
     self.decoder = decoder
   }
 
-  public func transform(_ input: Data) async throws -> T {
+  public func transform(_ input: HTTPBody) async throws -> T {
     // We're already async - no need for continuation + Task nesting
     // Just do the work directly
     do {
       return try decoder.decode(type, from: input)
     } catch {
       throw HTTPError(
-        category: .decoding("Failed to decode \(type): \(error.localizedDescription)"),
+        category: .decoding(
+          HTTPErrorDetail(rawValue: "Failed to decode \(type): \(error.localizedDescription)")
+        ),
         underlyingError: error
       )
     }
@@ -144,26 +148,36 @@ public struct AsyncJSONDecoderTransformer<T: Decodable & Sendable>: AsyncRespons
 
 /// Async image decoder transformer
 public struct AsyncImageDecoderTransformer: AsyncResponseTransformer {
-  public typealias Input = Data
+  public typealias Input = HTTPBody
   public typealias Output = ImageData
 
   public struct ImageData: Sendable {
-    public let data: Data
+    public let data: HTTPBody
     public let format: ImageFormat
     public let size: CGSize?
 
-    public enum ImageFormat: String, Sendable, CaseIterable {
-      case jpeg = "image/jpeg"
-      case png = "image/png"
-      case gif = "image/gif"
-      case webp = "image/webp"
-      case unknown = "unknown"
+    public enum ImageFormat: Sendable, CaseIterable {
+      case jpeg
+      case png
+      case gif
+      case webp
+      case unknown
+
+      public var mediaType: HTTPMediaType {
+        switch self {
+        case .jpeg: return HTTPMediaType(rawValue: "image/jpeg")
+        case .png: return HTTPMediaType(rawValue: "image/png")
+        case .gif: return HTTPMediaType(rawValue: "image/gif")
+        case .webp: return HTTPMediaType(rawValue: "image/webp")
+        case .unknown: return HTTPMediaType(rawValue: "unknown")
+        }
+      }
     }
   }
 
   public init() {}
 
-  public func transform(_ input: Data) async throws -> ImageData {
+  public func transform(_ input: HTTPBody) async throws -> ImageData {
     // We're already async - no need for continuation + Task nesting
     // Just do the work directly
     let format = detectImageFormat(from: input)
@@ -172,149 +186,57 @@ public struct AsyncImageDecoderTransformer: AsyncResponseTransformer {
     return ImageData(data: input, format: format, size: size)
   }
 
-  private func detectImageFormat(from data: Data) -> ImageData.ImageFormat {
+  // swiftlint:disable:next cyclomatic_complexity
+  private func detectImageFormat(from data: HTTPBody) -> ImageData.ImageFormat {
     guard data.count >= 4 else { return .unknown }
 
-    let bytes = data.prefix(4)
-    let signature = bytes.map { $0 }
+    let bytes = data.rawValue.prefix(4)
+    let signature = Array(bytes)
 
-    // JPEG: FF D8 FF
-    if signature[0] == 0xFF && signature[1] == 0xD8 && signature[2] == 0xFF {
+    if isJPEGSignature(signature) {
       return .jpeg
     }
 
-    // PNG: 89 50 4E 47
-    if signature[0] == 0x89 && signature[1] == 0x50 && signature[2] == 0x4E && signature[3] == 0x47
-    {
+    if isPNGSignature(signature) {
       return .png
     }
 
-    // GIF: 47 49 46 38
-    if signature[0] == 0x47 && signature[1] == 0x49 && signature[2] == 0x46 && signature[3] == 0x38
-    {
+    if isGIFSignature(signature) {
       return .gif
     }
 
-    // WebP: Check for RIFF and WEBP
-    if data.count >= 12 {
-      let riffCheck = data.prefix(4)
-      let webpCheck = data.subdata(in: 8..<12)
-      if riffCheck.elementsEqual([0x52, 0x49, 0x46, 0x46])
-        && webpCheck.elementsEqual([0x57, 0x45, 0x42, 0x50])
-      {
-        return .webp
-      }
+    if hasWebPSignature(data) {
+      return .webp
     }
 
     return .unknown
   }
 
-  private func extractImageSize(from data: Data, format: ImageData.ImageFormat) -> CGSize? {
+  private func extractImageSize(from data: HTTPBody, format: ImageData.ImageFormat) -> CGSize? {
     // Simplified size extraction - in a real implementation, you'd parse the image headers
     nil
   }
-}
 
-// MARK: - Pipeline Composition
-
-/// Protocol for composable transformation pipelines
-public protocol ComposableTransformationPipeline<Input, Output>: ResponseTransformationPipeline {
-  func then<Next: ResponseTransformationPipeline>(
-    _ next: Next
-  ) -> ComposedTransformationPipeline<Self, Next> where Output == Next.Input
-}
-
-extension ComposableTransformationPipeline {
-  public func then<Next: ResponseTransformationPipeline>(
-    _ next: Next
-  ) -> ComposedTransformationPipeline<Self, Next> where Output == Next.Input {
-    ComposedTransformationPipeline(first: self, second: next)
-  }
-}
-
-/// A composed transformation pipeline that chains two pipelines
-public struct ComposedTransformationPipeline<
-  First: ResponseTransformationPipeline,
-  Second: ResponseTransformationPipeline
->: ComposableTransformationPipeline where First.Output == Second.Input {
-  public typealias Input = First.Input
-  public typealias Output = Second.Output
-
-  private let first: First
-  private let second: Second
-
-  internal init(first: First, second: Second) {
-    self.first = first
-    self.second = second
+  private func isJPEGSignature(_ signature: [UInt8]) -> Bool {
+    signature[0] == 0xFF && signature[1] == 0xD8 && signature[2] == 0xFF
   }
 
-  public func transform(_ input: Input) async throws -> Output {
-    let intermediate = try await first.transform(input)
-    return try await second.transform(intermediate)
+  private func isPNGSignature(_ signature: [UInt8]) -> Bool {
+    signature[0] == 0x89 && signature[1] == 0x50 && signature[2] == 0x4E && signature[3] == 0x47
   }
-}
 
-/// Basic pipeline that extracts data from HTTPResponse
-public struct HTTPResponseToDataPipeline: ComposableTransformationPipeline {
-  public typealias Input = HTTPResponse
-  public typealias Output = Data
+  private func isGIFSignature(_ signature: [UInt8]) -> Bool {
+    signature[0] == 0x47 && signature[1] == 0x49 && signature[2] == 0x46 && signature[3] == 0x38
+  }
 
-  public init() {}
-
-  public func transform(_ input: HTTPResponse) async throws -> Data {
-    guard let data = input.body else {
-      throw HTTPError(
-        category: .decoding("Response body is empty"),
-        request: input.request,
-        response: input
-      )
+  private func hasWebPSignature(_ data: HTTPBody) -> Bool {
+    guard data.count >= 12 else {
+      return false
     }
-    return data
-  }
-}
 
-/// Pipeline adapter for async transformers
-public struct AsyncTransformerPipeline<T: AsyncResponseTransformer>:
-  ComposableTransformationPipeline
-{
-  public typealias Input = T.Input
-  public typealias Output = T.Output
-
-  private let transformer: T
-
-  public init(_ transformer: T) {
-    self.transformer = transformer
-  }
-
-  public func transform(_ input: Input) async throws -> Output {
-    try await transformer.transform(input)
-  }
-}
-
-// MARK: - Extensions for HTTPResponse
-
-extension HTTPResponse {
-  /// Starts an async transformation chain
-  public func asyncChain() -> AsyncTransformationChain<HTTPResponse> {
-    AsyncTransformationChain(response: self, value: self)
-  }
-
-  /// Applies a transformation pipeline to this response
-  public func transform<P: ResponseTransformationPipeline, T>(_ pipeline: P) async throws -> T
-  where P.Input == HTTPResponse, P.Output == T {
-    try await pipeline.transform(self)
-  }
-}
-
-// MARK: - CGSize Placeholder
-
-/// Placeholder for CGSize - would import CoreGraphics in real implementation
-public struct CGSize: Sendable {
-  public let width: Double
-  public let height: Double
-
-  public init(width: Double, height: Double) {
-    self.width = width
-    self.height = height
+    let riffCheck = data.rawValue.prefix(4)
+    let webpCheck = data.rawValue.subdata(in: 8..<12)
+    return riffCheck.elementsEqual([0x52, 0x49, 0x46, 0x46])
+      && webpCheck.elementsEqual([0x57, 0x45, 0x42, 0x50])
   }
 }

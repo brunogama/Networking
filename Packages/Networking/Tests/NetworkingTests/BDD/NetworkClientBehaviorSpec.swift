@@ -43,7 +43,7 @@ struct NetworkClientBehaviorTests {
 
     let response = try await mockClient.execute(request)
     let body = try #require(response.body)
-    let user = try JSONDecoder().decode(User.self, from: body)
+    let user = try JSONDecoder().decode(User.self, from: body.rawValue)
 
     #expect(user == User(id: 1, name: "John Doe"))
     mockClient.expectationsAreFulfilled()
@@ -55,7 +55,7 @@ struct NetworkClientBehaviorTests {
     let request = Self.makeRequest(path: "/error")
 
     mockClient.expectGET("/error")
-      .andReturn(.success(statusCode: 500, data: Data()))
+      .andReturn(.success(statusCode: 500, data: HTTPBody(Data())))
 
     do {
       let response = try await mockClient.execute(request)
@@ -74,11 +74,11 @@ struct NetworkClientBehaviorTests {
     let errorBody = Data(#"{"error": "Invalid request"}"#.utf8)
 
     mockClient.expectGET("/invalid")
-      .andReturn(.success(statusCode: 400, data: errorBody))
+      .andReturn(.success(statusCode: 400, data: HTTPBody(errorBody)))
 
     let response = try await mockClient.execute(request)
 
-    #expect(response.body == errorBody)
+    #expect(response.body?.rawValue == errorBody)
     mockClient.expectationsAreFulfilled()
   }
 
@@ -114,7 +114,7 @@ struct NetworkClientBehaviorTests {
 
     mockClient.expectGET("/protected")
       .withHeader("Authorization", value: "Bearer test-token")
-      .andReturn(.success(statusCode: 200, data: Data()))
+      .andReturn(.success(statusCode: 200, data: HTTPBody(Data())))
 
     let response = try await mockClient.execute(request)
 
@@ -139,7 +139,7 @@ struct NetworkClientBehaviorTests {
       .withHeader("X-First-Middleware", value: "value1")
       .withHeader("X-Second-Middleware", value: "value2")
       .withHeader("Authorization", value: "Bearer token")
-      .andReturn(.success(statusCode: 200, data: Data()))
+      .andReturn(.success(statusCode: 200, data: HTTPBody(Data())))
 
     let response = try await mockClient.execute(request)
 
@@ -154,12 +154,12 @@ struct NetworkClientBehaviorTests {
     let responseData = Data(#"{"cached": true}"#.utf8)
 
     mockClient.expectGET("/cached")
-      .andReturn(.success(statusCode: 200, data: responseData))
+      .andReturn(.success(statusCode: 200, data: HTTPBody(responseData)))
       .exactly(1)
 
     let response = try await mockClient.execute(request)
 
-    #expect(response.body == responseData)
+    #expect(response.body?.rawValue == responseData)
     mockClient.expectationsAreFulfilled()
   }
 

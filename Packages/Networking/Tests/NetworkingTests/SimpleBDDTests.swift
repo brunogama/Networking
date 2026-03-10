@@ -16,8 +16,8 @@ struct SimpleBDDTests {
         let request = HTTPRequest(method: .get, url: url)
 
         #expect(request.method == .get)
-        #expect(request.url == url)
-        #expect(request.headers.isEmpty)
+        #expect(request.url.rawValue == url)
+        #expect(request.headers.isEmpty == true)
         #expect(request.body == nil)
       }
 
@@ -35,9 +35,9 @@ struct SimpleBDDTests {
         )
 
         #expect(request.method == .post)
-        #expect(request.url == url)
-        #expect(request.headers == headers)
-        #expect(request.body == bodyData)
+        #expect(request.url.rawValue == url)
+        #expect(request.headers.rawValue == headers)
+        #expect(request.body?.rawValue == bodyData)
       }
     }
   }
@@ -48,23 +48,23 @@ struct SimpleBDDTests {
     struct WhenCheckingStatusCategories {
       @Test("Correctly identifies success status codes")
       func correctlyIdentifiesSuccessStatusCodes() {
-        #expect(HTTPStatus(rawValue: 200).isSuccess)
-        #expect(HTTPStatus(rawValue: 201).isSuccess)
-        #expect(HTTPStatus(rawValue: 299).isSuccess)
+        #expect(HTTPStatus(rawValue: 200).isSuccess.rawValue)
+        #expect(HTTPStatus(rawValue: 201).isSuccess.rawValue)
+        #expect(HTTPStatus(rawValue: 299).isSuccess.rawValue)
       }
 
       @Test("Correctly identifies client error status codes")
       func correctlyIdentifiesClientErrorStatusCodes() {
-        #expect(HTTPStatus(rawValue: 400).isClientError)
-        #expect(HTTPStatus(rawValue: 404).isClientError)
-        #expect(HTTPStatus(rawValue: 499).isClientError)
+        #expect(HTTPStatus(rawValue: 400).isClientError.rawValue)
+        #expect(HTTPStatus(rawValue: 404).isClientError.rawValue)
+        #expect(HTTPStatus(rawValue: 499).isClientError.rawValue)
       }
 
       @Test("Correctly identifies server error status codes")
       func correctlyIdentifiesServerErrorStatusCodes() {
-        #expect(HTTPStatus(rawValue: 500).isServerError)
-        #expect(HTTPStatus(rawValue: 502).isServerError)
-        #expect(HTTPStatus(rawValue: 599).isServerError)
+        #expect(HTTPStatus(rawValue: 500).isServerError.rawValue)
+        #expect(HTTPStatus(rawValue: 502).isServerError.rawValue)
+        #expect(HTTPStatus(rawValue: 599).isServerError.rawValue)
       }
     }
   }
@@ -88,8 +88,8 @@ struct SimpleBDDTests {
           return
         }
 
-        #expect(clientStatus.isClientError)
-        #expect(serverStatus.isServerError)
+        #expect(clientStatus.isClientError.rawValue)
+        #expect(serverStatus.isServerError.rawValue)
       }
 
       @Test("Handles network errors")
@@ -116,10 +116,10 @@ struct SimpleBDDTests {
       func storesTTLAndTagsCorrectly() {
         let metadata = CacheMetadata(ttl: 300, tags: ["user", "profile"])
 
-        #expect(metadata.ttl == 300)
+        #expect(metadata.ttl == RequestTimeout(300))
         #expect(metadata.tags == ["user", "profile"])
         #expect(metadata.customKey == nil)
-        #expect(!metadata.isInvalidating)
+        #expect(metadata.isInvalidating.rawValue == false)
       }
 
       @Test("Supports custom configuration")
@@ -127,15 +127,15 @@ struct SimpleBDDTests {
         let metadata = CacheMetadata(
           ttl: 600,
           tags: ["data"],
-          customKey: "custom-key",
+          customKey: CacheKey("custom-key"),
           isInvalidating: true,
           invalidationTags: ["invalidate-user"]
         )
 
-        #expect(metadata.ttl == 600)
+        #expect(metadata.ttl == RequestTimeout(600))
         #expect(metadata.tags == ["data"])
-        #expect(metadata.customKey == "custom-key")
-        #expect(metadata.isInvalidating)
+        #expect(metadata.customKey == CacheKey("custom-key"))
+        #expect(metadata.isInvalidating.rawValue)
         #expect(metadata.invalidationTags == ["invalidate-user"])
       }
     }
@@ -160,7 +160,7 @@ struct SimpleBDDTests {
         )
         let validatedResponse = ValidatedResponse.success(response: response, value: "test data")
 
-        #expect(validatedResponse.isValid)
+        #expect(validatedResponse.isValid.rawValue)
         #expect(validatedResponse.value == "test data")
         #expect(validatedResponse.response.status == status)
         #expect(validatedResponse.validationErrors.isEmpty)
@@ -185,7 +185,7 @@ struct SimpleBDDTests {
           error: HTTPError(category: .http(status))
         )
 
-        #expect(!validatedResponse.isValid)
+        #expect(validatedResponse.isValid.rawValue == false)
         #expect(validatedResponse.value == "error data")
         #expect(!validatedResponse.validationErrors.isEmpty)
 

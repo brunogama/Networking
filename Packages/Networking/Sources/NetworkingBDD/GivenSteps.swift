@@ -2,48 +2,40 @@ import NetworkingRuntime
 import NetworkingTesting
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - Given Steps for Network Testing
 
 /// Given step that sets up the base URL for requests.
 public struct GivenBaseURL: GivenStep, DescribableStep {
-  private let url: URL
+  private let url: HTTPRequestURL
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "the base URL is \"\(url.absoluteString)\""
   }
 
   /// Creates a base URL setup step.
   ///
-  /// - Parameter url: The base URL string
-  public init(_ urlString: String) {
-    guard let url = URL(string: urlString) else {
-      preconditionFailure("Invalid URL: \(urlString)")
-    }
-    self.url = url
-  }
-
-  /// Creates a base URL setup step.
-  ///
   /// - Parameter url: The base URL
-  public init(_ url: URL) {
+  public init(_ url: HTTPRequestURL) {
     self.url = url
   }
 
   public func setup(context: ScenarioContext) async throws {
-    context[.baseURL] = url
+    context[ContextKey<HTTPRequestURL>.baseURL] = url
   }
 }
 
 /// Given step that configures a mock response.
 public struct GivenMockResponse: GivenStep, DescribableStep {
-  private let path: String
+  private let path: MockRequestPath
   private let method: HTTPMethod?
-  private let statusCode: Int
-  private let headers: [String: String]
-  private let body: Data?
-  private let delay: TimeInterval?
+  private let statusCode: HTTPStatusCode
+  private let headers: HTTPHeaders
+  private let body: HTTPBody?
+  private let delay: RetryDelay?
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     if let method = method {
       return "\(method.rawValue) \"\(path)\" returns \(statusCode)"
     }
@@ -60,12 +52,12 @@ public struct GivenMockResponse: GivenStep, DescribableStep {
   ///   - body: Response body data
   ///   - delay: Optional response delay
   public init(
-    path: String,
+    path: MockRequestPath,
     method: HTTPMethod? = nil,
-    statusCode: Int = 200,
-    headers: [String: String] = [:],
-    body: Data? = nil,
-    delay: TimeInterval? = nil
+    statusCode: HTTPStatusCode = 200,
+    headers: HTTPHeaders = [:],
+    body: HTTPBody? = nil,
+    delay: RetryDelay? = nil
   ) {
     self.path = path
     self.method = method
@@ -84,9 +76,9 @@ public struct GivenMockResponse: GivenStep, DescribableStep {
   ///   - json: Encodable JSON body
   ///   - encoder: JSON encoder
   public init<T: Encodable>(
-    path: String,
+    path: MockRequestPath,
     method: HTTPMethod? = nil,
-    statusCode: Int = 200,
+    statusCode: HTTPStatusCode = 200,
     json: T,
     encoder: JSONEncoder = JSONEncoder()
   ) throws {
@@ -94,7 +86,7 @@ public struct GivenMockResponse: GivenStep, DescribableStep {
     self.method = method
     self.statusCode = statusCode
     self.headers = ["Content-Type": "application/json"]
-    self.body = try encoder.encode(json)
+    self.body = HTTPBody(try encoder.encode(json))
     self.delay = nil
   }
 
@@ -107,16 +99,25 @@ public struct GivenMockResponse: GivenStep, DescribableStep {
       expectation = mockClient.expect(.method(method))
     }
 
-    let responseData = body ?? Data()
+    let responseData = body ?? HTTPBody(Data())
     let responseHeaders = headers
 
     if let delay = delay {
       _ = expectation.andReturn(
-        .custom(statusCode: statusCode, data: responseData, headers: responseHeaders, delay: delay)
+        MockNetworkClient.MockResponse.custom(
+          statusCode: statusCode,
+          data: responseData,
+          headers: responseHeaders,
+          delay: MockResponseDelay(delay.rawValue)
+        )
       )
     } else {
       _ = expectation.andReturn(
-        .success(statusCode: statusCode, data: responseData, headers: responseHeaders)
+        MockNetworkClient.MockResponse.success(
+          statusCode: statusCode,
+          data: responseData,
+          headers: responseHeaders
+        )
       )
     }
   }
@@ -124,11 +125,11 @@ public struct GivenMockResponse: GivenStep, DescribableStep {
 
 /// Given step that configures a mock error response.
 public struct GivenMockError: GivenStep, DescribableStep {
-  private let path: String
+  private let path: MockRequestPath
   private let method: HTTPMethod?
   private let error: HTTPError
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "\"\(path)\" returns error \(error.category)"
   }
 
@@ -139,7 +140,7 @@ public struct GivenMockError: GivenStep, DescribableStep {
   ///   - method: Optional HTTP method to match
   ///   - error: The error to return
   public init(
-    path: String,
+    path: MockRequestPath,
     method: HTTPMethod? = nil,
     error: HTTPError
   ) {
@@ -155,7 +156,7 @@ public struct GivenMockError: GivenStep, DescribableStep {
   ///   - method: Optional HTTP method to match
   ///   - category: The error category
   public init(
-    path: String,
+    path: MockRequestPath,
     method: HTTPMethod? = nil,
     category: HTTPError.Category
   ) {
@@ -173,7 +174,7 @@ public struct GivenMockError: GivenStep, DescribableStep {
       expectation = mockClient.expect(.method(method))
     }
 
-    _ = expectation.andReturn(.failure(error))
+    _ = expectation.andReturn(MockNetworkClient.MockResponse.failure(error))
   }
 }
 
@@ -182,7 +183,7 @@ public struct GivenContextValue<T: Sendable>: GivenStep, DescribableStep {
   private let key: ContextKey<T>
   private let value: T
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "context \"\(key.name)\" is set"
   }
 
@@ -205,7 +206,7 @@ public struct GivenContextValue<T: Sendable>: GivenStep, DescribableStep {
 public struct GivenAuthentication: GivenStep, DescribableStep {
   private let type: AuthType
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     switch type {
     case .bearer:
       return "authenticated with bearer token"
@@ -218,9 +219,9 @@ public struct GivenAuthentication: GivenStep, DescribableStep {
 
   /// Authentication type.
   public enum AuthType: Sendable {
-    case bearer(String)
-    case basic(username: String, password: String)
-    case apiKey(header: String, value: String)
+    case bearer(BearerTokenValue)
+    case basic(username: BasicAuthUsername, password: BasicAuthPassword)
+    case apiKey(header: HTTPHeaderName, value: HTTPHeaderValue)
   }
 
   /// Creates an authentication setup step.
@@ -233,7 +234,7 @@ public struct GivenAuthentication: GivenStep, DescribableStep {
   /// Creates a bearer token authentication step.
   ///
   /// - Parameter token: The bearer token
-  public static func bearer(_ token: String) -> Self {
+  public static func bearer(_ token: BearerTokenValue) -> Self {
     Self(.bearer(token))
   }
 
@@ -242,20 +243,20 @@ public struct GivenAuthentication: GivenStep, DescribableStep {
   /// - Parameters:
   ///   - username: The username
   ///   - password: The password
-  public static func basic(username: String, password: String) -> Self {
+  public static func basic(username: BasicAuthUsername, password: BasicAuthPassword) -> Self {
     Self(.basic(username: username, password: password))
   }
 
   public func setup(context: ScenarioContext) async throws {
     switch type {
     case .bearer(let token):
-      context[.authHeader] = "Bearer \(token)"
+      context[.authHeader] = HTTPHeaderValue("Bearer \(token.rawValue)")
     case .basic(let username, let password):
-      let credentials = "\(username):\(password)"
+      let credentials = "\(username.rawValue):\(password.rawValue)"
       let encoded = Data(credentials.utf8).base64EncodedString()
-      context[.authHeader] = "Basic \(encoded)"
+      context[.authHeader] = HTTPHeaderValue("Basic \(encoded)")
     case .apiKey(let header, let value):
-      var existing = context[.customHeaders] ?? [:]
+      var existing = context[.customHeaders] ?? HTTPHeaders()
       existing[header] = value
       context[.customHeaders] = existing
     }
@@ -264,16 +265,16 @@ public struct GivenAuthentication: GivenStep, DescribableStep {
 
 /// Given step that configures request headers.
 public struct GivenHeaders: GivenStep, DescribableStep {
-  private let headers: [String: String]
+  private let headers: HTTPHeaders
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "request headers are configured"
   }
 
   /// Creates a headers setup step.
   ///
   /// - Parameter headers: The headers to set
-  public init(_ headers: [String: String]) {
+  public init(_ headers: HTTPHeaders) {
     self.headers = headers
   }
 
@@ -282,12 +283,12 @@ public struct GivenHeaders: GivenStep, DescribableStep {
   /// - Parameters:
   ///   - name: Header name
   ///   - value: Header value
-  public init(_ name: String, _ value: String) {
+  public init(_ name: HTTPHeaderName, _ value: HTTPHeaderValue) {
     self.headers = [name: value]
   }
 
   public func setup(context: ScenarioContext) async throws {
-    var existing = context[.customHeaders] ?? [:]
+    var existing = context[.customHeaders] ?? HTTPHeaders()
     for (key, value) in headers {
       existing[key] = value
     }
@@ -297,7 +298,7 @@ public struct GivenHeaders: GivenStep, DescribableStep {
 
 /// Given step that clears previous mock expectations.
 public struct GivenCleanState: GivenStep, DescribableStep {
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "a clean test state"
   }
 
@@ -311,35 +312,28 @@ public struct GivenCleanState: GivenStep, DescribableStep {
   }
 }
 
-// MARK: - Context Key Extensions
-
-extension ContextKey where Value == String {
-  /// Authentication header value.
-  public static var authHeader: ContextKey<String> { ContextKey("authHeader") }
-}
-
 // MARK: - Convenience Functions (prefixed to avoid macro conflicts)
 
 /// Creates a base URL Given step.
-public func givenBaseURL(_ url: String) -> GivenBaseURL {
+public func givenBaseURL(_ url: HTTPRequestURL) -> GivenBaseURL {
   GivenBaseURL(url)
 }
 
 /// Creates a mock response Given step.
 public func givenMockResponse(
-  path: String,
+  path: MockRequestPath,
   method: HTTPMethod? = nil,
-  status: Int = 200,
-  body: Data? = nil
+  status: HTTPStatusCode = 200,
+  body: HTTPBody? = nil
 ) -> GivenMockResponse {
   GivenMockResponse(path: path, method: method, statusCode: status, body: body)
 }
 
 /// Creates a mock JSON response Given step.
 public func givenMockJSON<T: Encodable>(
-  path: String,
+  path: MockRequestPath,
   method: HTTPMethod? = nil,
-  status: Int = 200,
+  status: HTTPStatusCode = 200,
   json: T
 ) throws -> GivenMockResponse {
   try GivenMockResponse(path: path, method: method, statusCode: status, json: json)
@@ -347,7 +341,7 @@ public func givenMockJSON<T: Encodable>(
 
 /// Creates a mock error Given step.
 public func givenMockError(
-  path: String,
+  path: MockRequestPath,
   method: HTTPMethod? = nil,
   category: HTTPError.Category
 ) -> GivenMockError {
@@ -355,7 +349,7 @@ public func givenMockError(
 }
 
 /// Creates a bearer auth Given step.
-public func givenBearerAuth(_ token: String) -> GivenAuthentication {
+public func givenBearerAuth(_ token: BearerTokenValue) -> GivenAuthentication {
   GivenAuthentication.bearer(token)
 }
 
@@ -363,3 +357,4 @@ public func givenBearerAuth(_ token: String) -> GivenAuthentication {
 public func givenCleanState() -> GivenCleanState {
   GivenCleanState()
 }
+// swiftlint:enable file_length

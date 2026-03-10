@@ -191,9 +191,9 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
   /// Total number of calls made to this mock (authenticate + error handle)
   ///
   /// Conforms to `MockVerifiable` protocol for shared verification methods.
-  nonisolated public var callCount: Int {
+  nonisolated public var callCount: MockVerificationCount {
     get async {
-      queue.sync { authenticateCount + errorHandleCount }
+      MockVerificationCount(queue.sync { authenticateCount + errorHandleCount })
     }
   }
 
@@ -203,8 +203,10 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
   ///
   /// - Parameter times: Expected number of authenticate calls (default: 1)
   /// - Throws: `MockError.unexpectedCallCount` if actual count doesn't match
-  public func verifyAuthenticated(times: Int = 1) throws {
-    let actual = queue.sync { authenticateCount }
+  public func verifyAuthenticated(
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actual = MockVerificationCount(queue.sync { authenticateCount })
     guard actual == times else {
       throw MockError.unexpectedCallCount(expected: times, actual: actual)
     }
@@ -214,8 +216,10 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
   ///
   /// - Parameter times: Expected number of error handling calls (default: 1)
   /// - Throws: `MockError.unexpectedCallCount` if actual count doesn't match
-  public func verifyErrorHandled(times: Int = 1) throws {
-    let actual = queue.sync { errorHandleCount }
+  public func verifyErrorHandled(
+    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
+  ) throws {
+    let actual = MockVerificationCount(queue.sync { errorHandleCount })
     guard actual == times else {
       throw MockError.unexpectedCallCount(expected: times, actual: actual)
     }
@@ -250,14 +254,14 @@ public final class MockCustomAuthProvider: CustomAuthProvider, MockVerifiable, @
   /// Get the count of authenticate requests
   ///
   /// - Returns: Number of times `authenticateRequest(_:)` was called
-  public func getAuthenticateCount() -> Int {
-    queue.sync { authenticateCount }
+  public func getAuthenticateCount() -> MockVerificationCount {
+    MockVerificationCount(queue.sync { authenticateCount })
   }
 
   /// Get the count of error handling calls
   ///
   /// - Returns: Number of times `handleAuthenticationError(_:response:)` was called
-  public func getErrorHandleCount() -> Int {
-    queue.sync { errorHandleCount }
+  public func getErrorHandleCount() -> MockVerificationCount {
+    MockVerificationCount(queue.sync { errorHandleCount })
   }
 }

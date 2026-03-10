@@ -40,19 +40,19 @@ import Foundation
 // MARK: - Testing Support
 
 /// Indicates whether testing utilities are available
-public let isTestingSupportEnabled = true
+public let isTestingSupportEnabled = TestingSupportEnabledFlag(rawValue: true)
 
 /// Testing utilities namespace
 public enum NetworkingTestUtilities {
   /// Framework version for testing utilities
-  public static let version = "1.0.0"
+  public static let version = TestingUtilitiesVersion(rawValue: "1.0.0")
 
   /// Available testing tools
-  public static let availableTools = [
-    "MockURLProtocol",
-    "MockNetworkClient",
-    "AsyncExpectation",
-    "Swift Testing Integration",
+  public static let availableTools: [TestingToolName] = [
+    TestingToolName(rawValue: "MockURLProtocol"),
+    TestingToolName(rawValue: "MockNetworkClient"),
+    TestingToolName(rawValue: "AsyncExpectation"),
+    TestingToolName(rawValue: "Swift Testing Integration"),
   ]
 }
 
@@ -64,11 +64,11 @@ public enum NetworkingTestUtilities {
 ///   Mutable state (`isFulfilled`) is protected by an internal `NSLock`.
 ///   All access is synchronized through this lock.
 public final class AsyncExpectation: @unchecked Sendable {
-  private let description: String
+  private let description: ExpectationDescriptionText
   private var isFulfilled = false
   private let lock = NSLock()
 
-  public init(_ description: String) {
+  public init(_ description: ExpectationDescriptionText) {
     self.description = description
   }
 
@@ -78,8 +78,8 @@ public final class AsyncExpectation: @unchecked Sendable {
     }
   }
 
-  public var isFullfilled: Bool {
-    lock.withLock { isFulfilled }
+  public var isFullfilled: ExpectationFulfillmentFlag {
+    ExpectationFulfillmentFlag(lock.withLock { isFulfilled })
   }
 }
 
@@ -88,6 +88,6 @@ public final class AsyncExpectation: @unchecked Sendable {
 // MARK: - Production Build
 
 /// Testing utilities are not available in production builds
-public let isTestingSupportEnabled = false
+public let isTestingSupportEnabled = TestingSupportEnabledFlag(rawValue: false)
 
 #endif

@@ -110,7 +110,7 @@ public final class MockHTTPRequestMiddleware: HTTPRequestMiddleware, MockVerifia
   /// - Parameters:
   ///   - name: The header name
   ///   - value: The header value
-  public func stubAddHeader(_ name: String, value: String) {
+  public func stubAddHeader(_ name: HTTPHeaderName, value: HTTPHeaderValue) {
     stubTransform { request in
       var updatedHeaders = request.headers
       updatedHeaders[name] = value
@@ -127,8 +127,8 @@ public final class MockHTTPRequestMiddleware: HTTPRequestMiddleware, MockVerifia
   // MARK: - MockVerifiable Conformance
 
   /// The number of times `modifyRequest` was called.
-  nonisolated public var callCount: Int {
-    get async { queue.sync { processCount }
+  nonisolated public var callCount: MockVerificationCount {
+    get async { MockVerificationCount(queue.sync { processCount })
     }
   }
 

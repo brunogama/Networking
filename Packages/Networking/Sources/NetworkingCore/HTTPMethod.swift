@@ -4,7 +4,7 @@ import Foundation
 
 /// A structure representing an HTTP method.
 /// Using a struct instead of an enum provides flexibility for custom methods.
-public struct HTTPMethod: Sendable, Hashable, ExpressibleByStringLiteral {
+public struct HTTPMethod: Sendable, Hashable {
   // MARK: - Standard Methods
 
   public static let get = Self(rawValue: "GET")
@@ -19,15 +19,23 @@ public struct HTTPMethod: Sendable, Hashable, ExpressibleByStringLiteral {
 
   // MARK: - Properties
 
-  public let rawValue: String
+  public let rawValue: HTTPMethodName
 
   // MARK: - Initialization
 
-  public init(rawValue: String) {
-    self.rawValue = rawValue.uppercased()
+  public init(_ rawValue: HTTPMethodName) {
+    self.rawValue = HTTPMethodName(rawValue.rawValue.uppercased())
   }
 
-  public init(stringLiteral value: String) {
-    self.init(rawValue: value)
+  public init(rawValue: HTTPMethodName) {
+    self.init(rawValue)
+  }
+
+  package init(rawValue: String) {
+    self.init(rawValue: HTTPMethodName(rawValue))
+  }
+
+  package var methodValue: String {
+    rawValue.rawValue
   }
 }

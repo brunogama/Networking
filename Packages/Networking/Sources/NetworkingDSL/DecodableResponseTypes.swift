@@ -13,16 +13,16 @@ public struct DecodableResponse<T: Decodable & Sendable>: ValidatedResponseProto
   public let decodingMetadata: DecodingMetadata
 
   public struct DecodingMetadata: Sendable {
-    public let decoder: String  // Name/type of decoder used
+    public let decoder: DecoderName
     public let decodedAt: Date
-    public let originalDataSize: Int
-    public let decodingDuration: TimeInterval?
+    public let originalDataSize: DecodedDataSize
+    public let decodingDuration: DecodingDuration?
 
     public init(
-      decoder: String = "JSONDecoder",
+      decoder: DecoderName = "JSONDecoder",
       decodedAt: Date = Date(),
-      originalDataSize: Int,
-      decodingDuration: TimeInterval? = nil
+      originalDataSize: DecodedDataSize,
+      decodingDuration: DecodingDuration? = nil
     ) {
       self.decoder = decoder
       self.decodedAt = decodedAt
@@ -65,8 +65,8 @@ public struct DecodableResponse<T: Decodable & Sendable>: ValidatedResponseProto
       let metadata = DecodingMetadata(
         decoder: "JSONDecoder",
         decodedAt: Date(),
-        originalDataSize: body.count,
-        decodingDuration: decodingDuration
+        originalDataSize: DecodedDataSize(body.count.rawValue),
+        decodingDuration: DecodingDuration(decodingDuration)
       )
 
       return Self(
@@ -85,9 +85,9 @@ public struct DecodableResponse<T: Decodable & Sendable>: ValidatedResponseProto
   }
 
   /// Decoding performance metrics
-  public var decodingRate: Double? {
+  public var decodingRate: DecodingRateValue? {
     guard let duration = decodingMetadata.decodingDuration, duration > 0 else { return nil }
-    return Double(decodingMetadata.originalDataSize) / duration  // bytes per second
+    return DecodingRateValue(Double(decodingMetadata.originalDataSize.rawValue) / duration.rawValue)
   }
 }
 
@@ -101,7 +101,7 @@ public struct CachedDecodableResponse<T: Decodable & Sendable>: ValidatedRespons
   public let validationResults: [ValidationResult]
   public let cacheMetadata: CacheMetadata
   public let decodingMetadata: DecodableResponse<T>.DecodingMetadata
-  public let isCacheHit: Bool
+  public let isCacheHit: CacheHitFlag
   public let cacheTimestamp: Date
 
   public init(
@@ -109,7 +109,7 @@ public struct CachedDecodableResponse<T: Decodable & Sendable>: ValidatedRespons
     value: T,
     cacheMetadata: CacheMetadata,
     decodingMetadata: DecodableResponse<T>.DecodingMetadata,
-    isCacheHit: Bool = false,
+    isCacheHit: CacheHitFlag = false,
     cacheTimestamp: Date = Date(),
     validationResults: [ValidationResult] = [.success]
   ) {
@@ -126,7 +126,7 @@ public struct CachedDecodableResponse<T: Decodable & Sendable>: ValidatedRespons
   public init(
     decodable: DecodableResponse<T>,
     cacheMetadata: CacheMetadata,
-    isCacheHit: Bool = false,
+    isCacheHit: CacheHitFlag = false,
     cacheTimestamp: Date = Date()
   ) {
     self.response = decodable.response
@@ -139,20 +139,20 @@ public struct CachedDecodableResponse<T: Decodable & Sendable>: ValidatedRespons
   }
 
   /// Cache age since the response was first cached
-  public var cacheAge: TimeInterval {
-    Date().timeIntervalSince(cacheTimestamp)
+  public var cacheAge: NetworkingCore.RequestTimeout {
+    NetworkingCore.RequestTimeout(Date().timeIntervalSince(cacheTimestamp))
   }
 
   /// Whether the cached response is still fresh (within TTL)
-  public var isFresh: Bool {
-    guard let ttl = cacheMetadata.ttl else { return true }
-    return cacheAge < ttl
+  public var isFresh: CacheFreshnessFlag {
+    guard let ttl = cacheMetadata.ttl else { return CacheFreshnessFlag(true) }
+    return CacheFreshnessFlag(cacheAge < ttl)
   }
 
   /// Decoding performance metrics
-  public var decodingRate: Double? {
+  public var decodingRate: DecodingRateValue? {
     guard let duration = decodingMetadata.decodingDuration, duration > 0 else { return nil }
-    return Double(decodingMetadata.originalDataSize) / duration  // bytes per second
+    return DecodingRateValue(Double(decodingMetadata.originalDataSize.rawValue) / duration.rawValue)
   }
 
   /// Create from a CachedResponse with decoding

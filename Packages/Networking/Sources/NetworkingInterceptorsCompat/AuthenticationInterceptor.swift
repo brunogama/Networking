@@ -23,18 +23,24 @@ import Foundation
 @available(
   *,
   deprecated,
-  message:
-    "AuthenticationInterceptor is a compatibility API. Prefer AuthenticationMiddleware or a custom HTTPRequestMiddleware."
+  message: """
+    AuthenticationInterceptor is a compatibility API.
+    Prefer AuthenticationMiddleware or a custom HTTPRequestMiddleware.
+    """
 )
 public struct AuthenticationInterceptor: RequestInterceptor, Sendable {
   /// Token provider that returns the current access token
-  private let tokenProvider: @Sendable () async throws -> String
+  private let tokenProvider: @Sendable () async throws -> BearerTokenValue
 
   /// Creates an authentication interceptor with a token provider.
   ///
   /// - Parameter tokenProvider: Async closure that returns the current access token
-  public init(tokenProvider: @escaping @Sendable () async throws -> String) {
+  public init(tokenProvider: @escaping @Sendable () async throws -> BearerTokenValue) {
     self.tokenProvider = tokenProvider
+  }
+
+  package init(tokenProvider: @escaping @Sendable () async throws -> String) {
+    self.tokenProvider = { BearerTokenValue(try await tokenProvider()) }
   }
 
   /// Intercepts the request and adds the Authorization header with a Bearer token.
@@ -58,8 +64,10 @@ public struct AuthenticationInterceptor: RequestInterceptor, Sendable {
 @available(
   *,
   deprecated,
-  message:
-    "AuthenticationInterceptor is a compatibility API. Prefer AuthenticationMiddleware or a custom HTTPRequestMiddleware."
+  message: """
+    AuthenticationInterceptor is a compatibility API.
+    Prefer AuthenticationMiddleware or a custom HTTPRequestMiddleware.
+    """
 )
 extension AuthenticationInterceptor {
   /// Creates an authentication interceptor with a static token.
@@ -68,7 +76,7 @@ extension AuthenticationInterceptor {
   ///
   /// - Parameter token: The static Bearer token
   /// - Returns: Configured authentication interceptor
-  public static func bearer(_ token: String) -> Self {
+  public static func bearer(_ token: BearerTokenValue) -> Self {
     Self { token }
   }
 }

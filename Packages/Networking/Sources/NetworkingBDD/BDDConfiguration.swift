@@ -2,6 +2,8 @@ import NetworkingRuntime
 import NetworkingTesting
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - BDD Configuration
 
 /// Configuration for BDD test execution.
@@ -16,34 +18,34 @@ import Foundation
 /// ```
 public struct BDDConfiguration: Sendable {
   /// Directory containing .feature files.
-  public let featureDirectory: String?
+  public let featureDirectory: BDDDirectoryPath?
 
   /// Tags to filter scenarios.
-  public let includeTags: [String]
+  public let includeTags: [BDDTagText]
 
   /// Tags to exclude scenarios.
-  public let excludeTags: [String]
+  public let excludeTags: [BDDTagText]
 
   /// Whether to generate reports after execution.
-  public let generateReport: Bool
+  public let generateReport: BDDGenerateReportFlag
 
   /// Report output directory.
-  public let reportDirectory: String
+  public let reportDirectory: BDDDirectoryPath
 
   /// Report format.
   public let reportFormat: ReportFormat
 
   /// Whether to stop on first failure.
-  public let stopOnFirstFailure: Bool
+  public let stopOnFirstFailure: BDDStopOnFirstFailureFlag
 
   /// Default timeout for steps in seconds.
-  public let defaultStepTimeout: TimeInterval
+  public let defaultStepTimeout: MeasurementDuration
 
   /// Whether to run scenarios in parallel.
-  public let parallelExecution: Bool
+  public let parallelExecution: BDDParallelExecutionFlag
 
   /// Report format options.
-  public enum ReportFormat: String, Sendable {
+  public enum ReportFormat: Sendable {
     case markdown
     case json
     case html
@@ -63,15 +65,15 @@ public struct BDDConfiguration: Sendable {
   ///   - defaultStepTimeout: Default step timeout in seconds
   ///   - parallelExecution: Run scenarios in parallel
   public init(
-    featureDirectory: String? = nil,
-    includeTags: [String] = [],
-    excludeTags: [String] = [],
-    generateReport: Bool = false,
-    reportDirectory: String = "Reports",
+    featureDirectory: BDDDirectoryPath? = nil,
+    includeTags: [BDDTagText] = [],
+    excludeTags: [BDDTagText] = [],
+    generateReport: BDDGenerateReportFlag = false,
+    reportDirectory: BDDDirectoryPath = "Reports",
     reportFormat: ReportFormat = .markdown,
-    stopOnFirstFailure: Bool = false,
-    defaultStepTimeout: TimeInterval = 30,
-    parallelExecution: Bool = false
+    stopOnFirstFailure: BDDStopOnFirstFailureFlag = false,
+    defaultStepTimeout: MeasurementDuration = 30,
+    parallelExecution: BDDParallelExecutionFlag = false
   ) {
     self.featureDirectory = featureDirectory
     self.includeTags = includeTags
@@ -92,6 +94,7 @@ public struct BDDConfiguration: Sendable {
 
 // MARK: - BDD Test Runner
 
+// swiftlint:disable type_body_length
 /// Runs BDD tests from Gherkin feature files.
 ///
 /// - Note: `@unchecked Sendable` justification:
@@ -113,10 +116,10 @@ public final class BDDTestRunner: @unchecked Sendable {
 
   /// Result of a scenario execution.
   public struct ScenarioResult: Sendable {
-    public let featureName: String
-    public let scenarioName: String
+    public let featureName: BDDFeatureName
+    public let scenarioName: BDDScenarioName
     public let status: Status
-    public let duration: TimeInterval
+    public let duration: MeasurementDuration
     public let steps: [StepResult]
     public let error: Error?
 
@@ -130,10 +133,10 @@ public final class BDDTestRunner: @unchecked Sendable {
 
   /// Result of a step execution.
   public struct StepResult: Sendable {
-    public let keyword: String
-    public let text: String
+    public let keyword: BDDStepKeyword
+    public let text: BDDStepText
     public let status: ScenarioResult.Status
-    public let duration: TimeInterval
+    public let duration: MeasurementDuration
     public let error: Error?
   }
 
@@ -158,7 +161,10 @@ public final class BDDTestRunner: @unchecked Sendable {
   /// - Throws: BDDError if feature files cannot be loaded
   public func runAllFeatures() async throws -> [ScenarioResult] {
     guard let directory = configuration.featureDirectory else {
-      throw BDDError.invalidConfiguration(key: "featureDirectory", reason: "Not set")
+      throw BDDError.invalidConfiguration(
+        key: UserMessageText("featureDirectory"),
+        reason: UserMessageText("Not set")
+      )
     }
 
     let featureFiles = try findFeatureFiles(in: directory)
@@ -168,7 +174,7 @@ public final class BDDTestRunner: @unchecked Sendable {
       let featureResults = try await runFeature(at: fileURL)
       allResults.append(contentsOf: featureResults)
 
-      if configuration.stopOnFirstFailure
+      if configuration.stopOnFirstFailure.rawValue
         && featureResults.contains(where: { $0.status == .failed })
       {
         break
@@ -182,11 +188,12 @@ public final class BDDTestRunner: @unchecked Sendable {
   ///
   /// - Parameter url: URL to the feature file
   /// - Returns: Array of scenario results
-  public func runFeature(at url: URL) async throws -> [ScenarioResult] {
+  public func runFeature(at url: BDDFileURL) async throws -> [ScenarioResult] {
     let feature = try parser.parse(url: url)
     return try await runFeature(feature)
   }
 
+  // swiftlint:disable cyclomatic_complexity
   /// Runs a parsed feature.
   ///
   /// - Parameter feature: The parsed Gherkin feature
@@ -209,22 +216,23 @@ public final class BDDTestRunner: @unchecked Sendable {
         }
       }
 
-      if configuration.stopOnFirstFailure && results.last?.status == .failed {
+      if configuration.stopOnFirstFailure.rawValue && results.last?.status == .failed {
         break
       }
     }
 
     return results
   }
+  // swiftlint:enable cyclomatic_complexity
 
   // MARK: - Private Methods
 
-  private func findFeatureFiles(in directory: String) throws -> [URL] {
+  private func findFeatureFiles(in directory: BDDDirectoryPath) throws -> [BDDFileURL] {
     let fileManager = FileManager.default
-    let directoryURL = URL(fileURLWithPath: directory)
+    let directoryURL = URL(fileURLWithPath: directory.rawValue)
 
-    guard fileManager.fileExists(atPath: directory) else {
-      throw BDDError.fileNotFound(path: directory)
+    guard fileManager.fileExists(atPath: directory.rawValue) else {
+      throw BDDError.fileNotFound(path: BDDSourceFilePath(directory.rawValue))
     }
 
     let contents = try fileManager.contentsOfDirectory(
@@ -232,13 +240,16 @@ public final class BDDTestRunner: @unchecked Sendable {
       includingPropertiesForKeys: nil
     )
 
-    return contents.filter { $0.pathExtension == "feature" }
+    return
+      contents
+      .filter { $0.pathExtension == "feature" }
+      .map { BDDFileURL($0) }
   }
 
   private func shouldRunScenario(tags: [Tag]) -> Bool {
     // If no include tags specified, include all
     if !configuration.includeTags.isEmpty {
-      let scenarioTags = Set(tags.map { $0.name })
+      let scenarioTags = Set(tags.map(\.name))
       let includeTags = Set(configuration.includeTags)
       if scenarioTags.isDisjoint(with: includeTags) {
         return false
@@ -247,7 +258,7 @@ public final class BDDTestRunner: @unchecked Sendable {
 
     // Check exclude tags
     if !configuration.excludeTags.isEmpty {
-      let scenarioTags = Set(tags.map { $0.name })
+      let scenarioTags = Set(tags.map(\.name))
       let excludeTags = Set(configuration.excludeTags)
       if !scenarioTags.isDisjoint(with: excludeTags) {
         return false
@@ -257,6 +268,7 @@ public final class BDDTestRunner: @unchecked Sendable {
     return true
   }
 
+  // swiftlint:disable:next cyclomatic_complexity
   private func runScenario(
     _ definition: ScenarioDefinition,
     feature: GherkinFeature
@@ -298,7 +310,7 @@ public final class BDDTestRunner: @unchecked Sendable {
       }
     }
 
-    let duration = Date().timeIntervalSince(startTime)
+    let duration = MeasurementDuration(Date().timeIntervalSince(startTime))
 
     return ScenarioResult(
       featureName: feature.name,
@@ -310,6 +322,7 @@ public final class BDDTestRunner: @unchecked Sendable {
     )
   }
 
+  // swiftlint:disable:next cyclomatic_complexity
   private func runScenarioOutline(
     _ outline: ScenarioOutlineDefinition,
     feature: GherkinFeature
@@ -320,21 +333,20 @@ public final class BDDTestRunner: @unchecked Sendable {
       for (rowIndex, row) in examplesTable.rows.enumerated() {
         // Create example dictionary
         var example: [String: String] = [:]
-        for (columnIndex, header) in examplesTable.headers.enumerated() {
-          if columnIndex < row.count {
-            example[header] = row[columnIndex]
-          }
+        for (columnIndex, header) in examplesTable.headers.enumerated()
+        where columnIndex < row.count {
+          example[header.rawValue] = row[columnIndex].rawValue
         }
 
         // Substitute placeholders in steps
         let substitutedSteps = outline.steps.map { step -> GherkinStep in
-          var substitutedText = step.text
+          var substitutedText = step.text.rawValue
           for (key, value) in example {
             substitutedText = substitutedText.replacingOccurrences(of: "<\(key)>", with: value)
           }
           return GherkinStep(
             keyword: step.keyword,
-            text: substitutedText,
+            text: BDDStepText(substitutedText),
             dataTable: step.dataTable,
             docString: step.docString,
             location: step.location
@@ -342,7 +354,7 @@ public final class BDDTestRunner: @unchecked Sendable {
         }
 
         let exampleScenario = ScenarioDefinition(
-          name: "\(outline.name) (Example \(rowIndex + 1))",
+          name: BDDScenarioName("\(outline.name.rawValue) (Example \(rowIndex + 1))"),
           description: outline.description,
           tags: outline.tags,
           steps: substitutedSteps,
@@ -352,7 +364,9 @@ public final class BDDTestRunner: @unchecked Sendable {
         let result = try await runScenario(exampleScenario, feature: feature)
         results.append(result)
 
-        if configuration.stopOnFirstFailure && result.status == .failed {
+        if configuration.stopOnFirstFailure.rawValue
+          && result.status == ScenarioResult.Status.failed
+        {
           break
         }
       }
@@ -378,18 +392,18 @@ public final class BDDTestRunner: @unchecked Sendable {
         context: context
       )
 
-      let duration = Date().timeIntervalSince(startTime)
+      let duration = MeasurementDuration(Date().timeIntervalSince(startTime))
       return StepResult(
-        keyword: step.keyword.rawValue,
+        keyword: BDDStepKeyword(step.keyword.identifier.rawValue),
         text: step.text,
         status: .passed,
         duration: duration,
         error: nil
       )
     } catch {
-      let duration = Date().timeIntervalSince(startTime)
+      let duration = MeasurementDuration(Date().timeIntervalSince(startTime))
       return StepResult(
-        keyword: step.keyword.rawValue,
+        keyword: BDDStepKeyword(step.keyword.identifier.rawValue),
         text: step.text,
         status: .failed,
         duration: duration,
@@ -398,10 +412,12 @@ public final class BDDTestRunner: @unchecked Sendable {
     }
   }
 }
+// swiftlint:enable type_body_length
 
 // MARK: - GherkinStep Extension
 
 extension GherkinStep {
+  // swiftlint:disable cyclomatic_complexity
   /// Determines the semantic step type based on keyword and previous keyword.
   func semanticType(previousKeyword: StepKeyword?) -> SemanticStepType {
     switch keyword {
@@ -426,4 +442,6 @@ extension GherkinStep {
       }
     }
   }
+  // swiftlint:enable cyclomatic_complexity
 }
+// swiftlint:enable file_length

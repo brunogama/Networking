@@ -1,10 +1,12 @@
 import Testing
+import NetworkingCore
 
 @testable import NetworkingBDD
 
 @Suite("GherkinParser Tests")
 struct GherkinParserTests {
   @Test("Parser preserves feature tags, background, scenarios, and examples")
+  // swiftlint:disable:next function_body_length
   func parsesFeatureWithScenarioOutline() throws {
     let source = """
       @smoke @api
@@ -30,10 +32,10 @@ struct GherkinParserTests {
             | /users/missing | 404 |
       """
 
-    let feature = try GherkinParser().parse(source: source)
+    let feature = try GherkinParser().parse(source: BDDSourceText(source))
 
     #expect(feature.name == "User API")
-    #expect(feature.tags.map(\.name) == ["@smoke", "@api"])
+    #expect(feature.tags.map { $0.name } == ["@smoke", "@api"])
     #expect(feature.background?.steps.count == 1)
     #expect(feature.background?.steps.first?.keyword == .given)
     #expect(feature.scenarios.count == 2)
@@ -44,8 +46,8 @@ struct GherkinParserTests {
     }
 
     #expect(definition.name == "Fetch user")
-    #expect(definition.tags.map(\.name) == ["@fast"])
-    #expect(definition.steps.map(\.keyword) == [.when, .then])
+    #expect(definition.tags.map { $0.name } == ["@fast"])
+    #expect(definition.steps.map { $0.keyword } == [StepKeyword.when, StepKeyword.then])
 
     guard case .outline(let definition) = feature.scenarios[1] else {
       Issue.record("Expected the second parsed scenario to be a scenario outline")
@@ -53,9 +55,9 @@ struct GherkinParserTests {
     }
 
     #expect(definition.name == "Fetch status for <path>")
-    #expect(definition.tags.map(\.name) == ["@table"])
+    #expect(definition.tags.map { $0.name } == ["@table"])
     #expect(
-      definition.steps.map(\.text) == [
+      definition.steps.map { $0.text } == [
         "I GET \"<path>\"",
         "the response status should be <status>",
       ]
@@ -78,7 +80,7 @@ struct GherkinParserTests {
       """
 
     do {
-      _ = try GherkinParser().parse(source: source)
+      _ = try GherkinParser().parse(source: BDDSourceText(source))
       Issue.record("Expected parsing to fail without a Feature declaration")
     } catch let error as BDDError {
       guard case .missingFeature = error else {

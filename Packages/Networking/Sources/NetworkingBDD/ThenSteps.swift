@@ -2,20 +2,22 @@ import NetworkingRuntime
 import NetworkingTesting
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - Then Steps for Network Testing
 
 /// Then step that verifies the response status code.
 public struct ThenStatusIs: ThenStep, DescribableStep {
-  private let expectedStatus: Int
+  private let expectedStatus: HTTPStatusCode
 
-  public var stepDescription: String {
-    "response status is \(expectedStatus)"
+  public var stepDescription: BDDStepText {
+    "response status is \(expectedStatus.rawValue)"
   }
 
   /// Creates a status code assertion step.
   ///
   /// - Parameter status: Expected status code
-  public init(_ status: Int) {
+  public init(_ status: HTTPStatusCode) {
     self.expectedStatus = status
   }
 
@@ -42,7 +44,7 @@ public struct ThenStatusIs: ThenStep, DescribableStep {
 
 /// Then step that verifies the response is successful (2xx).
 public struct ThenSuccessful: ThenStep, DescribableStep {
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "response is successful"
   }
 
@@ -53,7 +55,7 @@ public struct ThenSuccessful: ThenStep, DescribableStep {
       throw BDDError.noResponse
     }
 
-    guard response.status.isSuccess else {
+    guard response.status.isSuccess.rawValue else {
       throw BDDError.notSuccessful(status: response.status.rawValue)
     }
   }
@@ -61,16 +63,16 @@ public struct ThenSuccessful: ThenStep, DescribableStep {
 
 /// Then step that verifies a header exists.
 public struct ThenHeaderExists: ThenStep, DescribableStep {
-  private let headerName: String
+  private let headerName: HTTPHeaderName
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "response has header \"\(headerName)\""
   }
 
   /// Creates a header existence assertion step.
   ///
   /// - Parameter name: Header name to check
-  public init(_ name: String) {
+  public init(_ name: HTTPHeaderName) {
     self.headerName = name
   }
 
@@ -87,10 +89,10 @@ public struct ThenHeaderExists: ThenStep, DescribableStep {
 
 /// Then step that verifies a header value.
 public struct ThenHeaderEquals: ThenStep, DescribableStep {
-  private let headerName: String
-  private let expectedValue: String
+  private let headerName: HTTPHeaderName
+  private let expectedValue: HTTPHeaderValue
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "response header \"\(headerName)\" equals \"\(expectedValue)\""
   }
 
@@ -99,7 +101,7 @@ public struct ThenHeaderEquals: ThenStep, DescribableStep {
   /// - Parameters:
   ///   - name: Header name
   ///   - value: Expected value
-  public init(_ name: String, equals value: String) {
+  public init(_ name: HTTPHeaderName, equals value: HTTPHeaderValue) {
     self.headerName = name
     self.expectedValue = value
   }
@@ -125,16 +127,16 @@ public struct ThenHeaderEquals: ThenStep, DescribableStep {
 
 /// Then step that verifies the response body contains text.
 public struct ThenBodyContains: ThenStep, DescribableStep {
-  private let expectedContent: String
+  private let expectedContent: HTTPResponseText
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "response body contains \"\(expectedContent)\""
   }
 
   /// Creates a body content assertion step.
   ///
   /// - Parameter content: Expected content
-  public init(_ content: String) {
+  public init(_ content: HTTPResponseText) {
     self.expectedContent = content
   }
 
@@ -147,8 +149,8 @@ public struct ThenBodyContains: ThenStep, DescribableStep {
       throw BDDError.noBody
     }
 
-    guard let bodyString = String(data: body, encoding: .utf8),
-      bodyString.contains(expectedContent)
+    guard let bodyString = String(data: body.rawValue, encoding: .utf8),
+      bodyString.contains(expectedContent.rawValue)
     else {
       throw BDDError.bodyDoesNotContain(expectedContent)
     }
@@ -160,7 +162,7 @@ public struct ThenBodyEquals<T: Decodable & Equatable & Sendable>: ThenStep, Des
   private let expected: T
   private let decoder: JSONDecoder
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "response body equals expected value"
   }
 
@@ -183,12 +185,12 @@ public struct ThenBodyEquals<T: Decodable & Equatable & Sendable>: ThenStep, Des
       throw BDDError.noBody
     }
 
-    let actual = try decoder.decode(T.self, from: body)
+    let actual = try decoder.decode(T.self, from: body.rawValue)
 
     guard actual == expected else {
       throw BDDError.bodyDecodeMismatch(
-        expected: String(describing: expected),
-        actual: String(describing: actual)
+        expected: UserMessageText(String(describing: expected)),
+        actual: UserMessageText(String(describing: actual))
       )
     }
   }
@@ -199,7 +201,7 @@ public struct ThenBodyDecodable<T: Decodable & Sendable>: ThenStep, DescribableS
   private let type: T.Type
   private let decoder: JSONDecoder
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "response body is decodable as \(T.self)"
   }
 
@@ -225,7 +227,7 @@ public struct ThenBodyDecodable<T: Decodable & Sendable>: ThenStep, DescribableS
       throw BDDError.noBody
     }
 
-    let decoded = try decoder.decode(T.self, from: body)
+    let decoded = try decoder.decode(T.self, from: body.rawValue)
 
     // Store decoded value in context for later assertions
     context.setValue(decoded, forKey: "decodedBody")
@@ -236,7 +238,7 @@ public struct ThenBodyDecodable<T: Decodable & Sendable>: ThenStep, DescribableS
 public struct ThenError: ThenStep, DescribableStep {
   private let expectedCategory: HTTPError.Category?
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     if let category = expectedCategory {
       return "error occurred with category \(category)"
     }
@@ -273,7 +275,7 @@ public struct ThenError: ThenStep, DescribableStep {
 
 /// Then step that verifies no error occurred.
 public struct ThenNoError: ThenStep, DescribableStep {
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "no error occurred"
   }
 
@@ -288,7 +290,7 @@ public struct ThenNoError: ThenStep, DescribableStep {
 
 /// Then step that verifies the response body is empty.
 public struct ThenEmptyBody: ThenStep, DescribableStep {
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "response body is empty"
   }
 
@@ -300,17 +302,20 @@ public struct ThenEmptyBody: ThenStep, DescribableStep {
     }
 
     if let body = response.body, !body.isEmpty {
-      throw BDDError.bodyDecodeMismatch(expected: "empty", actual: "non-empty body")
+      throw BDDError.bodyDecodeMismatch(
+        expected: UserMessageText("empty"),
+        actual: UserMessageText("non-empty body")
+      )
     }
   }
 }
 
 /// Then step that executes a custom verification.
 public struct ThenCustom: ThenStep, DescribableStep {
-  private let description: String
+  private let description: BDDStepText
   private let verification: @Sendable (ScenarioContext) throws -> Void
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     description
   }
 
@@ -320,7 +325,7 @@ public struct ThenCustom: ThenStep, DescribableStep {
   ///   - description: Step description
   ///   - verification: The verification closure
   public init(
-    _ description: String,
+    _ description: BDDStepText,
     verification: @escaping @Sendable (ScenarioContext) throws -> Void
   ) {
     self.description = description
@@ -337,7 +342,7 @@ public struct ThenContextHas<T: Sendable & Equatable>: ThenStep, DescribableStep
   private let key: ContextKey<T>
   private let expectedValue: T?
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     if let expected = expectedValue {
       return "context \"\(key.name)\" equals \(expected)"
     }
@@ -362,8 +367,8 @@ public struct ThenContextHas<T: Sendable & Equatable>: ThenStep, DescribableStep
     if let expected = expectedValue, actual != expected {
       throw BDDError.invalidContextType(
         key: key.name,
-        expected: String(describing: expected),
-        actual: String(describing: actual)
+        expected: UserMessageText(String(describing: expected)),
+        actual: UserMessageText(String(describing: actual))
       )
     }
   }
@@ -372,7 +377,7 @@ public struct ThenContextHas<T: Sendable & Equatable>: ThenStep, DescribableStep
 // MARK: - Convenience Functions (prefixed to avoid conflicts)
 
 /// Creates a status code assertion step.
-public func thenStatusIs(_ code: Int) -> ThenStatusIs {
+public func thenStatusIs(_ code: HTTPStatusCode) -> ThenStatusIs {
   ThenStatusIs(code)
 }
 
@@ -387,17 +392,17 @@ public func thenSuccessful() -> ThenSuccessful {
 }
 
 /// Creates a header exists assertion step.
-public func thenHeaderExists(_ name: String) -> ThenHeaderExists {
+public func thenHeaderExists(_ name: HTTPHeaderName) -> ThenHeaderExists {
   ThenHeaderExists(name)
 }
 
 /// Creates a header equals assertion step.
-public func thenHeaderEquals(_ name: String, _ value: String) -> ThenHeaderEquals {
+public func thenHeaderEquals(_ name: HTTPHeaderName, _ value: HTTPHeaderValue) -> ThenHeaderEquals {
   ThenHeaderEquals(name, equals: value)
 }
 
 /// Creates a body contains assertion step.
-public func thenBodyContains(_ content: String) -> ThenBodyContains {
+public func thenBodyContains(_ content: HTTPResponseText) -> ThenBodyContains {
   ThenBodyContains(content)
 }
 
@@ -429,8 +434,9 @@ public func thenEmptyBody() -> ThenEmptyBody {
 
 /// Creates a custom verification step.
 public func thenVerify(
-  _ description: String,
+  _ description: BDDStepText,
   _ verification: @escaping @Sendable (ScenarioContext) throws -> Void
 ) -> ThenCustom {
   ThenCustom(description, verification: verification)
 }
+// swiftlint:enable file_length

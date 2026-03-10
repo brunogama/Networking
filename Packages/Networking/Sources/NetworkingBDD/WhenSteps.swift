@@ -2,17 +2,19 @@ import NetworkingRuntime
 import NetworkingTesting
 import Foundation
 
+// swiftlint:disable file_length
+
 // MARK: - When Steps for Network Testing
 
 /// When step that performs an HTTP request.
 public struct WhenRequest: WhenStep, DescribableStep {
   private let method: HTTPMethod
-  private let path: String
-  private let body: Data?
-  private let headers: [String: String]
-  private let queryParams: [String: String]
+  private let path: RequestPathPattern
+  private let body: HTTPBody?
+  private let headers: HTTPHeaders
+  private let queryParams: [QueryParameterName: QueryParameterValue]
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "\(method.rawValue) request to \"\(path)\""
   }
 
@@ -26,10 +28,10 @@ public struct WhenRequest: WhenStep, DescribableStep {
   ///   - queryParams: Query parameters
   public init(
     method: HTTPMethod,
-    path: String,
-    body: Data? = nil,
-    headers: [String: String] = [:],
-    queryParams: [String: String] = [:]
+    path: RequestPathPattern,
+    body: HTTPBody? = nil,
+    headers: HTTPHeaders = [:],
+    queryParams: [QueryParameterName: QueryParameterValue] = [:]
   ) {
     self.method = method
     self.path = path
@@ -39,58 +41,67 @@ public struct WhenRequest: WhenStep, DescribableStep {
   }
 
   public func perform(context: ScenarioContext) async throws {
-    let mockClient = context.mockClient
+    let request = try buildRequest(context: context)
+    context.lastRequest = request
+    try await execute(request, with: context)
+  }
 
-    // Build URL
-    let baseURL = context[.baseURL] ?? URL(string: "https://localhost")!
+  private func buildRequest(context: ScenarioContext) throws -> HTTPRequest {
+    HTTPRequest(
+      method: method,
+      url: HTTPRequestURL(try buildURL(context: context)),
+      headers: buildHeaders(context: context),
+      body: body
+    )
+  }
+
+  private func buildURL(context: ScenarioContext) throws -> URL {
+    let baseURL =
+      context[ContextKey<HTTPRequestURL>.baseURL]?.rawValue ?? URL(string: "https://localhost")!
     var urlComponents = URLComponents(
-      url: baseURL.appendingPathComponent(path),
+      url: baseURL.appendingPathComponent(path.rawValue),
       resolvingAgainstBaseURL: true
     )
 
     if !queryParams.isEmpty {
       urlComponents?.queryItems = queryParams.map {
-        URLQueryItem(name: $0.key, value: $0.value)
+        URLQueryItem(name: $0.key.rawValue, value: $0.value.rawValue)
       }
     }
 
     guard let url = urlComponents?.url else {
-      throw BDDError.invalidConfiguration(key: "url", reason: "Could not construct URL")
+      throw BDDError.invalidConfiguration(
+        key: UserMessageText("url"),
+        reason: UserMessageText("Could not construct URL")
+      )
     }
 
-    // Build headers
-    var allHeaders: [String: String] = [:]
+    return url
+  }
 
-    // Add headers from context
-    if let authHeader: String = context[.authHeader] {
+  private func buildHeaders(context: ScenarioContext) -> HTTPHeaders {
+    var allHeaders = HTTPHeaders()
+
+    if let authHeader: HTTPHeaderValue = context[ContextKey<HTTPHeaderValue>.authHeader] {
       allHeaders["Authorization"] = authHeader
     }
 
-    if let customHeaders: [String: String] = context[.customHeaders] {
+    if let customHeaders: HTTPHeaders = context[ContextKey<HTTPHeaders>.customHeaders] {
       for (key, value) in customHeaders {
         allHeaders[key] = value
       }
     }
 
-    // Add step-specific headers
     for (key, value) in headers {
       allHeaders[key] = value
     }
 
-    // Build request
-    let request = HTTPRequest(
-      method: method,
-      url: url,
-      headers: allHeaders,
-      body: body
-    )
+    return allHeaders
+  }
 
-    // Record the request
-    context.lastRequest = request
-
-    // Execute the request
+  private func execute(_ request: HTTPRequest, with context: ScenarioContext) async throws {
     do {
-      let response = try await mockClient.execute(request)
+      let response = try await context.mockClient.execute(request)
       context.lastResponse = response
       context.lastError = nil
     } catch {
@@ -102,10 +113,10 @@ public struct WhenRequest: WhenStep, DescribableStep {
 
 /// When step for GET requests.
 public struct WhenGET: WhenStep, DescribableStep {
-  private let path: String
-  private let queryParams: [String: String]
+  private let path: RequestPathPattern
+  private let queryParams: [QueryParameterName: QueryParameterValue]
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "GET request to \"\(path)\""
   }
 
@@ -114,7 +125,10 @@ public struct WhenGET: WhenStep, DescribableStep {
   /// - Parameters:
   ///   - path: Request path
   ///   - queryParams: Query parameters
-  public init(_ path: String, queryParams: [String: String] = [:]) {
+  public init(
+    _ path: RequestPathPattern,
+    queryParams: [QueryParameterName: QueryParameterValue] = [:]
+  ) {
     self.path = path
     self.queryParams = queryParams
   }
@@ -127,10 +141,10 @@ public struct WhenGET: WhenStep, DescribableStep {
 
 /// When step for POST requests.
 public struct WhenPOST: WhenStep, DescribableStep {
-  private let path: String
-  private let body: Data?
+  private let path: RequestPathPattern
+  private let body: HTTPBody?
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "POST request to \"\(path)\""
   }
 
@@ -139,7 +153,7 @@ public struct WhenPOST: WhenStep, DescribableStep {
   /// - Parameters:
   ///   - path: Request path
   ///   - body: Request body
-  public init(_ path: String, body: Data? = nil) {
+  public init(_ path: RequestPathPattern, body: HTTPBody? = nil) {
     self.path = path
     self.body = body
   }
@@ -149,13 +163,13 @@ public struct WhenPOST: WhenStep, DescribableStep {
   /// - Parameters:
   ///   - path: Request path
   ///   - json: Encodable JSON body
-  public init<T: Encodable>(_ path: String, json: T) throws {
+  public init<T: Encodable>(_ path: RequestPathPattern, json: T) throws {
     self.path = path
-    self.body = try JSONEncoder().encode(json)
+    self.body = HTTPBody(try JSONEncoder().encode(json))
   }
 
   public func perform(context: ScenarioContext) async throws {
-    var headers: [String: String] = [:]
+    var headers = HTTPHeaders()
     if body != nil {
       headers["Content-Type"] = "application/json"
     }
@@ -166,10 +180,10 @@ public struct WhenPOST: WhenStep, DescribableStep {
 
 /// When step for PUT requests.
 public struct WhenPUT: WhenStep, DescribableStep {
-  private let path: String
-  private let body: Data?
+  private let path: RequestPathPattern
+  private let body: HTTPBody?
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "PUT request to \"\(path)\""
   }
 
@@ -178,7 +192,7 @@ public struct WhenPUT: WhenStep, DescribableStep {
   /// - Parameters:
   ///   - path: Request path
   ///   - body: Request body
-  public init(_ path: String, body: Data? = nil) {
+  public init(_ path: RequestPathPattern, body: HTTPBody? = nil) {
     self.path = path
     self.body = body
   }
@@ -188,13 +202,13 @@ public struct WhenPUT: WhenStep, DescribableStep {
   /// - Parameters:
   ///   - path: Request path
   ///   - json: Encodable JSON body
-  public init<T: Encodable>(_ path: String, json: T) throws {
+  public init<T: Encodable>(_ path: RequestPathPattern, json: T) throws {
     self.path = path
-    self.body = try JSONEncoder().encode(json)
+    self.body = HTTPBody(try JSONEncoder().encode(json))
   }
 
   public func perform(context: ScenarioContext) async throws {
-    var headers: [String: String] = [:]
+    var headers = HTTPHeaders()
     if body != nil {
       headers["Content-Type"] = "application/json"
     }
@@ -205,10 +219,10 @@ public struct WhenPUT: WhenStep, DescribableStep {
 
 /// When step for PATCH requests.
 public struct WhenPATCH: WhenStep, DescribableStep {
-  private let path: String
-  private let body: Data?
+  private let path: RequestPathPattern
+  private let body: HTTPBody?
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "PATCH request to \"\(path)\""
   }
 
@@ -217,13 +231,13 @@ public struct WhenPATCH: WhenStep, DescribableStep {
   /// - Parameters:
   ///   - path: Request path
   ///   - body: Request body
-  public init(_ path: String, body: Data? = nil) {
+  public init(_ path: RequestPathPattern, body: HTTPBody? = nil) {
     self.path = path
     self.body = body
   }
 
   public func perform(context: ScenarioContext) async throws {
-    var headers: [String: String] = [:]
+    var headers = HTTPHeaders()
     if body != nil {
       headers["Content-Type"] = "application/json"
     }
@@ -234,16 +248,16 @@ public struct WhenPATCH: WhenStep, DescribableStep {
 
 /// When step for DELETE requests.
 public struct WhenDELETE: WhenStep, DescribableStep {
-  private let path: String
+  private let path: RequestPathPattern
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "DELETE request to \"\(path)\""
   }
 
   /// Creates a DELETE request step.
   ///
   /// - Parameter path: Request path
-  public init(_ path: String) {
+  public init(_ path: RequestPathPattern) {
     self.path = path
   }
 
@@ -255,30 +269,30 @@ public struct WhenDELETE: WhenStep, DescribableStep {
 
 /// When step that waits for a duration.
 public struct WhenWait: WhenStep, DescribableStep {
-  private let duration: TimeInterval
+  private let duration: RetryDelay
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     "wait for \(duration) seconds"
   }
 
   /// Creates a wait step.
   ///
   /// - Parameter duration: Duration to wait in seconds
-  public init(_ duration: TimeInterval) {
+  public init(_ duration: RetryDelay) {
     self.duration = duration
   }
 
   public func perform(context: ScenarioContext) async throws {
-    try await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+    try await Task.sleep(nanoseconds: UInt64(duration.rawValue * 1_000_000_000))
   }
 }
 
 /// When step that executes a custom action.
 public struct WhenCustom: WhenStep, DescribableStep {
-  private let description: String
+  private let description: BDDStepText
   private let action: @Sendable (ScenarioContext) async throws -> Void
 
-  public var stepDescription: String {
+  public var stepDescription: BDDStepText {
     description
   }
 
@@ -288,7 +302,7 @@ public struct WhenCustom: WhenStep, DescribableStep {
   ///   - description: Step description
   ///   - action: The action to perform
   public init(
-    _ description: String,
+    _ description: BDDStepText,
     action: @escaping @Sendable (ScenarioContext) async throws -> Void
   ) {
     self.description = description
@@ -303,48 +317,51 @@ public struct WhenCustom: WhenStep, DescribableStep {
 // MARK: - Convenience Functions (prefixed to avoid macro conflicts)
 
 /// Creates a GET request When step.
-public func whenGET(_ path: String, queryParams: [String: String] = [:]) -> WhenGET {
+public func whenGET(
+  _ path: RequestPathPattern,
+  queryParams: [QueryParameterName: QueryParameterValue] = [:]
+) -> WhenGET {
   WhenGET(path, queryParams: queryParams)
 }
 
 /// Creates a POST request When step.
-public func whenPOST(_ path: String, body: Data? = nil) -> WhenPOST {
+public func whenPOST(_ path: RequestPathPattern, body: HTTPBody? = nil) -> WhenPOST {
   WhenPOST(path, body: body)
 }
 
 /// Creates a POST request When step with JSON body.
-public func whenPOST<T: Encodable>(_ path: String, json: T) throws -> WhenPOST {
+public func whenPOST<T: Encodable>(_ path: RequestPathPattern, json: T) throws -> WhenPOST {
   try WhenPOST(path, json: json)
 }
 
 /// Creates a PUT request When step.
-public func whenPUT(_ path: String, body: Data? = nil) -> WhenPUT {
+public func whenPUT(_ path: RequestPathPattern, body: HTTPBody? = nil) -> WhenPUT {
   WhenPUT(path, body: body)
 }
 
 /// Creates a PUT request When step with JSON body.
-public func whenPUT<T: Encodable>(_ path: String, json: T) throws -> WhenPUT {
+public func whenPUT<T: Encodable>(_ path: RequestPathPattern, json: T) throws -> WhenPUT {
   try WhenPUT(path, json: json)
 }
 
 /// Creates a PATCH request When step.
-public func whenPATCH(_ path: String, body: Data? = nil) -> WhenPATCH {
+public func whenPATCH(_ path: RequestPathPattern, body: HTTPBody? = nil) -> WhenPATCH {
   WhenPATCH(path, body: body)
 }
 
 /// Creates a DELETE request When step.
-public func whenDELETE(_ path: String) -> WhenDELETE {
+public func whenDELETE(_ path: RequestPathPattern) -> WhenDELETE {
   WhenDELETE(path)
 }
 
 /// Creates a wait When step.
-public func whenWait(_ duration: TimeInterval) -> WhenWait {
+public func whenWait(_ duration: RetryDelay) -> WhenWait {
   WhenWait(duration)
 }
 
 /// Creates a custom When step.
 public func whenRequest(
-  _ description: String,
+  _ description: BDDStepText,
   action: @escaping @Sendable (ScenarioContext) async throws -> Void
 ) -> WhenCustom {
   WhenCustom(description, action: action)

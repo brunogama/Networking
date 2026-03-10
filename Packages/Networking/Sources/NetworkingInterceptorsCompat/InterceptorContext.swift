@@ -3,43 +3,45 @@ import Foundation
 
 /// A Sendable wrapper for metadata values that can be stored in InterceptorContext.
 ///
-/// This type allows storing various types of metadata in a thread-safe manner
-/// while maintaining Swift 6 strict concurrency compliance.
+/// This type allows storing various types of metadata in a thread-safe manner while
+/// maintaining Swift 6 strict concurrency compliance.
 @available(
   *,
   deprecated,
-  message:
-    "Interceptor metadata types are part of the compatibility interceptor layer. Prefer middleware-specific request or response context instead."
+  message: """
+    Interceptor metadata types are part of the compatibility interceptor layer.
+    Prefer middleware-specific request or response context instead.
+    """
 )
 public enum AnySendable: Sendable {
-  case string(String)
-  case int(Int)
-  case double(Double)
-  case bool(Bool)
-  case data(Data)
+  case string(MetadataTextValue)
+  case int(MetadataIntegerValue)
+  case double(MetadataDecimalValue)
+  case bool(MetadataFlag)
+  case data(MetadataBinaryValue)
   case none
 
-  public var stringValue: String? {
+  public var stringValue: MetadataTextValue? {
     if case .string(let value) = self { return value }
     return nil
   }
 
-  public var intValue: Int? {
+  public var intValue: MetadataIntegerValue? {
     if case .int(let value) = self { return value }
     return nil
   }
 
-  public var doubleValue: Double? {
+  public var doubleValue: MetadataDecimalValue? {
     if case .double(let value) = self { return value }
     return nil
   }
 
-  public var boolValue: Bool? {
+  public var boolValue: MetadataFlag? {
     if case .bool(let value) = self { return value }
     return nil
   }
 
-  public var dataValue: Data? {
+  public var dataValue: MetadataBinaryValue? {
     if case .data(let value) = self { return value }
     return nil
   }
@@ -88,7 +90,7 @@ public enum AnySendable: Sendable {
 ///   ) async throws -> InterceptorResult {
 ///     // Only log API requests, not health checks
 ///     if !context.path.contains("/health") {
-///       print("[\(context.method.rawValue)] \(context.path)")
+///       logger("[\(context.method.rawValue)] \(context.path)")
 ///     }
 ///     return .proceed
 ///   }
@@ -101,21 +103,23 @@ public enum AnySendable: Sendable {
 @available(
   *,
   deprecated,
-  message:
-    "InterceptorContext is a compatibility API. Prefer middleware-specific request or response context for new runtime behavior."
+  message: """
+    InterceptorContext is a compatibility API.
+    Prefer middleware-specific request or response context for new runtime behavior.
+    """
 )
 public struct InterceptorContext: Sendable {
   /// The request path (e.g., "/users/123")
-  public let path: String
+  public let path: RequestPathPattern
 
   /// The HTTP method (e.g., .get, .post)
   public let method: HTTPMethod
 
   /// The current attempt count (0 for first attempt, increments on each retry)
-  public let attemptCount: Int
+  public let attemptCount: RetryAttemptCount
 
   /// Additional metadata that can be used by interceptors for custom logic
-  public let metadata: [String: AnySendable]
+  public let metadata: [InterceptorMetadataKey: AnySendable]
 
   /// Creates a new interceptor context.
   ///
@@ -125,15 +129,31 @@ public struct InterceptorContext: Sendable {
   ///   - attemptCount: The current attempt count (default: 0)
   ///   - metadata: Additional metadata (default: empty)
   public init(
-    path: String,
+    path: RequestPathPattern,
     method: HTTPMethod,
-    attemptCount: Int = 0,
-    metadata: [String: AnySendable] = [:]
+    attemptCount: RetryAttemptCount = 0,
+    metadata: [InterceptorMetadataKey: AnySendable] = [:]
   ) {
     self.path = path
     self.method = method
     self.attemptCount = attemptCount
     self.metadata = metadata
+  }
+
+  package init(
+    path: String,
+    method: HTTPMethod,
+    attemptCount: Int = 0,
+    metadata: [String: AnySendable] = [:]
+  ) {
+    self.init(
+      path: RequestPathPattern(path),
+      method: method,
+      attemptCount: RetryAttemptCount(attemptCount),
+      metadata: Dictionary(
+        uniqueKeysWithValues: metadata.map { (InterceptorMetadataKey($0.key), $0.value) }
+      )
+    )
   }
 
   /// Creates a new context with an incremented attempt count.
@@ -146,7 +166,7 @@ public struct InterceptorContext: Sendable {
     Self(
       path: path,
       method: method,
-      attemptCount: attemptCount + 1,
+      attemptCount: RetryAttemptCount(attemptCount.rawValue + 1),
       metadata: metadata
     )
   }
@@ -155,12 +175,12 @@ public struct InterceptorContext: Sendable {
   ///
   /// - Parameter newMetadata: Metadata to merge with existing metadata
   /// - Returns: A new context with combined metadata
-  public func addingMetadata(_ newMetadata: [String: AnySendable]) -> Self {
+  public func addingMetadata(_ newMetadata: [InterceptorMetadataKey: AnySendable]) -> Self {
     Self(
       path: path,
       method: method,
       attemptCount: attemptCount,
-      metadata: metadata.merging(newMetadata) { _, new in new }
+      metadata: metadata.merging(newMetadata) { _, newValue in newValue }
     )
   }
 }

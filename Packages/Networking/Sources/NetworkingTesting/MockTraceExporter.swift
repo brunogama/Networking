@@ -3,6 +3,18 @@ import NetworkingInterceptorsCompat
 import NetworkingObservability
 import Foundation
 
+public struct TraceSpanPredicate: Sendable {
+  private let evaluator: @Sendable (TraceSpan) -> MockPredicateMatchFlag
+
+  public init(_ evaluator: @escaping @Sendable (TraceSpan) -> MockPredicateMatchFlag) {
+    self.evaluator = evaluator
+  }
+
+  func matches(_ span: TraceSpan) -> Bool {
+    evaluator(span).rawValue
+  }
+}
+
 /// Mock implementation of TraceExporter for testing distributed tracing functionality.
 ///
 /// Provides state tracking, stubbing, inspection, and verification capabilities for testing
@@ -82,9 +94,9 @@ public actor MockTraceExporter: TraceExporter, MockVerifiable {
   // MARK: - MockVerifiable Protocol
 
   /// Total number of calls to export and flush
-  nonisolated public var callCount: Int {
+  nonisolated public var callCount: MockVerificationCount {
     get async {
-      await exportCallCount + flushCallCount
+      MockVerificationCount(await exportCallCount + flushCallCount)
     }
   }
 
@@ -96,33 +108,33 @@ public actor MockTraceExporter: TraceExporter, MockVerifiable {
   }
 
   /// Returns the number of exported spans
-  public func getSpanCount() -> Int {
-    exportedSpans.count
+  public func getSpanCount() -> MockVerificationCount {
+    MockVerificationCount(exportedSpans.count)
   }
 
   /// Returns the number of export calls (including failed ones)
-  public func getExportCallCount() -> Int {
-    exportCallCount
+  public func getExportCallCount() -> MockVerificationCount {
+    MockVerificationCount(exportCallCount)
   }
 
   /// Returns the number of flush calls
-  public func getFlushCallCount() -> Int {
-    flushCallCount
+  public func getFlushCallCount() -> MockVerificationCount {
+    MockVerificationCount(flushCallCount)
   }
 
   /// Returns spans matching the specified predicate
   ///
   /// - Parameter predicate: Closure that returns true for matching spans
   /// - Returns: Array of spans that match the predicate
-  public func getSpansMatching(_ predicate: (TraceSpan) -> Bool) async -> [TraceSpan] {
-    exportedSpans.filter(predicate)
+  public func getSpansMatching(_ predicate: TraceSpanPredicate) async -> [TraceSpan] {
+    exportedSpans.filter(predicate.matches)
   }
 
   /// Returns spans with the specified name
   ///
   /// - Parameter name: The span name to match
   /// - Returns: Array of spans with matching name
-  public func getSpansWithName(_ name: String) -> [TraceSpan] {
+  public func getSpansWithName(_ name: TraceSpanName) -> [TraceSpan] {
     exportedSpans.filter { $0.name == name }
   }
 
@@ -132,19 +144,31 @@ public actor MockTraceExporter: TraceExporter, MockVerifiable {
   ///
   /// - Parameter name: The expected span name
   /// - Throws: `MockError.unexpectedArgument` if no matching span found
-  public func verifySpanExported(withName name: String) throws {
+  public func verifySpanExported(withName name: TraceSpanName) throws {
     guard exportedSpans.contains(where: { $0.name == name }) else {
       throw MockError.unexpectedArgument(description: "No span found with name '\(name)'")
     }
+  }
+
+  package func getSpansWithName(_ name: String) -> [TraceSpan] {
+    getSpansWithName(TraceSpanName(name))
+  }
+
+  package func verifySpanExported(withName name: String) throws {
+    try verifySpanExported(withName: TraceSpanName(name))
   }
 
   /// Verifies that the exact number of spans was exported
   ///
   /// - Parameter count: Expected number of spans
   /// - Throws: `MockError.unexpectedCallCount` if count doesn't match
-  public func verifySpanCount(_ count: Int) throws {
-    guard exportedSpans.count == count else {
-      throw MockError.unexpectedCallCount(expected: count, actual: exportedSpans.count)
+  public func verifySpanCount(_ count: MockVerificationCount) throws {
+    let actualCount = MockVerificationCount(exportedSpans.count)
+    guard actualCount == count else {
+      throw MockError.unexpectedCallCount(
+        expected: count,
+        actual: actualCount
+      )
     }
   }
 
@@ -153,7 +177,10 @@ public actor MockTraceExporter: TraceExporter, MockVerifiable {
   /// - Throws: `MockError.unexpectedCallCount` if any spans were exported
   public func verifyNoSpansExported() throws {
     guard exportedSpans.isEmpty else {
-      throw MockError.unexpectedCallCount(expected: 0, actual: exportedSpans.count)
+      throw MockError.unexpectedCallCount(
+        expected: 0,
+        actual: MockVerificationCount(exportedSpans.count)
+      )
     }
   }
 
@@ -161,8 +188,8 @@ public actor MockTraceExporter: TraceExporter, MockVerifiable {
   ///
   /// - Parameter predicate: Closure that returns true for matching spans
   /// - Throws: `MockError.unexpectedArgument` if no matching span found
-  public func verifySpanExported(matching predicate: (TraceSpan) async -> Bool) async throws {
-    for span in exportedSpans where await predicate(span) {
+  public func verifySpanExported(matching predicate: TraceSpanPredicate) async throws {
+    for span in exportedSpans where predicate.matches(span) {
       return
     }
 
@@ -173,8 +200,12 @@ public actor MockTraceExporter: TraceExporter, MockVerifiable {
   ///
   /// - Throws: `MockError.unexpectedCallCount` if flush was never called
   public func verifyFlushed() throws {
-    guard flushCallCount > 0 else {
-      throw MockError.unexpectedCallCount(expected: 1, actual: flushCallCount)
+    let actualCount = MockVerificationCount(flushCallCount)
+    guard actualCount > 0 else {
+      throw MockError.unexpectedCallCount(
+        expected: 1,
+        actual: actualCount
+      )
     }
   }
 

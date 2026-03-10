@@ -15,47 +15,77 @@ public struct HTTPResponse: Sendable {
   public let status: HTTPStatus
 
   /// Response headers
-  public let headers: [String: String]
+  public let headers: HTTPHeaders
 
   /// Response body data
-  public let body: Data?
+  public let body: HTTPBody?
 
   /// The response URL (may differ from request URL due to redirects)
-  public let url: URL?
+  public let url: HTTPResponseURL?
 
   // MARK: - Initialization
 
   public init(
     request: HTTPRequest,
     status: HTTPStatus,
-    headers: [String: String] = [:],
-    body: Data? = nil,
-    url: URL? = nil
+    headers: HTTPHeaders = [:],
+    body: HTTPBody? = nil,
+    url: HTTPResponseURL? = nil
   ) {
     self.request = request
     self.status = status
     self.headers = headers
     self.body = body
-    self.url = url ?? request.url
+    self.url = url ?? HTTPResponseURL(request.url.rawValue)
   }
 
   // MARK: - Convenience Initializers
 
-  package init(request: HTTPRequest, httpURLResponse: HTTPURLResponse, body: Data?) {
+  package init(
+    request: HTTPRequest,
+    status: HTTPStatus,
+    headers: [String: String] = [:],
+    body: Data? = nil,
+    url: URL? = nil
+  ) {
+    self.init(
+      request: request,
+      status: status,
+      headers: HTTPHeaders(headers),
+      body: body.map { HTTPBody($0) },
+      url: url.map { HTTPResponseURL($0) }
+    )
+  }
+
+  package init(request: HTTPRequest, httpURLResponse: HTTPURLResponse, body: HTTPBody?) {
     self.request = request
-    self.status = HTTPStatus(rawValue: httpURLResponse.statusCode)
-    self.headers = Dictionary(
-      uniqueKeysWithValues:
-        httpURLResponse.allHeaderFields.compactMap { key, value in
-          guard let keyString = key as? String,
-            let valueString = value as? String
-          else {
-            return nil
+    self.status = HTTPStatus(rawValue: HTTPStatusCode(httpURLResponse.statusCode))
+    self.headers = HTTPHeaders(
+      Dictionary(
+        uniqueKeysWithValues:
+          httpURLResponse.allHeaderFields.compactMap { key, value in
+            guard let keyString = key as? String,
+              let valueString = value as? String
+            else {
+              return nil
+            }
+            return (keyString, valueString)
           }
-          return (keyString, valueString)
-        }
+      )
     )
     self.body = body
-    self.url = httpURLResponse.url
+    self.url = httpURLResponse.url.map { HTTPResponseURL($0) }
+  }
+
+  package var bodyValue: Data? {
+    body?.rawValue
+  }
+
+  package var headersValue: [String: String] {
+    headers.rawValue
+  }
+
+  package var urlValue: URL? {
+    url?.rawValue
   }
 }
