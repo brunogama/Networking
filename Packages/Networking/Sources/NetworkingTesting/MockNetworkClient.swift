@@ -2,11 +2,25 @@ import NetworkingRuntime
 import NetworkingInterceptorsCompat
 import NetworkingObservability
 import Foundation
+// swiftlint:disable file_length
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 
+public struct HTTPRequestPredicate: Sendable {
+  private let evaluator: @Sendable (HTTPRequest) -> MockPredicateMatchFlag
+
+  public init(_ evaluator: @escaping @Sendable (HTTPRequest) -> MockPredicateMatchFlag) {
+    self.evaluator = evaluator
+  }
+
+  func matches(_ request: HTTPRequest) -> Bool {
+    evaluator(request).rawValue
+  }
+}
+
+// swiftlint:disable type_body_length
 /// Expectation-based mock network client for comprehensive testing
 ///
 /// This mock client provides:
@@ -58,40 +72,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     private var requestCapture: (@Sendable (HTTPRequest) -> Void)?
     private var fulfilled: Bool = false
 
-    public enum CallCountExpectation {
-      case never
-      case once
-      case exactly(Int)
-      case atLeast(Int)
-      case atMost(Int)
-      case atLeastOnce
-      case between(min: Int, max: Int)
-
-      func matches(_ count: Int) -> Bool {
-        switch self {
-        // swiftlint:disable:next identifier_name
-        case .never: return count == 0
-        case .once: return count == 1
-        case .exactly(let expected): return count == expected
-        case .atLeast(let min): return count >= min
-        case .atMost(let max): return count <= max
-        case .atLeastOnce: return count >= 1
-        case .between(let min, let max): return count >= min && count <= max
-        }
-      }
-
-      var description: String {
-        switch self {
-        case .never: return "never"
-        case .once: return "once"
-        case .exactly(let count): return "exactly \(count) time(s)"
-        case .atLeast(let min): return "at least \(min) time(s)"
-        case .atMost(let max): return "at most \(max) time(s)"
-        case .atLeastOnce: return "at least once"
-        case .between(let min, let max): return "between \(min) and \(max) time(s)"
-        }
-      }
-    }
+    public typealias CallCountExpectation = MockCallCountExpectation
 
     internal init(client: MockNetworkClient, matcher: RequestMatcher) {
       self.client = client
@@ -117,12 +98,12 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     @discardableResult
     public func andReturnJSON<T: Encodable>(
       _ json: T,
-      statusCode: Int = 200
+      statusCode: HTTPStatusCode = 200
     ) throws -> Self {
       let encoder = JSONEncoder()
       let data = try encoder.encode(json)
-      let headers = ["Content-Type": "application/json"]
-      return andReturn(.success(statusCode: statusCode, data: data, headers: headers))
+      let headers: HTTPHeaders = ["Content-Type": "application/json"]
+      return andReturn(.success(statusCode: statusCode, data: HTTPBody(data), headers: headers))
     }
 
     /// Return an error response
@@ -146,11 +127,16 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     ///   - delay: Delay in seconds
     /// - Returns: Self for method chaining
     @discardableResult
-    public func andReturn(_ response: MockResponse, withDelay delay: TimeInterval) -> Self {
+    public func andReturn(_ response: MockResponse, withDelay delay: MeasurementDuration) -> Self {
       switch response {
       case .success(let statusCode, let data, let headers):
         return andReturn(
-          .custom(statusCode: statusCode, data: data, headers: headers, delay: delay)
+          .custom(
+            statusCode: statusCode,
+            data: data,
+            headers: headers,
+            delay: MockResponseDelay(delay.rawValue)
+          )
         )
 
       default:
@@ -180,7 +166,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     /// - Parameter count: Expected call count
     /// - Returns: Self for method chaining
     @discardableResult
-    public func exactly(_ count: Int) -> Self {
+    public func exactly(_ count: RequestCount) -> Self {
       expectedCallCount = .exactly(count)
       return self
     }
@@ -189,7 +175,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     /// - Parameter min: Minimum expected call count
     /// - Returns: Self for method chaining
     @discardableResult
-    public func atLeast(_ min: Int) -> Self {
+    public func atLeast(_ min: RequestCount) -> Self {
       expectedCallCount = .atLeast(min)
       return self
     }
@@ -206,7 +192,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     /// - Parameter max: Maximum expected call count
     /// - Returns: Self for method chaining
     @discardableResult
-    public func atMost(_ max: Int) -> Self {
+    public func atMost(_ max: RequestCount) -> Self {
       expectedCallCount = .atMost(max)
       return self
     }
@@ -217,7 +203,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     ///   - max: Maximum expected call count
     /// - Returns: Self for method chaining
     @discardableResult
-    public func between(min: Int, max: Int) -> Self {
+    public func between(min: RequestCount, max: RequestCount) -> Self {
       expectedCallCount = .between(min: min, max: max)
       return self
     }
@@ -237,10 +223,10 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
     internal func matches(_ request: HTTPRequest) -> Bool {
       var urlRequest = URLRequest(url: request.url)
-      urlRequest.httpMethod = request.method.rawValue
-      urlRequest.httpBody = request.body
+      urlRequest.httpMethod = request.method.rawValue.rawValue
+      urlRequest.httpBody = request.body?.rawValue
       for (key, value) in request.headers {
-        urlRequest.setValue(value, forHTTPHeaderField: key)
+        urlRequest.setValue(value.rawValue, forHTTPHeaderField: key.rawValue)
       }
       // All matchers must match for the expectation to match
       return matchers.allSatisfy { $0.matches(urlRequest) }
@@ -262,58 +248,11 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
     }
 
     internal var mockResponse: MockResponse {
-      response ?? .success(statusCode: 200, data: Data())
+      response ?? .success(statusCode: 200, data: HTTPBody(Data()))
     }
   }
 
-  public enum RequestMatcher {
-    case method(HTTPMethod)
-    case url(String)
-    case urlPattern(String)
-    case path(String)
-    case header(name: String, value: String?)
-    case body(Data)
-    case custom(@Sendable (URLRequest) -> Bool)
-
-    func matches(_ request: URLRequest) -> Bool {
-      switch self {
-      case .method(let httpMethod):
-        return request.httpMethod?.uppercased() == httpMethod.rawValue.uppercased()
-
-      case .url(let urlString):
-        return request.url?.absoluteString == urlString
-
-      case .urlPattern(let pattern):
-        guard let url = request.url?.absoluteString else { return false }
-        return url.range(of: pattern, options: .regularExpression) != nil
-
-      case .path(let path):
-        return request.url?.path == path
-
-      case .header(let name, let value):
-        let headerValue = request.value(forHTTPHeaderField: name)
-        return value == nil ? headerValue != nil : headerValue == value
-
-      case .body(let expectedBody):
-        return request.httpBody == expectedBody
-
-      case .custom(let matcher):
-        return matcher(request)
-      }
-    }
-
-    var description: String {
-      switch self {
-      case .method(let method): return "method(\(method.rawValue))"
-      case .url(let url): return "url(\(url))"
-      case .urlPattern(let pattern): return "urlPattern(\(pattern))"
-      case .path(let path): return "path(\(path))"
-      case .header(let name, let value): return "header(\(name): \(value ?? "any"))"
-      case .body: return "body(data)"
-      case .custom: return "custom matcher"
-      }
-    }
-  }
+  public typealias RequestMatcher = MockURLProtocol.RequestMatcher
 
   /// Mock response configuration (re-exported from MockURLProtocol)
   public typealias MockResponse = MockURLProtocol.MockResponse
@@ -329,8 +268,10 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
   /// Creates a new mock network client
   /// - Parameter recordRequests: Whether to record request history (default: true)
-  public init(recordRequests: Bool = true) {
-    self.isRecordingRequests = recordRequests
+  public init(
+    recordRequests: RequestRecordingEnabledFlag = RequestRecordingEnabledFlag(rawValue: true)
+  ) {
+    self.isRecordingRequests = recordRequests.rawValue
   }
 
   // MARK: - Expectation Setup
@@ -351,7 +292,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   /// - Parameter path: URL path to match
   /// - Returns: RequestExpectation for configuration
   @discardableResult
-  public func expectGET(_ path: String) -> RequestExpectation {
+  public func expectGET(_ path: MockRequestPath) -> RequestExpectation {
     expect(.method(.get)).expect(.path(path))
   }
 
@@ -359,7 +300,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   /// - Parameter path: URL path to match
   /// - Returns: RequestExpectation for configuration
   @discardableResult
-  public func expectPOST(_ path: String) -> RequestExpectation {
+  public func expectPOST(_ path: MockRequestPath) -> RequestExpectation {
     expect(.method(.post)).expect(.path(path))
   }
 
@@ -367,7 +308,7 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   /// - Parameter path: URL path to match
   /// - Returns: RequestExpectation for configuration
   @discardableResult
-  public func expectPUT(_ path: String) -> RequestExpectation {
+  public func expectPUT(_ path: MockRequestPath) -> RequestExpectation {
     expect(.method(.put)).expect(.path(path))
   }
 
@@ -375,89 +316,16 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   /// - Parameter path: URL path to match
   /// - Returns: RequestExpectation for configuration
   @discardableResult
-  public func expectDELETE(_ path: String) -> RequestExpectation {
+  public func expectDELETE(_ path: MockRequestPath) -> RequestExpectation {
     expect(.method(.delete)).expect(.path(path))
   }
 
   // MARK: - Request Execution
 
   public func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
-    // Record request if enabled
-    if isRecordingRequests {
-      queue.sync(flags: .barrier) {
-        requestHistory.append(request)
-      }
-    }
-
-    // Find matching expectation and record call
-    var matchingExpectation: RequestExpectation?
-    queue.sync(flags: .barrier) {
-      for expectation in expectations {
-        if expectation.matches(request) {
-          expectation.recordCall(for: request)
-          if matchingExpectation == nil {
-            matchingExpectation = expectation
-          }
-        }
-      }
-    }
-
-    // Return mocked response based on matching expectation
-    guard let expectation = matchingExpectation else {
-      throw HTTPError(category: .network(.connectionLost), request: request)
-    }
-
-    let mockResponse = expectation.mockResponse
-    return try await mockResponse.toHTTPResponse(for: request)
-  }
-
-  private func setupMockStubs() {
-    queue.sync {
-      for expectation in expectations {
-        // Convert expectation to MockURLProtocol stub
-        // This is a simplified mapping - combines all matchers into a single custom matcher
-        let matchers = expectation.matchers.map { convertToURLProtocolMatcher($0) }
-        let combinedMatcher: MockURLProtocol.RequestMatcher = .custom { request in
-          matchers.allSatisfy { $0.matches(request) }
-        }
-        MockURLProtocol.stub(matching: combinedMatcher, response: expectation.mockResponse)
-      }
-    }
-  }
-
-  private func convertToURLProtocolMatcher(
-    _ matcher: RequestMatcher
-  ) -> MockURLProtocol.RequestMatcher {
-    switch matcher {
-    case .method(let method):
-      return .method(method)
-
-    case .url(let url):
-      return .url(url)
-
-    case .urlPattern(let pattern):
-      // Convert string pattern to NSRegularExpression
-      do {
-        let regex = try NSRegularExpression(pattern: pattern, options: [])
-        return .urlPattern(regex)
-      } catch {
-        return .custom { _ in false }
-      }
-
-    case .path(let path):
-      return .custom { request in
-        request.url?.path == path
-      }
-
-    case .header(let name, let value):
-      return .header(name: name, value: value ?? "")
-
-    case .body(let data):
-      return .body(data)
-
-    case .custom(let customMatcher):
-      return .custom(customMatcher)
-    }
+    recordRequestIfNeeded(request)
+    let expectation = try findMatchingExpectation(for: request)
+    return try await expectation.mockResponse.toHTTPResponse(for: request)
   }
 
   // MARK: - Verification
@@ -477,17 +345,21 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
   /// Check if all expectations are fulfilled without throwing
   /// - Returns: True if all expectations are fulfilled
-  public func areExpectationsFulfilled() -> Bool {
-    queue.sync {
-      expectations.allSatisfy { $0.isFulfilled }
-    }
+  public func areExpectationsFulfilled() -> ExpectationFulfillmentFlag {
+    ExpectationFulfillmentFlag(
+      queue.sync {
+        expectations.allSatisfy { $0.isFulfilled }
+      }
+    )
   }
 
   /// Get unfulfilled expectations
   /// - Returns: Array of unfulfilled expectation descriptions
-  public func getUnfulfilledExpectations() -> [String] {
+  public func getUnfulfilledExpectations() -> [ExpectationDescriptionText] {
     queue.sync {
-      expectations.filter { !$0.isFulfilled }.map { $0.expectationDescription }
+      expectations.filter { !$0.isFulfilled }.map {
+        ExpectationDescriptionText($0.expectationDescription)
+      }
     }
   }
 
@@ -502,19 +374,21 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   /// Get requests matching a specific predicate
   /// - Parameter predicate: Filtering predicate
   /// - Returns: Filtered requests
-  public func getRequests(matching predicate: (HTTPRequest) -> Bool) -> [HTTPRequest] {
+  public func getRequests(matching predicate: HTTPRequestPredicate) -> [HTTPRequest] {
     queue.sync {
-      requestHistory.filter(predicate)
+      requestHistory.filter(predicate.matches)
     }
   }
 
   /// Get request count for a specific path
   /// - Parameter path: URL path to count
   /// - Returns: Number of requests to that path
-  public func getRequestCount(for path: String) -> Int {
-    queue.sync {
-      requestHistory.filter { $0.url.path == path }.count
-    }
+  public func getRequestCount(for path: MockRequestPath) -> RequestCount {
+    RequestCount(
+      queue.sync {
+        requestHistory.filter { $0.url.path == path.rawValue }.count
+      }
+    )
   }
 
   /// Clear all recorded requests
@@ -537,9 +411,9 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
   /// Enable or disable request recording
   /// - Parameter enabled: Whether to record requests
-  public func setRequestRecording(enabled: Bool) {
+  public func setRequestRecording(enabled: RequestRecordingEnabledFlag) {
     queue.sync(flags: .barrier) {
-      isRecordingRequests = enabled
+      isRecordingRequests = enabled.rawValue
     }
   }
 
@@ -550,10 +424,22 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   ///   - path: URL path
   ///   - response: Response data
   ///   - statusCode: HTTP status code
-  public func stubGET(path: String, response: Data, statusCode: Int = 200) {
+  public func stubGET(
+    path: MockRequestPath,
+    response: HTTPBody,
+    statusCode: HTTPStatusCode = HTTPStatusCode(rawValue: 200)
+  ) {
     expectGET(path)
       .andReturn(.success(statusCode: statusCode, data: response))
       .atLeastOnce()
+  }
+
+  package func stubGET(
+    path: MockRequestPath,
+    response: Data,
+    statusCode: HTTPStatusCode = HTTPStatusCode(rawValue: 200)
+  ) {
+    stubGET(path: path, response: HTTPBody(response), statusCode: statusCode)
   }
 
   /// Stub a GET request with JSON response
@@ -561,7 +447,11 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   ///   - path: URL path
   ///   - json: Encodable object to return as JSON
   ///   - statusCode: HTTP status code
-  public func stubGET<T: Encodable>(path: String, json: T, statusCode: Int = 200) throws {
+  public func stubGET<T: Encodable>(
+    path: MockRequestPath,
+    json: T,
+    statusCode: HTTPStatusCode = HTTPStatusCode(rawValue: 200)
+  ) throws {
     try expectGET(path)
       .andReturnJSON(json, statusCode: statusCode)
       .atLeastOnce()
@@ -572,10 +462,52 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
   ///   - path: URL path
   ///   - response: Response data
   ///   - statusCode: HTTP status code
-  public func stubPOST(path: String, response: Data, statusCode: Int = 201) {
+  public func stubPOST(
+    path: MockRequestPath,
+    response: HTTPBody,
+    statusCode: HTTPStatusCode = 201
+  ) {
     expectPOST(path)
       .andReturn(.success(statusCode: statusCode, data: response))
       .atLeastOnce()
+  }
+
+  package func stubPOST(
+    path: MockRequestPath,
+    response: Data,
+    statusCode: HTTPStatusCode = 201
+  ) {
+    stubPOST(path: path, response: HTTPBody(response), statusCode: statusCode)
+  }
+}
+// swiftlint:enable type_body_length
+
+extension MockNetworkClient {
+  private func recordRequestIfNeeded(_ request: HTTPRequest) {
+    guard isRecordingRequests else { return }
+
+    queue.sync(flags: .barrier) {
+      requestHistory.append(request)
+    }
+  }
+
+  private func findMatchingExpectation(for request: HTTPRequest) throws -> RequestExpectation {
+    let matchingExpectation = queue.sync(flags: .barrier) {
+      var firstMatch: RequestExpectation?
+
+      for expectation in expectations where expectation.matches(request) {
+        expectation.recordCall(for: request)
+        firstMatch = firstMatch ?? expectation
+      }
+
+      return firstMatch
+    }
+
+    guard let expectation = matchingExpectation else {
+      throw HTTPError(category: .network(.connectionLost), request: request)
+    }
+
+    return expectation
   }
 }
 
@@ -583,14 +515,14 @@ public final class MockNetworkClient: HTTPClient, @unchecked Sendable {
 
 /// Error thrown when expectations are not fulfilled
 public struct AssertionError: Error, CustomStringConvertible {
-  public let message: String
+  public let message: UserMessageText
 
-  public init(_ message: String) {
+  public init(_ message: UserMessageText) {
     self.message = message
   }
 
   public var description: String {
-    message
+    message.rawValue
   }
 }
 
@@ -612,7 +544,7 @@ extension MockNetworkClient.RequestExpectation {
   ///   - value: Expected header value (nil to just check presence)
   /// - Returns: Self for method chaining
   @discardableResult
-  public func withHeader(_ name: String, value: String? = nil) -> Self {
+  public func withHeader(_ name: HTTPHeaderName, value: HTTPHeaderValue? = nil) -> Self {
     expect(.header(name: name, value: value))
   }
 
@@ -620,7 +552,7 @@ extension MockNetworkClient.RequestExpectation {
   /// - Parameter body: Expected request body
   /// - Returns: Self for method chaining
   @discardableResult
-  public func withBody(_ body: Data) -> Self {
+  public func withBody(_ body: HTTPBody) -> Self {
     expect(.body(body))
   }
 
@@ -631,7 +563,7 @@ extension MockNetworkClient.RequestExpectation {
   public func withJSONBody<T: Encodable>(_ json: T) throws -> Self {
     let encoder = JSONEncoder()
     let data = try encoder.encode(json)
-    return withBody(data)
+    return withBody(HTTPBody(data))
   }
 }
 
@@ -649,7 +581,7 @@ extension MockNetworkClient {
     let unfulfilled = getUnfulfilledExpectations()
     #expect(
       unfulfilled.isEmpty,
-      "Unfulfilled expectations: \(unfulfilled.joined(separator: ", "))",
+      "Unfulfilled expectations: \(unfulfilled.map(\.rawValue).joined(separator: ", "))",
       sourceLocation: sourceLocation
     )
   }
@@ -661,17 +593,19 @@ extension MockNetworkClient {
   ///   - count: Expected number of requests
   ///   - sourceLocation: Source location for error reporting
   public func expectRequest(
-    path: String,
+    path: MockRequestPath,
     method: HTTPMethod,
-    count: Int = 1,
+    count: RequestCount = 1,
     sourceLocation: SourceLocation = #_sourceLocation
   ) {
-    let matchingRequests = getRequests { request in
-      request.url.path == path && request.method == method
-    }
+    let matchingRequests = getRequests(
+      matching: HTTPRequestPredicate { request in
+        MockPredicateMatchFlag(request.url.path == path.rawValue && request.method == method)
+      }
+    )
     #expect(
-      matchingRequests.count == count,
-      "Expected \(count) \(method.rawValue) requests to \(path), but found \(matchingRequests.count)",
+      matchingRequests.count == count.rawValue,
+      "Expected \(count.rawValue) \(method.rawValue) requests to \(path.rawValue), but found \(matchingRequests.count)",
       sourceLocation: sourceLocation
     )
   }
@@ -691,13 +625,13 @@ extension MockNetworkClient {
 
     let response = try await execute(request)
 
-    let duration = Date().timeIntervalSince(startTime)
+    let duration = MeasurementDuration(Date().timeIntervalSince(startTime))
     let endMemory = getCurrentMemoryUsage()
 
     return PerformanceMetrics(
       duration: duration,
-      memoryDelta: endMemory - startMemory,
-      responseSize: response.body?.count ?? 0
+      memoryDelta: StorageSizeValue(endMemory - startMemory),
+      responseSize: ResponseSize((response.body?.count ?? 0).rawValue)
     )
   }
 
@@ -723,21 +657,22 @@ extension MockNetworkClient {
 // MARK: - Performance Metrics
 
 public struct PerformanceMetrics {
-  public let duration: TimeInterval
-  public let memoryDelta: Int
-  public let responseSize: Int
+  public let duration: MeasurementDuration
+  public let memoryDelta: StorageSizeValue
+  public let responseSize: ResponseSize
 
-  public var throughput: Double {
-    guard duration > 0 else { return 0 }
-    return Double(responseSize) / duration
+  public var throughput: ThroughputValue {
+    guard duration.rawValue > 0 else { return 0 }
+    return ThroughputValue(Double(responseSize.rawValue) / duration.rawValue)
   }
 
   public var description: String {
     """
-    Duration: \(String(format: "%.3f", duration))s
-    Memory Delta: \(memoryDelta) bytes
-    Response Size: \(responseSize) bytes
-    Throughput: \(String(format: "%.2f", throughput)) bytes/s
+    Duration: \(String(format: "%.3f", duration.rawValue))s
+    Memory Delta: \(memoryDelta.rawValue) bytes
+    Response Size: \(responseSize.rawValue) bytes
+    Throughput: \(String(format: "%.2f", throughput.rawValue)) bytes/s
     """
   }
 }
+// swiftlint:enable file_length
