@@ -14,7 +14,7 @@ enum MacroHelpers {
     context: some MacroExpansionContext
   ) throws {
     guard function.signature.effectSpecifiers?.asyncSpecifier != nil else {
-      throw MacroExpansionError.missingAsyncKeyword(function.name.text)
+      throw MacroExpansionError.missingAsyncKeyword(MacroFunctionName(function.name.text))
     }
   }
 
@@ -24,7 +24,7 @@ enum MacroHelpers {
     context: some MacroExpansionContext
   ) throws {
     guard function.signature.effectSpecifiers?.throwsClause?.throwsSpecifier != nil else {
-      throw MacroExpansionError.missingThrowsKeyword(function.name.text)
+      throw MacroExpansionError.missingThrowsKeyword(MacroFunctionName(function.name.text))
     }
   }
 
@@ -72,9 +72,9 @@ enum MacroHelpers {
     for pathParam in pathParams {
       guard functionParameters.contains(pathParam) else {
         throw MacroExpansionError.parameterMismatch(
-          path: path,
-          declared: functionParameters,
-          required: pathParams
+          path: EndpointPath(path),
+          declared: functionParameters.map { ParameterReference($0) },
+          required: pathParams.map { ParameterReference($0) }
         )
       }
     }
@@ -105,50 +105,8 @@ enum MacroHelpers {
     _ path: String,
     context: some MacroExpansionContext
   ) throws {
-    // Check for unmatched braces
-    let openBraces = path.filter { $0 == "{" }.count
-    let closeBraces = path.filter { $0 == "}" }.count
-
-    guard openBraces == closeBraces else {
-      let suggestion =
-        openBraces > closeBraces
-        ? "Missing closing brace '}'"
-        : "Missing opening brace '{'"
-      throw MacroExpansionError.invalidPathTemplate(path, suggestion: suggestion)
-    }
-
-    // Validate parameter syntax
-    let pattern = #"\{([^}]*)\}"#
-    guard let regex = try? NSRegularExpression(pattern: pattern) else {
-      return
-    }
-
-    let nsString = path as NSString
-    let matches = regex.matches(
-      in: path,
-      range: NSRange(location: 0, length: nsString.length)
-    )
-
-    for match in matches {
-      guard match.numberOfRanges > 1 else { continue }
-      let range = match.range(at: 1)
-      let paramName = nsString.substring(with: range)
-
-      // Validate parameter name (must be valid Swift identifier)
-      if paramName.isEmpty {
-        throw MacroExpansionError.invalidPathTemplate(
-          path,
-          suggestion: "Empty parameter name in {}"
-        )
-      }
-
-      if !paramName.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
-        throw MacroExpansionError.invalidPathTemplate(
-          path,
-          suggestion: "Parameter '\(paramName)' contains invalid characters"
-        )
-      }
-    }
+    try MacroPathTemplateValidator.validateBalancedBraces(in: path)
+    try MacroPathTemplateValidator.validatePathParameterNames(in: path)
   }
 
   // MARK: - Query Parameter Validation
@@ -162,8 +120,8 @@ enum MacroHelpers {
     for queryParam in queryParams {
       guard functionParameters.contains(queryParam) else {
         throw MacroExpansionError.queryParameterNotFound(
-          queryParam,
-          available: functionParameters
+          ParameterReference(queryParam),
+          available: functionParameters.map { ParameterReference($0) }
         )
       }
     }
@@ -179,8 +137,8 @@ enum MacroHelpers {
   ) throws {
     guard functionParameters.contains(bodyParam) else {
       throw MacroExpansionError.bodyParameterNotFound(
-        bodyParam,
-        available: functionParameters
+        ParameterReference(bodyParam),
+        available: functionParameters.map { ParameterReference($0) }
       )
     }
   }
@@ -222,8 +180,8 @@ enum MacroHelpers {
 
     guard methods.count <= 1 else {
       throw MacroExpansionError.multipleHTTPMethods(
-        function.name.text,
-        found: methods
+        MacroFunctionName(function.name.text),
+        found: methods.map { HTTPMethodName($0) }
       )
     }
   }
@@ -277,13 +235,7 @@ enum MacroHelpers {
     labeled label: String,
     from node: AttributeSyntax
   ) -> LabeledExprSyntax? {
-    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
-      return nil
-    }
-
-    return arguments.first { argument in
-      argument.label?.text == label
-    }
+    node.macroArgument(labeled: label)
   }
 
   /// Extracts an integer literal value from a labeled argument
@@ -295,12 +247,7 @@ enum MacroHelpers {
     labeled label: String,
     from node: AttributeSyntax
   ) -> String? {
-    guard let argument = extractArgument(labeled: label, from: node),
-      let intLiteral = argument.expression.as(IntegerLiteralExprSyntax.self)
-    else {
-      return nil
-    }
-    return intLiteral.literal.text
+    node.macroIntegerValue(labeled: label)
   }
 
   /// Extracts a member access value (e.g., .standard) from a labeled argument
@@ -312,12 +259,7 @@ enum MacroHelpers {
     labeled label: String,
     from node: AttributeSyntax
   ) -> String? {
-    guard let argument = extractArgument(labeled: label, from: node),
-      let memberAccess = argument.expression.as(MemberAccessExprSyntax.self)
-    else {
-      return nil
-    }
-    return memberAccess.declName.baseName.text
+    node.macroMemberValue(labeled: label)
   }
 
   /// Extracts a string literal value from a labeled argument
@@ -329,13 +271,7 @@ enum MacroHelpers {
     labeled label: String,
     from node: AttributeSyntax
   ) -> String? {
-    guard let argument = extractArgument(labeled: label, from: node),
-      let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
-      let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
-    else {
-      return nil
-    }
-    return segment.content.text
+    node.macroStringValue(labeled: label)
   }
 }
 
@@ -374,24 +310,28 @@ enum ConfigurationMacroDiagnostic: String, DiagnosticMessage {
 }
 
 /// Errors that can occur during macro expansion.
-public enum MacroExpansionError: Error, CustomStringConvertible {
-  case parameterMismatch(path: String, declared: [String], required: [String])
-  case invalidPathTemplate(String, suggestion: String?)
-  case bodyParameterNotFound(String, available: [String])
-  case queryParameterNotFound(String, available: [String])
-  case multipleHTTPMethods(String, found: [String])
-  case missingAsyncKeyword(String)
-  case missingThrowsKeyword(String)
-  case nonDecodableReturnType(String)
-  case nonEncodableBodyType(String)
+public enum MacroExpansionError: Error, CustomStringConvertible, Sendable {
+  case parameterMismatch(
+    path: EndpointPath,
+    declared: [ParameterReference],
+    required: [ParameterReference]
+  )
+  case invalidPathTemplate(EndpointPath, suggestion: MacroDiagnosticText?)
+  case bodyParameterNotFound(ParameterReference, available: [ParameterReference])
+  case queryParameterNotFound(ParameterReference, available: [ParameterReference])
+  case multipleHTTPMethods(MacroFunctionName, found: [HTTPMethodName])
+  case missingAsyncKeyword(MacroFunctionName)
+  case missingThrowsKeyword(MacroFunctionName)
+  case nonDecodableReturnType(MacroTypeReference)
+  case nonEncodableBodyType(MacroTypeReference)
 
   public var description: String {
     switch self {
     case .parameterMismatch(let path, let declared, let required):
       return """
         Path parameter mismatch in '\(path)': \
-        function has parameters [\(declared.joined(separator: ", "))], \
-        but path requires [\(required.joined(separator: ", "))]
+        function has parameters [\(declared.map(\.rawValue).joined(separator: ", "))], \
+        but path requires [\(required.map(\.rawValue).joined(separator: ", "))]
         """
 
     case .invalidPathTemplate(let template, let suggestion):
@@ -403,19 +343,19 @@ public enum MacroExpansionError: Error, CustomStringConvertible {
     case .bodyParameterNotFound(let param, let available):
       return """
         Body parameter '\(param)' not found in function signature. \
-        Available: [\(available.joined(separator: ", "))]
+        Available: [\(available.map(\.rawValue).joined(separator: ", "))]
         """
 
     case .queryParameterNotFound(let param, let available):
       return """
         Query parameter '\(param)' not found in function signature. \
-        Available: [\(available.joined(separator: ", "))]
+        Available: [\(available.map(\.rawValue).joined(separator: ", "))]
         """
 
     case .multipleHTTPMethods(let function, let found):
       return """
         Function '\(function)' has multiple HTTP method macros: \
-        [\(found.joined(separator: ", "))]. Only one is allowed.
+        [\(found.map(\.rawValue).joined(separator: ", "))]. Only one is allowed.
         """
 
     case .missingAsyncKeyword(let function):
@@ -446,63 +386,25 @@ extension FunctionDeclSyntax {
         identType.name.text == "Body",
         case .argumentList(let arguments) = attr.arguments,
         let firstArg = arguments.first,
-        let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
-        let segment = stringLiteral.segments.first,
-        case .stringSegment(let text) = segment
+        let parameterName = BoundaryExpressionParser.string(from: firstArg.expression)
       else {
         continue
       }
-      return text.content.text
+      return parameterName
     }
     return nil
   }
 
-  /// Detects @Headers macro on this function and returns header configurations
-  ///
-  /// - Returns: Array of (name, value, isParameter) tuples for each header
-  func detectHeadersMacro() -> [(name: String, value: String, isParameter: Bool)] {
-    var headers: [(String, String, Bool)] = []
+  /// Detects @Headers macro on this function and returns parsed header configurations.
+  func detectHeadersMacro() -> [ParsedHeader] {
+    var headers: [ParsedHeader] = []
 
     for attribute in attributes {
-      guard case .attribute(let attr) = attribute,
-        let identType = attr.attributeName.as(IdentifierTypeSyntax.self),
-        identType.name.text == "Headers",
-        case .argumentList(let arguments) = attr.arguments,
-        let closureArg = arguments.first,
-        let closure = closureArg.expression.as(ClosureExprSyntax.self)
-      else {
+      guard let closure = HeaderMacroParser.closure(from: attribute) else {
         continue
       }
 
-      // Extract parameter names from function signature
-      let paramNames = Set(
-        self.signature.parameterClause.parameters.map {
-          $0.secondName?.text ?? $0.firstName.text
-        }
-      )
-
-      // Parse H() calls from closure
-      for statement in closure.statements {
-        if let funcCall = statement.item.as(FunctionCallExprSyntax.self),
-          let identExpr = funcCall.calledExpression.as(DeclReferenceExprSyntax.self),
-          identExpr.baseName.text == "H"
-        {
-          let args = Array(funcCall.arguments)
-          guard args.count == 2,
-            let nameLiteral = args[0].expression.as(StringLiteralExprSyntax.self),
-            let valueLiteral = args[1].expression.as(StringLiteralExprSyntax.self),
-            let nameSegment = nameLiteral.segments.first,
-            let valueSegment = valueLiteral.segments.first,
-            case .stringSegment(let nameText) = nameSegment,
-            case .stringSegment(let valueText) = valueSegment
-          else {
-            continue
-          }
-
-          let isParam = paramNames.contains(valueText.content.text)
-          headers.append((nameText.content.text, valueText.content.text, isParam))
-        }
-      }
+      headers.append(contentsOf: HeaderMacroParser.parseHeaders(from: closure))
     }
 
     return headers

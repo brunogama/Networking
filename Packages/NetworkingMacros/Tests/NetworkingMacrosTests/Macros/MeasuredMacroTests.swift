@@ -32,10 +32,10 @@ final class MeasuredMacroTests: XCTestCase {
       func fetchUsers_measured() async throws -> [User] {
         let startTime = Date()
         defer {
-          let duration = Date().timeIntervalSince(startTime)
-          Metrics.shared.record(duration duration, operation "fetchUsers")
+          let duration = Duration.seconds(Date().timeIntervalSince(startTime))
+          Metrics.shared.record(duration: duration, operation: "fetchUsers")
         }
-        return fetchUsers()
+        return try await fetchUsers()
       }
       """
     }
@@ -58,10 +58,10 @@ final class MeasuredMacroTests: XCTestCase {
       func fetchUsers_measured() async throws -> [User] {
         let startTime = Date()
         defer {
-          let duration = Date().timeIntervalSince(startTime)
-          Metrics.shared.record(duration duration, operation "user_fetch")
+          let duration = Duration.seconds(Date().timeIntervalSince(startTime))
+          Metrics.shared.record(duration: duration, operation: "user_fetch")
         }
-        return fetchUsers()
+        return try await fetchUsers()
       }
       """
     }
@@ -84,10 +84,10 @@ final class MeasuredMacroTests: XCTestCase {
       func processData_measured(_ input: String) async throws -> Result {
         let startTime = Date()
         defer {
-          let duration = Date().timeIntervalSince(startTime)
-          Metrics.shared.record(duration duration, operation "processData")
+          let duration = Duration.seconds(Date().timeIntervalSince(startTime))
+          Metrics.shared.record(duration: duration, operation: "processData")
         }
-        return processData(input)
+        return try await processData(input)
       }
       """
     }
@@ -109,13 +109,13 @@ final class MeasuredMacroTests: XCTestCase {
         return try await api.update(id, name)
       }
 
-      func updateUser_measured(id id: String name name: String) async throws -> User {
+      func updateUser_measured(id: String, name: String) async throws -> User {
         let startTime = Date()
         defer {
-          let duration = Date().timeIntervalSince(startTime)
-          Metrics.shared.record(duration duration, operation "updateUser")
+          let duration = Duration.seconds(Date().timeIntervalSince(startTime))
+          Metrics.shared.record(duration: duration, operation: "updateUser")
         }
-        return updateUser(id id, name name)
+        return try await updateUser(id: id, name: name)
       }
       """
     }
@@ -135,13 +135,74 @@ final class MeasuredMacroTests: XCTestCase {
         try await api.delete(id)
       }
 
-      func deleteUser_measured(id id: String) async throws {
+      func deleteUser_measured(id: String) async throws {
         let startTime = Date()
         defer {
-          let duration = Date().timeIntervalSince(startTime)
-          Metrics.shared.record(duration duration, operation "deleteUser")
+          let duration = Duration.seconds(Date().timeIntervalSince(startTime))
+          Metrics.shared.record(duration: duration, operation: "deleteUser")
         }
-        return deleteUser(id id)
+        return try await deleteUser(id: id)
+      }
+      """
+    }
+  }
+
+  func testMeasuredPreservesDefaultValues() {
+    assertMacro {
+      """
+      @Measured
+      func fetchUser(
+        id: String,
+        includePosts: Bool = false
+      ) async throws -> User {
+        return try await api.fetch(id: id, includePosts: includePosts)
+      }
+      """
+    } expansion: {
+      """
+      func fetchUser(
+        id: String,
+        includePosts: Bool = false
+      ) async throws -> User {
+        return try await api.fetch(id: id, includePosts: includePosts)
+      }
+
+      func fetchUser_measured(
+        id: String,
+        includePosts: Bool = false
+      ) async throws -> User {
+        let startTime = Date()
+        defer {
+          let duration = Duration.seconds(Date().timeIntervalSince(startTime))
+          Metrics.shared.record(duration: duration, operation: "fetchUser")
+        }
+        return try await fetchUser(id: id, includePosts: includePosts)
+      }
+      """
+    }
+  }
+
+  func testMeasuredPreservesInoutParameters() {
+    assertMacro {
+      """
+      @Measured
+      func updateBuffer(_ buffer: inout [String], suffix: String = "!") async throws {
+        buffer.append(suffix)
+      }
+      """
+    } expansion: {
+      """
+      func updateBuffer(_ buffer: inout [String], suffix: String = "!") async throws {
+        buffer.append(suffix)
+      }
+
+      func updateBuffer_measured(_ buffer: inout [String], suffix: String = "!") async throws {
+        let startTime = Date()
+        defer {
+          let duration = Duration.seconds(Date().timeIntervalSince(startTime))
+          Metrics.shared.record(duration: duration, operation: "updateBuffer")
+        }
+        return try await updateBuffer(&buffer, suffix: suffix)
       }
       """
     }

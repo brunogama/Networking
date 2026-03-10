@@ -15,7 +15,7 @@ extension HTTPMacroExpansion {
     path: String,
     usesOldSyntax: Bool,
     newBodyParam: String?,
-    newHeaders: [(name: String, value: String, isParameter: Bool)],
+    newHeaders: [ParsedHeader],
     context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
     // Step 7: Extract body parameter (if required by config)
@@ -115,15 +115,15 @@ extension HTTPMacroExpansion {
   private static func extractHeaders(
     node: AttributeSyntax,
     usesOldSyntax: Bool,
-    newHeaders: [(name: String, value: String, isParameter: Bool)],
+    newHeaders: [ParsedHeader],
     context: some MacroExpansionContext
-  ) -> [(name: String, value: String, isParameter: Bool)] {
+  ) -> [ParsedHeader] {
     if !newHeaders.isEmpty {
       return newHeaders
     }
     if usesOldSyntax {
       let oldHeaders = ArgumentExtractors.extractHeaders(from: node, context: context)
-      return oldHeaders.map { (name: $0.key, value: $0.value, isParameter: false) }
+      return oldHeaders.map { ParsedHeader(name: $0.key, valueSource: .literal($0.value)) }
     }
     return []
   }
@@ -153,7 +153,7 @@ extension HTTPMacroExpansion {
     path: String,
     bodyParameter: String?,
     queryParameters: [String],
-    headers: [(name: String, value: String, isParameter: Bool)],
+    headers: [ParsedHeader],
     returnType: String
   ) -> DeclSyntax {
     let functionName = function.name.text
@@ -207,18 +207,17 @@ extension HTTPMacroExpansion {
       + "\n  request.addHeader(name: \"Content-Type\", value: \"application/json\")"
   }
 
-  private static func generateHeaderCode(
-    _ headers: [(name: String, value: String, isParameter: Bool)]
-  ) -> String {
+  private static func generateHeaderCode(_ headers: [ParsedHeader]) -> String {
     guard !headers.isEmpty else { return "" }
 
     let headerLines = headers.map { header in
-      if header.isParameter {
+      switch header.valueSource {
+      case .parameter(let value):
         // Parameter reference: interpolate the parameter value
-        "\n  request.addHeader(name: \"\(header.name)\", value: \\(\(header.value)))"
-      } else {
+        "\n  request.addHeader(name: \"\(header.name)\", value: \\(\(value)))"
+      case .literal(let value):
         // Literal value: use as-is
-        "\n  request.addHeader(name: \"\(header.name)\", value: \"\(header.value)\")"
+        "\n  request.addHeader(name: \"\(header.name)\", value: \"\(value)\")"
       }
     }.joined()
 
