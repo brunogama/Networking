@@ -1,0 +1,58 @@
+{
+  "$schema": "https://claude.ai/schemas/claude-config.json",
+  "description": "Claude Code Agent configuration for Networking framework (Xcode 26.3+)",
+  "project": {
+    "name": "Networking",
+    "type": "swift-package",
+    "workspaceType": "monorepo"
+  },
+  "packages": [
+    {
+      "name": "Networking",
+      "path": "Packages/Networking",
+      "description": "Core HTTP networking library"
+    },
+    {
+      "name": "NetworkingMacros",
+      "path": "Packages/Networking",
+      "description": "Swift macros for networking (@Cacheable, @Measured, etc.)"
+    },
+    {
+      "name": "NetworkingWebSocket",
+      "path": "Packages/NetworkingWebSocket",
+      "description": "WebSocket extension package"
+    },
+    {
+      "name": "NetworkingGraphQL",
+      "path": "Packages/NetworkingGraphQL",
+      "description": "GraphQL extension package with @Query/@Mutation macros"
+    }
+  ],
+  "build": {
+    "command": "swift build -Xswiftc -warnings-as-errors",
+    "testCommand": "swift test",
+    "formatCommand": "swift-format -i --configuration .swift-format Sources/ Tests/",
+    "lintCommand": "swiftlint lint --strict --config .swiftlint.yml"
+  },
+  "conventions": {
+    "swiftVersion": "6.0",
+    "platforms": ["iOS 16+", "macOS 13+", "tvOS 16+", "watchOS 9+"],
+    "warningsAsErrors": true,
+    "strictConcurrency": true
+  },
+  "xcode": {
+    "minimumVersion": "26.3",
+    "agenticCoding": true,
+    "mcpBridge": "xcrun mcpbridge",
+    "nativeTools": [
+      "XcodeRead",
+      "XcodeWrite",
+      "XcodeGlob",
+      "BuildProject",
+      "RunAllTests",
+      "DocumentationSearch",
+      "RenderPreview",
+      "XcodeListWindows"
+    ]
+  }
+}

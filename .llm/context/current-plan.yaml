@@ -1,0 +1,78 @@
+objective: "Complete the Networking modularization validation and leave the repo in a recoverable, package-passing state."
+status: completed
+updated_at: "2026-03-10"
+branch: "epic/mvp-core"
+current_focus: "Validation and context close-out are complete for the current modularized package graph."
+next_action: "No active implementation task. Next optional step is review/commit of the modularization worktree."
+steps:
+  - id: 1
+    description: "Populate .llm/context with real repo state, artifact history, and stable project facts."
+    status: completed
+  - id: 2
+    description: "Finish the Packages/Networking split so the new module graph matches the target architecture."
+    status: completed
+  - id: 3
+    description: "Re-home tests into package-local targets while retaining umbrella compatibility coverage in NetworkingTests."
+    status: completed
+  - id: 4
+    description: "Validate Packages/Networking with package-specific build and test runs and capture logs in .llm/context/tool-outputs/."
+    status: completed
+  - id: 5
+    description: "Validate Packages/NetworkingMacros after the declarations/plugin split and keep macro coverage passing."
+    status: completed
+  - id: 6
+    description: "Decide when to begin replacing Quick/Nimble usage with Swift Testing using the prepared migration skill."
+    status: pending
+artifacts:
+  read:
+    - "AGENTS.md"
+    - "RULES.md"
+    - "docs/architecture-refactoring-execution-plan.md"
+    - "Packages/Networking/Package.swift"
+    - "Packages/NetworkingMacros/Package.swift"
+    - "skills/modernnetworking-conventions/SKILL.md"
+    - "skills/swift-testing-bdd/SKILL.md"
+  modified:
+    - ".llm/context/README.md"
+    - ".llm/context/current-plan.yaml"
+    - ".llm/context/session-summary.md"
+    - ".llm/context/artifact-index.md"
+    - ".llm/context/plans/networking-modularization.md"
+    - ".llm/context/memory/repo-facts.md"
+    - ".llm/context/tool-outputs/README.md"
+    - ".llm/context/plans/README.md"
+    - ".llm/context/memory/README.md"
+    - ".llm/context/agents/README.md"
+  created:
+    - ".llm/context/"
+    - "AGENTS.md"
+    - "skills/modernnetworking-conventions/"
+    - "artifacts/skills/modernnetworking-conventions.skill"
+    - "skills/swift-testing-bdd/"
+    - "artifacts/skills/swift-testing-bdd.skill"
+    - "docs/architecture-refactoring-execution-plan.md"
+    - "Packages/Networking/Sources/NetworkingCore/"
+    - "Packages/Networking/Sources/NetworkingRuntime/"
+    - "Packages/Networking/Sources/NetworkingDSL/"
+    - "Packages/Networking/Sources/NetworkingRuntimeDSL/"
+    - "Packages/Networking/Sources/NetworkingInterceptorsCompat/"
+    - "Packages/Networking/Sources/NetworkingObservability/"
+    - "Packages/Networking/Sources/NetworkingObservabilityOTLP/"
+    - "Packages/Networking/Sources/NetworkingTesting/"
+    - "Packages/Networking/Sources/NetworkingBDD/"
+    - "Packages/Networking/Sources/NetworkingBDDQuickSupport/"
+    - "Packages/Networking/Tests/NetworkingCoreTests/"
+    - "Packages/Networking/Tests/NetworkingRuntimeTests/"
+    - "Packages/Networking/Tests/NetworkingDSLTests/"
+    - "Packages/Networking/Tests/NetworkingInterceptorsCompatTests/"
+    - "Packages/Networking/Tests/NetworkingObservabilityTests/"
+    - "Packages/Networking/Tests/NetworkingTestingTests/"
+    - "Packages/Networking/Tests/NetworkingBDDTests/"
+    - "Packages/Networking/Sources/Networking/Networking.docc/Module-Migration.md"
+    - "Packages/NetworkingMacros/Sources/NetworkingMacrosDeclarations/"
+    - ".llm/context/plans/networking-modularization.md"
+    - ".llm/context/memory/repo-facts.md"
+    - ".llm/context/tool-outputs/20260310-validation-summary.md"
+  deleted:
+    - "Legacy flat implementation files under Packages/Networking/Sources/Networking/ are being re-homed into split module targets."
+    - "Legacy test files under Packages/Networking/Tests/NetworkingTests/ are being removed or rewritten as package-local tests."

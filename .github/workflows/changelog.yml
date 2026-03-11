@@ -1,0 +1,109 @@
+name: Generate Changelog
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to generate changelog for (e.g., v1.2.0)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Preview only (do not commit)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: changelog-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install git-cliff
+        run: |
+          curl -sSfL https://github.com/orhun/git-cliff/releases/download/v2.4.0/git-cliff-2.4.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          chmod +x git-cliff-2.4.0/git-cliff
+          sudo mv git-cliff-2.4.0/git-cliff /usr/local/bin/
+          git-cliff --version
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate CHANGELOG
+        run: |
+          git-cliff --config cliff.toml --output CHANGELOG.md --tag ${{ steps.tag.outputs.tag }}
+          echo "## Generated Changelog Preview" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          head -100 CHANGELOG.md >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit and push
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: update CHANGELOG for ${{ steps.tag.outputs.tag }}"
+            git push origin HEAD:${{ github.event.repository.default_branch }}
+          fi
+
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog-${{ steps.tag.outputs.tag }}
+          path: CHANGELOG.md
+          retention-days: 30
+
+  update-release-notes:
+    name: Update Release Notes
+    needs: generate-changelog
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        run: |
+          curl -sSfL https://github.com/orhun/git-cliff/releases/download/v2.4.0/git-cliff-2.4.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          chmod +x git-cliff-2.4.0/git-cliff
+          sudo mv git-cliff-2.4.0/git-cliff /usr/local/bin/
+
+      - name: Generate release notes
+        run: |
+          git-cliff --config cliff.toml --latest --strip header > RELEASE_NOTES.md
+
+      - name: Update GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: RELEASE_NOTES.md
+          tag_name: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
