@@ -71,7 +71,7 @@ opt_in_rules:
 - closure_end_indentation
 - implicit_getter
 - object_literal
-- operator_whitespace
+- function_name_whitespace
 - prefer_self_in_static_references
 
 # Disabled rules (conflicts with Google style and swift-format)
@@ -175,34 +175,23 @@ function_parameter_count:
   error: 6
 
 # File and type length limits (Google style)
-# Note: Macro implementations excluded below for longer validation/generation code
 file_length:
   warning: 200
   error: 400
   ignore_comment_only_lines: true
-  excluded:
-    - "Sources/NetworkingMacros/**/*.swift"
-    - "Tests/NetworkingTests/Macros/**/*Tests.swift"
 
 type_body_length:
   warning: 200
   error: 300
-  excluded:
-    - "Sources/NetworkingMacros/**/*.swift"
 
 function_body_length:
   warning: 40
   error: 80
-  excluded:
-    - "Sources/NetworkingMacros/**/*.swift"
 
 # Cyclomatic complexity (Google recommendation)
-# Note: Macro validation logic excluded due to complex parameter checking
 cyclomatic_complexity:
   warning: 4
   error: 5
-  excluded:
-    - "Sources/NetworkingMacros/**/*.swift"
 
 # Nesting (Google recommends shallow nesting)
 nesting:
