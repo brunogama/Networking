@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-macros:
+    name: Build NetworkingMacros
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16.4
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          swift --version
+          xcodebuild -version
+
+      - name: Resolve Dependencies
+        working-directory: Packages/NetworkingMacros
+        run: swift package resolve
+
+      - name: Clean Build
+        working-directory: Packages/NetworkingMacros
+        run: rm -rf .build
+
+      - name: Build NetworkingMacros
+        working-directory: Packages/NetworkingMacros
+        run: swift build -j 1 -Xswiftc -warnings-as-errors
+
+      - name: Test NetworkingMacros
+        working-directory: Packages/NetworkingMacros
+        run: swift test -j 1
+
+  build-networking:
+    name: Build Networking
+    runs-on: macos-15
+    needs: build-macros
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16.4
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          swift --version
+
+      - name: Resolve Dependencies
+        working-directory: Packages/Networking
+        run: swift package resolve
+
+      - name: Clean Build
+        working-directory: Packages/Networking
+        run: rm -rf .build
+
+      - name: Build Networking
+        working-directory: Packages/Networking
+        run: swift build -j 1 -Xswiftc -warnings-as-errors
+
+      - name: Test Networking
+        working-directory: Packages/Networking
+        run: swift test -j 1
+
+      - name: Summary
+        run: |
+          echo "## Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- NetworkingMacros: PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- Networking: PASS" >> $GITHUB_STEP_SUMMARY

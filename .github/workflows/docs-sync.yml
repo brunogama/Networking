@@ -1,0 +1,312 @@
+name: Documentation Sync
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'Sources/**/*.swift'
+      - 'Packages/**/Sources/**/*.swift'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'Sources/**/*.swift'
+      - 'Packages/**/Sources/**/*.swift'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force regenerate all documentation'
+        required: false
+        default: 'false'
+        type: boolean
+      create_issue:
+        description: 'Create GitHub issue for detected APIs'
+        required: false
+        default: 'true'
+        type: boolean
+
+concurrency:
+  group: docs-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-api-changes:
+    name: Detect API Changes
+    runs-on: macos-15
+    outputs:
+      has_changes: ${{ steps.diff.outputs.has_changes }}
+      new_count: ${{ steps.diff.outputs.new_count }}
+      new_symbols: ${{ steps.diff.outputs.new_symbols }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Install jq
+        run: brew install jq
+
+      - name: Download Previous Baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: api-baseline
+          path: .cache
+        continue-on-error: true
+
+      - name: Clear Baseline (if force)
+        if: github.event.inputs.force == 'true'
+        run: rm -f .cache/api-baseline.json
+
+      - name: Generate Symbol Graphs
+        run: |
+          mkdir -p .build/symbol-graphs
+          echo "Building workspace with symbol graph generation..."
+          swift build \
+            -Xswiftc -emit-symbol-graph \
+            -Xswiftc -emit-symbol-graph-dir -Xswiftc .build/symbol-graphs
+
+      - name: Extract and Compare Symbols
+        id: diff
+        run: |
+          # Consolidate all package symbols into single baseline
+          mkdir -p .cache
+          for symfile in .build/symbol-graphs/*.symbols.json; do
+            if [ -f "$symfile" ]; then
+              pkg=$(basename "$symfile" .symbols.json)
+              echo "Extracting symbols from $pkg..."
+              jq -c --arg pkg "$pkg" '[
+                .symbols[]? |
+                select(.accessLevel == "public" or .accessLevel == "open") |
+                select(.identifier.precise | contains("SYNTHESIZED") | not) |
+                {
+                  package: $pkg,
+                  name: .names.title,
+                  kind: .kind.identifier,
+                  precise: .identifier.precise
+                }
+              ]' "$symfile"
+            fi
+          done | jq -s 'add // []' > .cache/current-symbols.json
+
+          NEW_COUNT=$(jq 'length' .cache/current-symbols.json)
+          echo "Total public symbols across all packages: $NEW_COUNT"
+
+          # Compare with baseline if exists
+          if [ -f .cache/api-baseline.json ]; then
+            # Get precise identifiers from both
+            jq -r '.[].precise' .cache/current-symbols.json | sort > /tmp/current.txt
+            jq -r '.[].precise' .cache/api-baseline.json | sort > /tmp/baseline.txt
+
+            # Find new symbols
+            NEW_PRECISES=$(comm -23 /tmp/current.txt /tmp/baseline.txt)
+            NEW_SYMBOL_COUNT=$(echo "$NEW_PRECISES" | grep -c . || echo "0")
+
+            if [ "$NEW_SYMBOL_COUNT" -gt 0 ]; then
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+              echo "new_count=$NEW_SYMBOL_COUNT" >> $GITHUB_OUTPUT
+
+              # Get details of new symbols
+              NEW_DETAILS=$(jq -c --argjson precises "$(echo "$NEW_PRECISES" | jq -R . | jq -s .)" \
+                '[.[] | select(.precise as $p | $precises | index($p))]' .cache/current-symbols.json)
+              echo "new_symbols<<EOF" >> $GITHUB_OUTPUT
+              echo "$NEW_DETAILS" | jq -r '.[] | "- \(.kind): \(.name)"' >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+              echo "new_count=0" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No baseline found - all $NEW_COUNT symbols are new"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "new_count=$NEW_COUNT" >> $GITHUB_OUTPUT
+            echo "new_symbols=Initial baseline creation" >> $GITHUB_OUTPUT
+          fi
+
+          # Update baseline
+          cp .cache/current-symbols.json .cache/api-baseline.json
+
+      - name: Upload Baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-baseline
+          path: .cache/api-baseline.json
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "## API Change Detection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.diff.outputs.has_changes }}" == "true" ]; then
+            echo "**New APIs detected:** ${{ steps.diff.outputs.new_count }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### New Symbols" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.diff.outputs.new_symbols }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No new public APIs detected." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  notify-docs-needed:
+    name: Documentation Notice
+    needs: detect-api-changes
+    if: needs.detect-api-changes.outputs.has_changes == 'true' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newCount = '${{ needs.detect-api-changes.outputs.new_count }}';
+            const newSymbols = `${{ needs.detect-api-changes.outputs.new_symbols }}`;
+
+            const body = `## Documentation Required
+
+            This PR introduces **${newCount} new public API(s)** that need documentation.
+
+            ### New Symbols
+            \`\`\`
+            ${newSymbols}
+            \`\`\`
+
+            Please ensure Documentation.docc is updated with:
+            - Extension files for new types (\`Documentation.docc/Extensions/<TypeName>.md\`)
+            - Updated topic groups in \`Documentation.docc/Networking.md\`
+
+            Run \`/docs-sync\` locally to auto-generate documentation.
+
+            A documentation issue has been created to track this work.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  create-doc-issues:
+    name: Create Documentation Issues
+    needs: detect-api-changes
+    if: |
+      needs.detect-api-changes.outputs.has_changes == 'true' &&
+      (
+        (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.create_issue == 'true')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Documentation Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newCount = '${{ needs.detect-api-changes.outputs.new_count }}';
+            const newSymbols = `${{ needs.detect-api-changes.outputs.new_symbols }}`;
+            const sha = '${{ github.sha }}'.substring(0, 7);
+            const date = new Date().toISOString().split('T')[0];
+
+            // Parse symbols to categorize by type
+            const symbolLines = newSymbols.trim().split('\n').filter(l => l.startsWith('-'));
+            const structs = symbolLines.filter(l => l.includes('swift.struct'));
+            const protocols = symbolLines.filter(l => l.includes('swift.protocol'));
+            const enums = symbolLines.filter(l => l.includes('swift.enum'));
+            const funcs = symbolLines.filter(l => l.includes('swift.func') || l.includes('swift.method'));
+
+            // Build issue body with task checklist
+            let body = `## Documentation Task
+
+            **Commit:** ${sha}
+            **Date:** ${date}
+            **New APIs:** ${newCount}
+
+            ### Symbols Requiring Documentation
+
+            \`\`\`
+            ${newSymbols}
+            \`\`\`
+
+            ### Tasks
+
+            #### Extension Files (Documentation.docc/Extensions/)
+            `;
+
+            // Add checklist for types
+            const types = [...structs, ...protocols, ...enums];
+            if (types.length > 0) {
+              types.forEach(t => {
+                const name = t.split(':').pop()?.trim().split(' ')[0] || 'Unknown';
+                body += `- [ ] Create \`${name}.md\` extension file\n`;
+              });
+            } else {
+              body += `- [ ] No new types requiring extension files\n`;
+            }
+
+            body += `
+            #### Tutorial Updates
+            - [ ] Update \`Documentation.docc/Networking.md\` topic groups
+            - [ ] Add code examples for new APIs
+            - [ ] Cross-reference related documentation
+
+            #### Validation
+            - [ ] Run \`swift package generate-documentation\` to verify
+            - [ ] Check all symbol links resolve correctly
+            - [ ] Review generated HTML output
+
+            ### How to Complete
+
+            1. Run \`/docs-sync\` to auto-generate initial documentation
+            2. Review and enhance generated content
+            3. Add code examples and usage guidance
+            4. Submit PR with documentation updates
+
+            ---
+            *Auto-generated by docs-sync workflow*`;
+
+            // Check for existing open issue to avoid duplicates
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'documentation,auto-generated',
+              state: 'open'
+            });
+
+            // Create issue if no recent one exists (within 24h with same count)
+            const recentIssue = existingIssues.data.find(issue => {
+              const created = new Date(issue.created_at);
+              const now = new Date();
+              const hoursDiff = (now - created) / (1000 * 60 * 60);
+              return hoursDiff < 24 && issue.title.includes(`${newCount} new`);
+            });
+
+            if (!recentIssue) {
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `docs: Document ${newCount} new public API(s) from ${sha}`,
+                body: body,
+                labels: ['documentation', 'auto-generated', 'good first issue']
+              });
+
+              console.log(`Created issue #${issue.data.number}`);
+              core.setOutput('issue_number', issue.data.number);
+            } else {
+              console.log(`Skipped - recent issue exists: #${recentIssue.number}`);
+              core.setOutput('issue_number', recentIssue.number);
+            }
+
+      - name: Link Issue to Commit
+        if: steps.create-doc-issues.outputs.issue_number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = '${{ steps.create-doc-issues.outputs.issue_number }}';
+            if (issueNumber) {
+              // Add commit reference comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issueNumber),
+                body: `Triggered by commit ${{ github.sha }}`
+              });
+            }

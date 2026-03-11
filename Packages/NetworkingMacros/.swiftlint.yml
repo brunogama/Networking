@@ -1,0 +1,43 @@
+parent_config: ../../.swiftlint.yml
+
+included:
+  - Sources
+  - Tests
+
+excluded:
+  - .build
+  - .swiftpm
+  - Package.swift
+
+line_length:
+  warning: 140
+  error: 240
+  ignores_urls: true
+  ignores_function_declarations: true
+  ignores_comments: true
+  ignores_interpolated_strings: true
+
+function_parameter_count:
+  warning: 12
+  error: 14
+
+file_length:
+  warning: 400
+  error: 600
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 350
+  error: 500
+
+function_body_length:
+  warning: 140
+  error: 200
+
+cyclomatic_complexity:
+  warning: 10
+  error: 16
+
+large_tuple:
+  warning: 4
+  error: 8
