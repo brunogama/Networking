@@ -81,7 +81,7 @@ extension HTTPRequest {
       url: finalURL,
       headers: mergedHeaders,
       body: finalBody,
-      timeout: rhs.timeout
+      timeout: rhs.timeoutOverride ?? lhs.timeoutOverride
     )
   }
 
@@ -124,7 +124,7 @@ extension HTTPRequest {
       url: finalURL,
       headers: mergedHeaders,
       body: finalBody,
-      timeout: other.timeout
+      timeout: other.timeoutOverride ?? self.timeoutOverride
     )
   }
 }

@@ -25,7 +25,7 @@ extension SSEClient {
       state: state
     )
 
-    continuation.yield(.open)
+    try yieldEvent(.open, to: continuation)
     try await streamEvents(
       from: connection,
       state: &state,
@@ -121,6 +121,8 @@ extension SSEClient {
       )
     } catch is CancellationError {
       throw CancellationError()
+    } catch let error as SSEStreamError {
+      throw error
     } catch let error as URLError {
       throw SSEAttemptFailure(
         error: mapURLError(error, for: connection.request),
@@ -132,84 +134,6 @@ extension SSEClient {
         openedConnection: true
       )
     }
-  }
-
-  private func streamBytes(
-    from bytes: URLSession.AsyncBytes,
-    parser: inout SSEParser,
-    state: inout SSEConnectionState,
-    continuation: SSEContinuation
-  ) async throws {
-    let carriageReturn: UInt8 = 0x0D
-    let lineFeed: UInt8 = 0x0A
-    var buffer = Data()
-    var sawCarriageReturn = false
-
-    for try await byte in bytes {
-      if sawCarriageReturn {
-        emitLine(
-          from: &buffer,
-          parser: &parser,
-          state: &state,
-          continuation: continuation
-        )
-        sawCarriageReturn = false
-
-        if byte == lineFeed {
-          continue
-        }
-      }
-
-      switch byte {
-      case carriageReturn:
-        sawCarriageReturn = true
-
-      case lineFeed:
-        emitLine(
-          from: &buffer,
-          parser: &parser,
-          state: &state,
-          continuation: continuation
-        )
-
-      default:
-        buffer.append(byte)
-      }
-    }
-
-    if sawCarriageReturn || !buffer.isEmpty {
-      emitLine(
-        from: &buffer,
-        parser: &parser,
-        state: &state,
-        continuation: continuation
-      )
-    }
-
-    apply(
-      result: parser.finish(),
-      state: &state,
-      continuation: continuation
-    )
-  }
-
-  private func emitLine(
-    from buffer: inout Data,
-    parser: inout SSEParser,
-    state: inout SSEConnectionState,
-    continuation: SSEContinuation
-  ) {
-    guard let line = String(bytes: buffer, encoding: .utf8) else {
-      buffer.removeAll(keepingCapacity: true)
-      return
-    }
-    buffer.removeAll(keepingCapacity: true)
-
-    apply(
-      result: parser.process(line: line),
-      state: &state,
-      continuation: continuation
-    )
   }
 
   private func validateInitialResponse(
@@ -243,23 +167,5 @@ extension SSEClient {
     }
   }
 
-  private func apply(
-    result: SSEDispatchResult,
-    state: inout SSEConnectionState,
-    continuation: SSEContinuation
-  ) {
-    if let retryHint = result.retryHint {
-      state.serverRetryHint = retryHint
-    }
 
-    guard let event = result.event else {
-      return
-    }
-
-    if let eventID = event.id, !eventID.isEmpty {
-      state.lastEventID = SSELastEventID(eventID.rawValue)
-    }
-
-    continuation.yield(.event(event))
-  }
 }

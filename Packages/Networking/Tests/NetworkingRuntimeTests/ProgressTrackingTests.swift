@@ -154,57 +154,6 @@ struct ProgressTrackingTests {
 
   // MARK: - Progress Middleware Tests
 
-  @Test("Progress middleware can be initialized with default configuration")
-  func progressMiddlewareInitialization() async throws {
-    let middleware = ProgressTrackingMiddleware()
-
-    // Test that middleware is properly initialized
-    #expect(middleware != nil)
-  }
-
-  @Test("Progress middleware can be initialized with custom configuration")
-  func progressMiddlewareCustomConfiguration() async throws {
-    let config = ProgressTrackingConfiguration(
-      trackUploadProgress: false,
-      trackDownloadProgress: true
-    )
-    let middleware = ProgressTrackingMiddleware(configuration: config)
-
-    #expect(middleware != nil)
-  }
-
-  @Test("Progress middleware can be created with callback")
-  func progressMiddlewareWithCallback() async throws {
-    let expectation = AsyncExpectation("Progress callback called")
-
-    actor ProgressReceiver {
-      var receivedProgress: TransferProgress?
-
-      func setProgress(_ progress: TransferProgress) {
-        receivedProgress = progress
-      }
-
-      func getProgress() -> TransferProgress? {
-        receivedProgress
-      }
-    }
-
-    let progressReceiver = ProgressReceiver()
-
-    let middleware = ProgressTrackingMiddleware.withCallback(
-      for: HTTPRequestID(UUID()),
-      callback: { progress in
-        Task { await progressReceiver.setProgress(progress) }
-        expectation.fulfill()
-      }
-    )
-
-    #expect(middleware != nil)
-
-    // In a real test, we would trigger progress updates
-    // For now, just verify the middleware was created successfully
-  }
-
   @Test("Progress middleware modifies request correctly for upload tracking")
   func progressMiddlewareUploadTracking() async throws {
     let middleware = ProgressTrackingMiddleware()
@@ -318,25 +267,12 @@ struct ProgressTrackingTests {
 
   @Test("Progress aggregator calculates aggregate progress correctly")
   func progressAggregator() async throws {
-    let expectation = AsyncExpectation("Aggregate progress callback called")
-
-    actor ProgressStorage {
-      var progress: TransferProgress?
-
-      func set(_ progress: TransferProgress?) {
-        self.progress = progress
-      }
-
-      func get() -> TransferProgress? {
-        progress
-      }
-    }
-
-    let receivedProgress = ProgressStorage()
-
+    let (progressStream, continuation) = AsyncStream.makeStream(
+      of: TransferProgress.self,
+      bufferingPolicy: .bufferingNewest(2)
+    )
     let aggregator = ProgressAggregator { progress in
-      Task { await receivedProgress.set(progress) }
-      expectation.fulfill()
+      continuation.yield(progress)
     }
 
     // Add progress for multiple transfers
@@ -353,16 +289,25 @@ struct ProgressTrackingTests {
 
     await aggregator.updateProgress(for: TransferIdentifier(), progress: progress1)
     await aggregator.updateProgress(for: TransferIdentifier(), progress: progress2)
+    continuation.finish()
 
-    // Verify aggregate calculation would be correct
-    // Total: 3000 bytes, Transferred: 1500 bytes = 50% progress
-
-    #expect(aggregator != nil)
+    var updates: [TransferProgress] = []
+    for await progress in progressStream {
+      updates.append(progress)
+    }
+    #expect(updates.count == 2)
+    #expect(updates.last?.totalBytes == 3000)
+    #expect(updates.last?.transferredBytes == 1500)
+    #expect(updates.last?.progress == 0.5)
   }
 
   @Test("Progress aggregator handles completed transfers correctly")
   func progressAggregatorCompletedTransfers() async throws {
-    let aggregator = ProgressAggregator { _ in }
+    let (progressStream, continuation) = AsyncStream.makeStream(
+      of: TransferProgress.self,
+      bufferingPolicy: .bufferingNewest(2)
+    )
+    let aggregator = ProgressAggregator { _ = continuation.yield($0) }
 
     let transferId = TransferIdentifier()
     let progress = TransferProgress(
@@ -372,9 +317,19 @@ struct ProgressTrackingTests {
     )
 
     await aggregator.updateProgress(for: transferId, progress: progress)
+    await aggregator.updateProgress(
+      for: TransferIdentifier(),
+      progress: TransferProgress(totalBytes: 500, transferredBytes: 100, phase: .downloading)
+    )
+    continuation.finish()
 
-    // Completed transfers should be cleaned up automatically
-    #expect(aggregator != nil)
+    var updates: [TransferProgress] = []
+    for await update in progressStream {
+      updates.append(update)
+    }
+    #expect(updates.count == 2)
+    #expect(updates.last?.totalBytes == 500)
+    #expect(updates.last?.transferredBytes == 100)
   }
 
   // MARK: - File Transfer Tests
@@ -487,29 +442,6 @@ struct ProgressTrackingTests {
   }
 
   // MARK: - Integration Tests
-
-  @Test("File transfer operations can be initialized")
-  func fileTransferOperationsInitialization() async throws {
-    let mockClient = MockHTTPClient(
-      mockResponse: HTTPResponse(
-        request: HTTPRequest(method: .get, url: testURL),
-        httpURLResponse: HTTPURLResponse(
-          url: testURL,
-          statusCode: 200,
-          httpVersion: nil,
-          headerFields: nil
-        )!,
-        body: HTTPBody(Data())
-      )
-    )
-
-    let fileTransfer = FileTransferOperations(
-      httpClient: mockClient,
-      configuration: .default
-    )
-
-    #expect(fileTransfer != nil)
-  }
 
   @Test("File transfer operations can upload data")
   func fileTransferUploadData() async throws {

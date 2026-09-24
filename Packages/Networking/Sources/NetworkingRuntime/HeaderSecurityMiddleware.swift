@@ -23,7 +23,7 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
       url: request.url,
       headers: try sanitizedHeaders(for: request),
       body: request.body,
-      timeout: request.timeout
+      timeout: request.timeoutOverride
     )
   }
 

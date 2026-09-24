@@ -12,6 +12,10 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     self.maxSize = maxSize
   }
 
+  public func keys() async -> [CacheKey] {
+    Array(cache.keys)
+  }
+
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     guard let entry = cache[key] else {
       return nil
@@ -23,6 +27,10 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
 
     return entry
+  }
+
+  public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
+    cache[key]
   }
 
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {

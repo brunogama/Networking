@@ -42,7 +42,7 @@ import NetworkingRuntimeDSL
 The `NetworkClient` is the main entry point for making HTTP requests. It uses a declarative configuration system:
 
 ```swift
-let client = NetworkClient {
+let client = try NetworkClient {
     BaseURL("https://api.example.com")
     DefaultTimeout(30.0)
     EnableLogging()

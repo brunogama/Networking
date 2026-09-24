@@ -126,6 +126,13 @@ struct TypedHTTPRequestTests {
     #expect(request.body == nil)
   }
 
+  @Test("An unusual GET body requires the explicit escape hatch")
+  func testUncheckedBody() {
+    let request = TypedHTTPRequest<GETMethod, AnyEnvironment>(path: "/test")
+    let body = HTTPBody(Data("payload".utf8))
+    #expect(request.withUncheckedBody(body).body == body)
+  }
+
   @Test("withTimeout creates new request with timeout")
   func testWithTimeout() {
     let request = TypedHTTPRequest<GETMethod, AnyEnvironment>(path: "/test")

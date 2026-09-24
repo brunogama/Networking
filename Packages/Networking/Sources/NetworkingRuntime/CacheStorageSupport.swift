@@ -1,7 +1,6 @@
 import Foundation
 import NetworkingCore
-
-// swiftlint:disable file_length
+import CryptoKit
 
 // MARK: - Supporting Types
 
@@ -64,31 +63,29 @@ struct SerializableHTTPResponse: Codable {
   }
 }
 
+extension HTTPResponse {
+  var cacheStorageSize: StorageSizeBytes {
+    let headerBytes = headers.reduce(into: 0) { size, header in
+      size += header.key.rawValue.utf8.count + header.value.rawValue.utf8.count
+    }
+    let bodyBytes = body?.rawValue.count ?? 0
+    return StorageSizeBytes(Int64(headerBytes + bodyBytes))
+  }
+}
+
 // MARK: - Data Extensions
 
 extension Data {
   var sha256: String {
-    let digest = SHA256.hash(data: self)
+    let digest = CryptoKit.SHA256.hash(data: self)
     return digest.compactMap { String(format: "%02x", $0) }.joined()
   }
 
-  func gzipped() -> Data? {
-    // Placeholder for gzip compression
-    // In a real implementation, use a compression library
-    self
+  func compressedForCache() -> Data? {
+    try? (self as NSData).compressed(using: .zlib) as Data
   }
 
-  func gunzipped() -> Data? {
-    // Placeholder for gzip decompression
-    // In a real implementation, use a decompression library
-    self
-  }
-}
-
-struct SHA256 {
-  static func hash(data: Data) -> Data {
-    // Placeholder for SHA256 hashing
-    // In a real implementation, use CryptoKit or CommonCrypto
-    Data(repeating: 0, count: 32)
+  func decompressedForCache() -> Data? {
+    try? (self as NSData).decompressed(using: .zlib) as Data
   }
 }

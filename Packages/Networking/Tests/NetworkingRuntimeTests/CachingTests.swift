@@ -302,11 +302,30 @@ struct CachingTests {
     #expect(cachedMaxAgeEntry != nil)  // Should be cached with specific TTL
   }
 
+  @Test("Fresh cached responses are returned without conditional revalidation")
+  func freshCachedResponseSkipsRevalidation() async throws {
+    let request = try createTestRequest()
+    let response = createTestResponse(headers: ["ETag": "\"fresh\""])
+    let middleware = CachingMiddleware(
+      configuration: CachingMiddleware.Configuration(defaultTTL: 60),
+      storage: MemoryCacheStorage(),
+      client: createTestClient()
+    )
+
+    _ = try await middleware.processResponse(response, for: request)
+
+    let cachedResponse = await middleware.cachedResponse(for: request)
+    let modifiedRequest = try await middleware.modifyRequest(request)
+    #expect(cachedResponse?.body == response.body)
+    #expect(modifiedRequest.headers["If-None-Match"] == nil)
+  }
+
   @Test("Caching middleware conditional requests")
   func cachingMiddlewareConditionalRequests() async throws {
     let client = createTestClient()
     let storage = MemoryCacheStorage()
     let configuration = CachingMiddleware.Configuration(
+      defaultTTL: 0,
       useConditionalRequests: true
     )
 
@@ -384,7 +403,8 @@ struct CachingTests {
       request,
       metadata
     )
-    #expect(intelligentKey == "custom-user-profile-key")  // Should use custom key
+    #expect(intelligentKey.contains("custom-user-profile-key"))
+    #expect(!intelligentKey.contains("test-token"))
 
     // Test with metadata but no custom key
     let metadataWithoutKey = CacheMetadata(
@@ -528,6 +548,28 @@ struct CachingTests {
     #expect(key1 != key3)
   }
 
+  @Test("Cache keys partition authorization without exposing credentials")
+  func cacheKeysPartitionAuthorization() throws {
+    let url = try #require(URL(string: "https://api.example.com/profile"))
+    let firstRequest = HTTPRequest(
+      method: .get,
+      url: url,
+      headers: ["Authorization": "Bearer first-secret"]
+    )
+    let secondRequest = HTTPRequest(
+      method: .get,
+      url: url,
+      headers: ["Authorization": "Bearer second-secret"]
+    )
+
+    let firstKey = CachingMiddleware.Configuration.defaultIntelligentCacheKey(firstRequest, nil)
+    let secondKey = CachingMiddleware.Configuration.defaultIntelligentCacheKey(secondRequest, nil)
+
+    #expect(firstKey != secondKey)
+    #expect(!firstKey.contains("first-secret"))
+    #expect(!secondKey.contains("second-secret"))
+  }
+
   // MARK: - Integration Tests
 
   @Test("End-to-end caching workflow")
@@ -538,7 +580,7 @@ struct CachingTests {
       sizePolicy: .maxEntries(100)
     )
     let configuration = CachingMiddleware.Configuration(
-      defaultTTL: 300.0,
+      defaultTTL: 0,
       useConditionalRequests: true
     )
 

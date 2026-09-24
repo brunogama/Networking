@@ -3,30 +3,38 @@ import NetworkingCore
 #if canImport(Security)
 /// A token provider that uses Keychain for secure storage.
 public final class KeychainTokenProvider: BearerTokenProvider {
+  public typealias RefreshHandler =
+    @Sendable (RefreshTokenValue) async throws -> BearerTokenValue
+
   private let keychainService: KeychainService
   private let tokenKey: KeychainItemKey
   private let refreshTokenKey: KeychainItemKey?
+  private let refreshHandler: RefreshHandler?
 
   public init(
     keychainService: KeychainService,
     tokenKey: KeychainItemKey = "access_token",
-    refreshTokenKey: KeychainItemKey? = "refresh_token"
+    refreshTokenKey: KeychainItemKey? = "refresh_token",
+    refreshHandler: RefreshHandler? = nil
   ) {
     self.keychainService = keychainService
     self.tokenKey = tokenKey
     self.refreshTokenKey = refreshTokenKey
+    self.refreshHandler = refreshHandler
   }
 
   /// Convenience initializer with service name.
   public convenience init(
     service: KeychainServiceName,
     tokenKey: KeychainItemKey = "access_token",
-    refreshTokenKey: KeychainItemKey? = "refresh_token"
+    refreshTokenKey: KeychainItemKey? = "refresh_token",
+    refreshHandler: RefreshHandler? = nil
   ) {
     self.init(
       keychainService: KeychainService(service: service),
       tokenKey: tokenKey,
-      refreshTokenKey: refreshTokenKey
+      refreshTokenKey: refreshTokenKey,
+      refreshHandler: refreshHandler
     )
   }
 
@@ -41,11 +49,18 @@ public final class KeychainTokenProvider: BearerTokenProvider {
       throw missingRefreshTokenError()
     }
 
-    guard try await keychainService.retrieveString(forKey: refreshTokenKey) != nil else {
+    guard let refreshToken = try await keychainService.retrieveString(forKey: refreshTokenKey)
+    else {
       throw missingRefreshTokenError()
     }
 
-    throw HTTPError(category: .configuration("Token refresh not implemented"))
+    guard let refreshHandler else {
+      throw HTTPError(category: .configuration("A token refresh handler is required"))
+    }
+
+    let token = try await refreshHandler(RefreshTokenValue(refreshToken.rawValue))
+    try await storeToken(token)
+    return token
   }
 
   /// Stores an access token securely in the keychain.
@@ -83,7 +98,8 @@ extension KeychainTokenProvider {
   /// Factory method to create a token provider for OAuth2 flows.
   public static func oauth2(
     service: KeychainServiceName,
-    clientId: OAuthClientIdentifier? = nil
+    clientId: OAuthClientIdentifier? = nil,
+    refreshHandler: RefreshHandler? = nil
   ) -> KeychainTokenProvider {
     let tokenKey = oauthTokenKey(clientId: clientId, suffix: "access_token")
     let refreshKey = oauthTokenKey(clientId: clientId, suffix: "refresh_token")
@@ -91,7 +107,8 @@ extension KeychainTokenProvider {
     return KeychainTokenProvider(
       service: service,
       tokenKey: tokenKey,
-      refreshTokenKey: refreshKey
+      refreshTokenKey: refreshKey,
+      refreshHandler: refreshHandler
     )
   }
 

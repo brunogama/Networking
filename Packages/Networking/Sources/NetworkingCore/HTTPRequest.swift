@@ -22,6 +22,9 @@ public struct HTTPRequest: Sendable, Identifiable {
   /// Request timeout interval
   public let timeout: RequestTimeout
 
+  /// A timeout supplied by the caller, rather than inherited from the client or session.
+  package let timeoutOverride: RequestTimeout?
+
   // MARK: - Initialization
 
   public init(
@@ -29,7 +32,7 @@ public struct HTTPRequest: Sendable, Identifiable {
     url: HTTPRequestURL,
     headers: HTTPHeaders = [:],
     body: HTTPBody? = nil,
-    timeout: RequestTimeout = RequestTimeout(rawValue: 30.0),
+    timeout: RequestTimeout? = nil,
     id: HTTPRequestID = .init()
   ) {
     self.id = id
@@ -37,15 +40,17 @@ public struct HTTPRequest: Sendable, Identifiable {
     self.url = url
     self.headers = headers
     self.body = body
-    self.timeout = timeout
+    self.timeout = timeout ?? RequestTimeout(rawValue: 30.0)
+    self.timeoutOverride = timeout
   }
 
-  package init(
+  /// Creates a request from Foundation values, including values known only at runtime.
+  public init(
     method: HTTPMethod,
     url: URL,
     headers: [String: String] = [:],
     body: Data? = nil,
-    timeout: TimeInterval = 30.0,
+    timeout: TimeInterval? = nil,
     id: UUID = UUID()
   ) {
     self.init(
@@ -53,7 +58,7 @@ public struct HTTPRequest: Sendable, Identifiable {
       url: HTTPRequestURL(url),
       headers: HTTPHeaders(headers),
       body: body.map { HTTPBody($0) },
-      timeout: RequestTimeout(timeout),
+      timeout: timeout.map { RequestTimeout($0) },
       id: HTTPRequestID(id)
     )
   }

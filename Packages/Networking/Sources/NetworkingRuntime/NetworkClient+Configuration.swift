@@ -69,14 +69,15 @@ extension NetworkClient {
       component.apply(to: &config)
     }
 
-    Self.validateConfiguration(&config)
-    let middlewares = Self.configureMiddlewareChain(from: config)
+    try Self.validateConfiguration(&config)
+    let middlewares = try Self.configureMiddlewareChain(from: config)
 
     self.init(
       session: config.session,
       requestMiddlewares: middlewares.request,
       responseMiddlewares: middlewares.response,
-      errorMiddlewares: middlewares.error
+      errorMiddlewares: middlewares.error,
+      defaultTimeout: config.timeout
     )
   }
 
@@ -96,21 +97,37 @@ extension NetworkClient {
       component.apply(to: &config)
     }
 
-    Self.validateConfiguration(&config)
-    let middlewares = Self.configureMiddlewareChain(from: config)
+    try Self.validateConfiguration(&config)
+    let middlewares = try Self.configureMiddlewareChain(from: config)
 
     self.init(
       session: config.session,
       requestMiddlewares: middlewares.request,
       responseMiddlewares: middlewares.response,
-      errorMiddlewares: middlewares.error
+      errorMiddlewares: middlewares.error,
+      defaultTimeout: config.timeout
     )
   }
 
   /// Validates and applies security configuration to session
-  private static func validateConfiguration(_ config: inout NetworkClientBuilder.Configuration) {
+  private static func validateConfiguration(
+    _ config: inout NetworkClientBuilder.Configuration
+  ) throws {
+    if config.hasCustomSession, config.sessionConfiguration != nil {
+      throw HTTPError(
+        category: .configuration("CustomSession cannot be combined with Session settings")
+      )
+    }
+
     // Apply security configuration to session if configured
     if let securityConfig = config.securityConfiguration {
+      guard !config.hasCustomSession else {
+        throw HTTPError(
+          category: .configuration(
+            "CustomSession cannot be combined with EnableSecurity, which requires its own delegate"
+          )
+        )
+      }
       // Create a secure URLSession with the security configuration
       if let sessionConfig = config.sessionConfiguration {
         config.session = sessionConfig.createURLSession(securityConfiguration: securityConfig)
@@ -126,7 +143,7 @@ extension NetworkClient {
   // swiftlint:disable:next cyclomatic_complexity function_body_length
   private static func configureMiddlewareChain(
     from config: NetworkClientBuilder.Configuration
-  ) -> MiddlewareChain {
+  ) throws -> MiddlewareChain {
     var requestMiddlewares = config.requestMiddlewares
     var responseMiddlewares = config.responseMiddlewares
     var errorMiddlewares = config.errorMiddlewares
@@ -147,7 +164,8 @@ extension NetworkClient {
       session: config.session,
       requestMiddlewares: [],
       responseMiddlewares: [],
-      errorMiddlewares: []
+      errorMiddlewares: [],
+      defaultTimeout: config.timeout
     )
 
     // Apply authentication configuration
@@ -164,16 +182,24 @@ extension NetworkClient {
     if let retryConfig = config.retryConfiguration {
       let retryMiddleware = ConfigurableRetryMiddleware(
         configuration: retryConfig,
-        session: config.session
+        client: temporaryClient
       )
       errorMiddlewares.append(retryMiddleware)
     }
 
-    // Apply caching configuration
-    if let cachingConfig = config.cachingConfiguration {
-      let cachingMiddleware = ConfigurableCachingMiddleware(
-        configuration: cachingConfig
+    if let retryConfig = config.legacyRetryConfiguration {
+      errorMiddlewares.append(
+        RetryMiddleware(configuration: retryConfig, client: temporaryClient)
       )
+    }
+
+    // Apply caching configuration
+    if let cachingConfig = config.cachingConfiguration,
+      let cachingMiddleware = try Self.createCachingMiddleware(
+        from: cachingConfig,
+        client: temporaryClient
+      )
+    {
       requestMiddlewares.append(cachingMiddleware)
       responseMiddlewares.append(cachingMiddleware)
     }
@@ -183,6 +209,116 @@ extension NetworkClient {
       response: responseMiddlewares,
       error: errorMiddlewares
     )
+  }
+
+  private static func createCachingMiddleware(
+    from configuration: CachingConfiguration,
+    client: any HTTPClient
+  ) throws -> CachingMiddleware? {
+    if case .none = configuration.policy {
+      return nil
+    }
+
+    let storage = try Self.createCacheStorage(from: configuration.storage)
+    let middlewareConfiguration = Self.createCachingConfiguration(from: configuration)
+    return CachingMiddleware(
+      configuration: middlewareConfiguration,
+      storage: storage,
+      client: client
+    )
+  }
+
+  private static func createCachingConfiguration(
+    from configuration: CachingConfiguration
+  ) -> CachingMiddleware.Configuration {
+    let configuredTTL = Self.configuredTTL(for: configuration.duration)
+    let defaultTTL = configuredTTL()
+    let shouldCache: @Sendable (HTTPRequest, HTTPResponse) -> CacheDecision
+    let ttlCalculator: @Sendable (HTTPRequest, HTTPResponse) -> CacheMaxAge
+    let useConditionalRequests: CacheRevalidationFlag
+
+    switch configuration.policy {
+    case .none:
+      shouldCache = { _, _ in false }
+      ttlCalculator = { _, _ in defaultTTL }
+      useConditionalRequests = false
+
+    case .standard:
+      shouldCache = { request, response in
+        CacheDecision(
+          configuration.shouldCache(request, response).rawValue
+            && CachingMiddleware.Configuration.defaultShouldCache(request, response).rawValue
+        )
+      }
+      ttlCalculator = { _, response in
+        CachingMiddleware.Configuration.responseTTL(from: response) ?? configuredTTL()
+      }
+      useConditionalRequests = true
+
+    case .aggressive:
+      shouldCache = configuration.shouldCache
+      ttlCalculator = { _, _ in configuredTTL() }
+      useConditionalRequests = true
+
+    case .custom(let maxAge, let revalidate):
+      shouldCache = configuration.shouldCache
+      ttlCalculator = { _, _ in maxAge }
+      useConditionalRequests = revalidate
+    }
+
+    return CachingMiddleware.Configuration(
+      defaultTTL: defaultTTL,
+      maxCacheSize: nil,
+      shouldCache: shouldCache,
+      ttlCalculator: ttlCalculator,
+      useConditionalRequests: useConditionalRequests
+    )
+  }
+
+  private static func configuredTTL(
+    for duration: CacheDuration
+  ) -> @Sendable () -> CacheMaxAge {
+    switch duration {
+    case .ttl(let ttl):
+      return { CacheMaxAge(max(ttl.rawValue, 0)) }
+
+    case .until(let date):
+      return { CacheMaxAge(max(date.timeIntervalSinceNow, 0)) }
+
+    case .session, .forever:
+      return { CacheMaxAge(Date.distantFuture.timeIntervalSinceNow) }
+    }
+  }
+
+  private static func createCacheStorage(
+    from storage: CacheStorage
+  ) throws -> any CachingMiddleware.CacheStorage {
+    switch storage {
+    case .memory(let size):
+      return AdvancedMemoryCacheStorage(sizePolicy: .maxMemory(size.bytes))
+
+    case .disk(let size, let path):
+      return try DiskCacheStorage(
+        cacheDirectory: try Self.cacheDirectory(from: path),
+        sizePolicy: .maxDiskSize(size.bytes)
+      )
+
+    case .hybrid(let memorySize, let diskSize, let path):
+      return try HybridCacheStorage(
+        memorySizePolicy: .maxMemory(memorySize.bytes),
+        diskSizePolicy: .maxDiskSize(diskSize.bytes),
+        cacheDirectory: try Self.cacheDirectory(from: path)
+      )
+    }
+  }
+
+  private static func cacheDirectory(from path: CacheStoragePath?) throws -> CacheDirectoryURL? {
+    guard let path else { return nil }
+    guard !path.rawValue.isEmpty else {
+      throw CacheConfigurationError.emptyStoragePath
+    }
+
+    return CacheDirectoryURL(URL(fileURLWithPath: path.rawValue, isDirectory: true))
   }
 
   /// Creates an authentication middleware from configuration.
@@ -221,6 +357,10 @@ extension NetworkClient {
   }
 }
 
+private enum CacheConfigurationError: Error {
+  case emptyStoragePath
+}
+
 /// Middleware that adds a base URL to requests that don't have a complete URL.
 private struct BaseURLMiddleware: HTTPRequestMiddleware {
   private let baseURL: HTTPRequestURL
@@ -238,7 +378,7 @@ private struct BaseURLMiddleware: HTTPRequestMiddleware {
         url: combinedURL,
         headers: request.headers,
         body: request.body,
-        timeout: request.timeout
+        timeout: request.timeoutOverride
       )
     }
     return request
@@ -265,7 +405,7 @@ private struct DefaultHeadersMiddleware: HTTPRequestMiddleware {
       url: request.url,
       headers: combinedHeaders,
       body: request.body,
-      timeout: request.timeout
+      timeout: request.timeoutOverride
     )
   }
 }

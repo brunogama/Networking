@@ -50,7 +50,7 @@ public enum RequestModifier: Sendable {
       url: updatedURL(from: request.url),
       headers: headers,
       body: updatedBody(from: request.body),
-      timeout: updatedTimeout(from: request.timeout),
+      timeout: updatedTimeout(from: request.timeoutOverride),
       id: request.id
     )
   }
@@ -92,8 +92,8 @@ public enum RequestModifier: Sendable {
   }
 
   private func updatedTimeout(
-    from timeout: NetworkingCore.RequestTimeout
-  ) -> NetworkingCore.RequestTimeout {
+    from timeout: NetworkingCore.RequestTimeout?
+  ) -> NetworkingCore.RequestTimeout? {
     if case .timeout(let interval) = self {
       return interval
     }
@@ -145,33 +145,6 @@ public func + (lhs: HTTPRequest, rhs: RequestModifier) -> HTTPRequest {
   rhs.apply(to: lhs)
 }
 
-/// Composes two ``HTTPRequest`` instances by merging headers and properties.
-///
-/// The right-hand request's properties take precedence. The method and URL
-/// come from the left-hand request.
-///
-/// ```swift
-/// let merged = baseRequest + additionalHeaders
-/// ```
-///
-/// - Parameters:
-///   - lhs: The base request
-///   - rhs: The request whose headers and properties to merge
-/// - Returns: A new merged request
-public func + (lhs: HTTPRequest, rhs: HTTPRequest) -> HTTPRequest {
-  var mergedHeaders = lhs.headers
-  for (key, value) in rhs.headers {
-    mergedHeaders[key] = value
-  }
-
-  return HTTPRequest(
-    method: lhs.method,
-    url: lhs.url,
-    headers: mergedHeaders,
-    body: rhs.body ?? lhs.body,
-    timeout: rhs.timeout
-  )
-}
 // swiftlint:enable static_operator
 
 // MARK: - Convenience Factory Methods

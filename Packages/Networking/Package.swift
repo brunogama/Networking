@@ -94,7 +94,9 @@ let package = Package(
       "Networking",
       dependencies: networkingDependencies,
       path: "Sources/Networking",
-      exclude: ["CLAUDE.md", "ValidatedResponse.swift.backup"]
+      exclude: [
+        "ValidatedResponse.swift.backup", "Documentation.docc", "Networking.docc",
+      ]
     ),
     libraryTarget(
       "NetworkingCore",
@@ -223,7 +225,7 @@ let package = Package(
         swiftCheck,
       ],
       path: "Tests/NetworkingTests",
-      exclude: [".swiftlint.yml", "BDD/INTEGRATION_TEST_AUDIT.md", "CLAUDE.md"]
+      exclude: [".swiftlint.yml", "BDD/INTEGRATION_TEST_AUDIT.md"]
     ),
   ]
 )
