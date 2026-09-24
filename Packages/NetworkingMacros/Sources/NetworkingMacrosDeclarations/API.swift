@@ -18,12 +18,13 @@ import Foundation
 /// ## Usage
 ///
 /// ```swift
-/// @API(baseURL: "https://api.github.com")
+/// @API(baseURL: .absolute("https://api.github.com"))
 /// protocol GitHubAPI {
-///     @GET("/users/{username}")
+///     @GET(.path("/users/{username}"))
 ///     func getUser(username: String) async throws -> User
 ///
-///     @POST("/repos/{owner}/{repo}/issues", body: "issue")
+///     @POST(.path("/repos/{owner}/{repo}/issues"))
+///     @Body(.parameter("issue"))
 ///     func createIssue(
 ///         owner: String,
 ///         repo: String,
@@ -40,33 +41,49 @@ import Foundation
 ///
 /// The macro generates an implementation struct with:
 /// - `Sendable` conformance for Swift 6 strict concurrency
-/// - Private `NetworkClient` property for making requests
-/// - Public initializer accepting optional custom `NetworkClient`
+/// - Private `HTTPClient` property for making requests
+/// - Initializer accepting an injected `HTTPClient`
 /// - Full implementation of all protocol methods
 ///
 /// Example generated code:
 /// ```swift
 /// struct GitHubAPIImplementation: GitHubAPI, Sendable {
-///     private let client: NetworkClient
+///     private let client: any HTTPClient
+///     private let baseURL = BaseURLText(rawValue: "https://api.github.com")
+///     private let defaultHeaders: HTTPHeaders = [:]
+///     private let defaultTimeout = RequestTimeout(rawValue: 30)
 ///
-///     public init(client: NetworkClient = .shared) {
+///     init(client: any HTTPClient = NetworkClient()) {
 ///         self.client = client
 ///     }
 ///
-///     public func getUser(username: String) async throws -> User {
-///         let request = HTTPRequest {
-///             GET("/users/\(username)")
-///             BaseURL("https://api.github.com")
+///     func getUser(username: String) async throws -> User {
+///         let path = "/users/\(username)"
+///         guard let url = HTTPRequestURL(
+///             BaseURLText(rawValue: baseURL.rawValue + path)
+///         ) else {
+///             throw URLError(.badURL)
 ///         }
+///         let request = HTTPRequest(
+///             method: .get,
+///             url: url,
+///             headers: defaultHeaders,
+///             timeout: defaultTimeout
+///         )
 ///         let response = try await client.execute(request)
-///         return try response.decode(User.self)
+///         guard let body = response.body else {
+///             throw DecodingError.dataCorrupted(
+///                 .init(codingPath: [], debugDescription: "Response body is empty")
+///             )
+///         }
+///         return try JSONDecoder().decode(User.self, from: body.rawValue)
 ///     }
 /// }
 /// ```
 ///
 /// ## Parameters
 ///
-/// - Parameter baseURL: The base URL for all API endpoints. Must be a valid URL string.
+/// - Parameter baseURL: The base URL for all API endpoints. Use `.absolute("https://...")`.
 ///                      All endpoint paths are appended to this base URL.
 ///
 /// ## Requirements
@@ -83,7 +100,6 @@ import Foundation
 /// - Use the existing `NetworkClient` for all requests
 /// - Inherit all configured middleware (authentication, retry, caching, logging)
 /// - Support security features (certificate pinning, SSL validation)
-/// - Throw `APIClientError` for failures (HTTP errors, network failures, decoding errors)
 /// - Enable dependency injection for testing via custom `NetworkClient`
 ///
 /// ## Performance
@@ -98,8 +114,8 @@ import Foundation
 /// - Base URL is a non-empty string
 /// - All methods are `async throws`
 /// - Path parameters match function parameters
-/// - Return types conform to `Decodable`
-/// - Body parameters conform to `Encodable`
+/// Return and body types are checked by the Swift compiler where generated decoding and
+/// encoding call `Decodable` and `Encodable` APIs.
 ///
 /// Validation errors are reported at compile time with clear error messages and
 /// Fix-It suggestions.
@@ -107,19 +123,18 @@ import Foundation
 /// ## Related Macros
 ///
 /// - ``GET(_:queryParameters:)``: Define GET endpoints
-/// - ``POST(_:body:headers:)``: Define POST endpoints
-/// - ``PUT(_:body:headers:)``: Define PUT endpoints
-/// - ``PATCH(_:body:headers:)``: Define PATCH endpoints
-/// - ``DELETE(_:)``: Define DELETE endpoints
+/// - ``POST(_:body:headers:queryParameters:)``: Define POST endpoints
+/// - ``PUT(_:body:headers:queryParameters:)``: Define PUT endpoints
+/// - ``PATCH(_:body:headers:queryParameters:)``: Define PATCH endpoints
+/// - ``DELETE(_:queryParameters:)``: Define DELETE endpoints
 /// - ``DefaultHeaders(_:)``: Configure protocol-level default headers
 /// - ``Timeout(_:)``: Configure protocol-level timeout
 ///
 /// ## See Also
 ///
 /// - `NetworkClient`: The underlying HTTP client used by generated implementations
-/// - `HTTPRequest`: The request builder DSL used in generated code
-/// - `APIClientError`: Errors thrown by generated implementations
+/// - `HTTPRequest`: The request type used by generated implementations
 ///
-@attached(member, names: arbitrary)
+@attached(peer, names: suffixed(Implementation))
 public macro API(baseURL: APIBaseURL) =
   #externalMacro(module: "NetworkingMacrosPlugin", type: "APIMacro")

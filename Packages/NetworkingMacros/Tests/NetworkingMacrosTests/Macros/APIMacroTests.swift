@@ -25,13 +25,15 @@ final class APIMacroTests: XCTestCase {
     } expansion: {
       """
       protocol UserAPI {
+      }
 
-          public struct UserAPIImplementation: UserAPI {
-              private let client: NetworkClient
-              private let baseURL: String = "https://api.example.com"
-              public init(client: NetworkClient = .shared) {
-                  self.client = client
-              }
+      struct UserAPIImplementation: UserAPI, Sendable {
+          private let client: any HTTPClient
+          private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+          private let defaultHeaders: HTTPHeaders = [:]
+          private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+          init(client: any HTTPClient = NetworkClient()) {
+            self.client = client
           }
       }
       """
@@ -48,13 +50,15 @@ final class APIMacroTests: XCTestCase {
     } expansion: {
       """
       protocol MyComplexAPIServiceProtocol {
+      }
 
-          public struct MyComplexAPIServiceProtocolImplementation: MyComplexAPIServiceProtocol {
-              private let client: NetworkClient
-              private let baseURL: String = "https://api.example.com"
-              public init(client: NetworkClient = .shared) {
-                  self.client = client
-              }
+      struct MyComplexAPIServiceProtocolImplementation: MyComplexAPIServiceProtocol, Sendable {
+          private let client: any HTTPClient
+          private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+          private let defaultHeaders: HTTPHeaders = [:]
+          private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+          init(client: any HTTPClient = NetworkClient()) {
+            self.client = client
           }
       }
       """

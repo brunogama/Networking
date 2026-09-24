@@ -1,136 +1,109 @@
 import MacroTemplateKit
 import SwiftSyntax
 import SwiftSyntaxMacros
-import SwiftDiagnostics
 
-// MARK: - HTTPMacroExpansion Helper Methods
+struct HTTPMacroEndpointInput {
+  let function: FunctionDeclSyntax
+  let node: AttributeSyntax
+  let path: String
+  let usesOldSyntax: Bool
+  let bodyParameter: String?
+  let headers: [ParsedHeader]
+  let accessLevel: String?
+}
+
+private struct HTTPMacroEndpointComponents {
+  let bodyParameter: String?
+  let queryParameters: [String]
+  let headers: [ParsedHeader]
+  let returnType: String
+}
 
 extension HTTPMacroExpansion {
-  /// Internal expansion method that handles Steps 7-10 of the workflow.
-  ///
-  /// Called by sharedExpansion after validation steps complete.
   static func expandWithHelpers(
-    function: FunctionDeclSyntax,
-    node: AttributeSyntax,
-    path: String,
-    usesOldSyntax: Bool,
-    newBodyParam: String?,
-    newHeaders: [ParsedHeader],
+    _ input: HTTPMacroEndpointInput,
     context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
-    // Step 7: Extract body parameter (if required by config)
-    let bodyParam = try extractBodyIfRequired(
-      function: function,
-      node: node,
-      usesOldSyntax: usesOldSyntax,
-      newBodyParam: newBodyParam,
-      context: context
-    )
-
-    // Return empty if body required but not found
-    if config.requiresBody && bodyParam == nil {
+    let bodyParameter = try extractBodyIfRequired(input, context: context)
+    if config.requiresBody && bodyParameter == nil {
       return []
     }
 
-    // Step 8: Extract query parameters and headers
-    let queryParams = ArgumentExtractors.extractQueryParameters(from: node, context: context)
-    let headers = extractHeaders(
-      node: node,
-      usesOldSyntax: usesOldSyntax,
-      newHeaders: newHeaders,
+    let queryParameters = ArgumentExtractors.extractQueryParameters(
+      from: input.node,
       context: context
     )
+    let headers = extractHeaders(input, context: context)
+    try validateParameters(input, queryParameters: queryParameters, context: context)
 
-    // Step 9: Validate parameters exist in function signature
-    let functionParams = MacroHelpers.extractParameterNames(from: function)
-    try MacroHelpers.validatePathParameters(
-      path: path,
-      functionParameters: functionParams,
-      context: context
-    )
-    if !queryParams.isEmpty {
-      try MacroHelpers.validateQueryParameters(
-        queryParams,
-        functionParameters: functionParams,
-        context: context
-      )
-    }
-
-    // Step 10: Extract return type and generate implementation
-    guard
-      let returnType = extractAndNormalizeReturnType(
-        function: function,
-        context: context
-      )
-    else {
+    guard let returnType = extractReturnType(input.function, context: context) else {
       return []
     }
-
-    return [
-      generateImplementation(
-        function: function,
-        path: path,
-        bodyParameter: bodyParam,
-        queryParameters: queryParams,
-        headers: headers,
-        returnType: returnType
-      )
-    ]
+    let components = HTTPMacroEndpointComponents(
+      bodyParameter: bodyParameter,
+      queryParameters: queryParameters,
+      headers: headers,
+      returnType: returnType
+    )
+    return [generateImplementation(input, components: components)]
   }
 
-  // MARK: - Private Helpers
-
-  /// Extracts body parameter based on syntax style and config.requiresBody.
   private static func extractBodyIfRequired(
-    function: FunctionDeclSyntax,
-    node: AttributeSyntax,
-    usesOldSyntax: Bool,
-    newBodyParam: String?,
+    _ input: HTTPMacroEndpointInput,
     context: some MacroExpansionContext
   ) throws -> String? {
-    // Use new syntax if available
-    if let bodyParam = newBodyParam {
-      return bodyParam
+    if let bodyParameter = input.bodyParameter {
+      return bodyParameter
     }
-
-    // Use old syntax if present
-    if usesOldSyntax {
-      return ArgumentExtractors.extractBodyParameter(from: node, context: context)
+    if input.usesOldSyntax {
+      return ArgumentExtractors.extractBodyParameter(from: input.node, context: context)
     }
-
-    // If body required but not found, emit error
     if config.requiresBody {
       MacroHelpers.emitError(
         "@\(config.method) requires a body parameter. Use @Body(\"paramName\") macro.",
-        node: node,
+        node: input.node,
         context: context
       )
-      return nil
     }
-
     return nil
   }
 
-  /// Extracts headers from either old or new syntax.
   private static func extractHeaders(
-    node: AttributeSyntax,
-    usesOldSyntax: Bool,
-    newHeaders: [ParsedHeader],
+    _ input: HTTPMacroEndpointInput,
     context: some MacroExpansionContext
   ) -> [ParsedHeader] {
-    if !newHeaders.isEmpty {
-      return newHeaders
+    if !input.headers.isEmpty {
+      return input.headers
     }
-    if usesOldSyntax {
-      let oldHeaders = ArgumentExtractors.extractHeaders(from: node, context: context)
-      return oldHeaders.map { ParsedHeader(name: $0.key, valueSource: .literal($0.value)) }
+    if input.usesOldSyntax {
+      return ArgumentExtractors.extractHeaders(from: input.node, context: context)
+        .map { ParsedHeader(name: $0.key, valueSource: .literal($0.value)) }
     }
     return []
   }
 
-  /// Extracts and normalizes return type, handling Void for DELETE.
-  private static func extractAndNormalizeReturnType(
-    function: FunctionDeclSyntax,
+  private static func validateParameters(
+    _ input: HTTPMacroEndpointInput,
+    queryParameters: [String],
+    context: some MacroExpansionContext
+  ) throws {
+    let functionParameters = MacroHelpers.extractParameterNames(from: input.function)
+    try MacroHelpers.validatePathParameters(
+      path: input.path,
+      functionParameters: functionParameters,
+      context: context
+    )
+    if !queryParameters.isEmpty {
+      try MacroHelpers.validateQueryParameters(
+        queryParameters,
+        functionParameters: functionParameters,
+        context: context
+      )
+    }
+  }
+
+  private static func extractReturnType(
+    _ function: FunctionDeclSyntax,
     context: some MacroExpansionContext
   ) -> String? {
     guard let returnClause = function.signature.returnClause else {
@@ -147,90 +120,37 @@ extension HTTPMacroExpansion {
     return returnClause.type.trimmedDescription
   }
 
-  /// Generates the implementation using InterceptorCodeGenerator.
   private static func generateImplementation(
-    function: FunctionDeclSyntax,
-    path: String,
-    bodyParameter: String?,
-    queryParameters: [String],
-    headers: [ParsedHeader],
-    returnType: String
+    _ input: HTTPMacroEndpointInput,
+    components: HTTPMacroEndpointComponents
   ) -> DeclSyntax {
-    let functionName = function.name.text
-    let parameters = MacroHelpers.extractParameters(from: function)
-    let paramList = parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ")
-
-    // Generate path substitution code
-    let parser = PathTemplateParser(template: path)
-    let pathCode = parser.generatePathSubstitution()
-
-    // Generate additional request code
-    var additionalCode = ""
-    additionalCode += generateBodyCode(bodyParameter)
-    additionalCode += generateHeaderCode(headers)
-    additionalCode += generateQueryParameterCode(queryParameters)
-
-    // Check if parent protocol has @Interceptors
+    let pathCode = PathTemplateParser(template: input.path).generatePathSubstitution()
     let hasInterceptors =
-      findParentProtocol(function)
+      findParentProtocol(input.function)
       .map { InterceptorsMacro.hasInterceptors(from: $0) } ?? false
-
-    // Delegate to InterceptorCodeGenerator
-    return InterceptorCodeGenerator.generateMethodImplementation(
-      functionName: functionName,
-      parameters: paramList,
-      returnType: returnType,
-      pathCode: pathCode,
-      method: config.method,
-      additionalRequestCode: additionalCode,
-      hasInterceptors: hasInterceptors
+    return HTTPMethodImplementationBuilder.generate(
+      HTTPMethodImplementationBuilder.Input(
+        function: input.function,
+        returnType: components.returnType,
+        pathCode: pathCode,
+        method: config.method,
+        bodyParameter: components.bodyParameter,
+        queryParameters: components.queryParameters,
+        headers: components.headers,
+        accessLevel: input.accessLevel,
+        hasInterceptors: hasInterceptors
+      )
     )
   }
 
-  /// Finds the parent protocol declaration of a function.
   private static func findParentProtocol(_ function: FunctionDeclSyntax) -> ProtocolDeclSyntax? {
     var currentNode: Syntax? = Syntax(function)
-
     while let node = currentNode {
-      if let protocolDecl = node.as(ProtocolDeclSyntax.self) {
-        return protocolDecl
+      if let protocolDeclaration = node.as(ProtocolDeclSyntax.self) {
+        return protocolDeclaration
       }
       currentNode = node.parent
     }
-
     return nil
-  }
-
-  private static func generateBodyCode(_ bodyParameter: String?) -> String {
-    guard let body = bodyParameter else { return "" }
-    return "\n  request.setBody(try JSONEncoder().encode(\(body)))"
-      + "\n  request.addHeader(name: \"Content-Type\", value: \"application/json\")"
-  }
-
-  private static func generateHeaderCode(_ headers: [ParsedHeader]) -> String {
-    guard !headers.isEmpty else { return "" }
-
-    let headerLines = headers.map { header in
-      switch header.valueSource {
-      case .parameter(let value):
-        // Parameter reference: interpolate the parameter value
-        "\n  request.addHeader(name: \"\(header.name)\", value: \\(\(value)))"
-      case .literal(let value):
-        // Literal value: use as-is
-        "\n  request.addHeader(name: \"\(header.name)\", value: \"\(value)\")"
-      }
-    }.joined()
-
-    return headerLines
-  }
-
-  private static func generateQueryParameterCode(_ queryParameters: [String]) -> String {
-    guard !queryParameters.isEmpty else { return "" }
-
-    let paramCode = queryParameters.map { param in
-      "\n  request.addQueryParameter(name: \"\(param)\", value: \\(\(param)))"
-    }.joined()
-
-    return paramCode
   }
 }

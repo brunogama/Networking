@@ -5,7 +5,6 @@ import NetworkingCore
 import FoundationNetworking
 #endif
 
-/// Forwards native URLSession task progress without introducing separate task ordering.
 package final class FileTransferTaskDelegate: NSObject, URLSessionTaskDelegate,
   URLSessionDownloadDelegate, @unchecked Sendable
 {

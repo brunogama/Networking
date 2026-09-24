@@ -90,6 +90,6 @@ enum InterceptorMethodBuilder {
       body: body
     )
 
-    return Renderer.render(.function(signature))
+    return Renderer.render(Declaration<Void>.function(signature))
   }
 }

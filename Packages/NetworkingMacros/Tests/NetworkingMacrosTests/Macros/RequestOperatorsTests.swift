@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -32,10 +33,23 @@ final class RequestOperatorsTests: XCTestCase {
       func getUser(id: String) async throws -> User
 
       func getUser(id: String) async throws -> User {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -54,13 +68,25 @@ final class RequestOperatorsTests: XCTestCase {
       func createUser(user: CreateUserRequest) async throws -> User
 
       func createUser(user: CreateUserRequest) async throws -> User {
-          let path = "/users"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(user))
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(user)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """
     }
@@ -76,11 +102,19 @@ final class RequestOperatorsTests: XCTestCase {
       #"""
       func deleteUser(id: String) async throws
 
-      func deleteUser(id: String) async throws -> Void {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .DELETE, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Void.self, from response.data)
+      func deleteUser(id: String) async throws {
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .delete,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        _ = try await client.execute(request)
+        return
       }
       """#
     }
@@ -99,10 +133,23 @@ final class RequestOperatorsTests: XCTestCase {
       func getUser(id: String) async throws -> User
 
       func getUser(id: String) async throws -> User {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -118,11 +165,19 @@ final class RequestOperatorsTests: XCTestCase {
       #"""
       func deleteUser(id: String) async throws
 
-      func deleteUser(id: String) async throws -> Void {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .DELETE, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Void.self, from response.data)
+      func deleteUser(id: String) async throws {
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .delete,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        _ = try await client.execute(request)
+        return
       }
       """#
     }
@@ -139,10 +194,23 @@ final class RequestOperatorsTests: XCTestCase {
       func listUsers() async throws -> [User]
 
       func listUsers() async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
       }
       """
     }
@@ -161,10 +229,23 @@ final class RequestOperatorsTests: XCTestCase {
       func getUsers() async throws -> [User]
 
       func getUsers() async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
       }
       """
     }
@@ -199,13 +280,27 @@ final class RequestOperatorsTests: XCTestCase {
       func getUserProfile(userId: String) async throws -> Profile
 
       func getUserProfile(userId: String) async throws -> Profile {
-          let path = "/api/v1/users/\(userId)/profile"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Profile.self, from response.data)
+        let path = "/api/v1/users/\(userId)/profile"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Profile.self, from: responseBody.rawValue)
       }
       """#
     }
   }
 
 }
+// swiftlint:enable file_length type_body_length
