@@ -34,6 +34,7 @@ package struct HTTPFileDownload: Sendable {
 /// Native file transfer operations supported by an HTTP client.
 package protocol HTTPFileTransferClient: HTTPClient {
   var canPerformNativeFileTransfer: Bool { get }
+  var canPerformNativeDownload: Bool { get }
 
   func upload(
     _ request: HTTPRequest,
@@ -45,6 +46,10 @@ package protocol HTTPFileTransferClient: HTTPClient {
     _ request: HTTPRequest,
     progress: (@Sendable (HTTPFileTransferProgress) -> Void)?
   ) async throws -> HTTPFileDownload
+}
+
+package extension HTTPFileTransferClient {
+  var canPerformNativeDownload: Bool { canPerformNativeFileTransfer }
 }
 
 /// Protocol for request modification middleware.
