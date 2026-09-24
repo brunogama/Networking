@@ -50,6 +50,10 @@ public actor MockCacheStorage: CachingMiddleware.CacheStorage, MockVerifiable {
 
   // MARK: - CacheStorage Conformance
 
+  public func keys() async -> [CacheKey] {
+    Array(storage.keys)
+  }
+
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     getCalls.append(key)
     return storage[key]

@@ -31,6 +31,12 @@ public struct FileTransferResult: Sendable {
   /// Metadata about the transferred file
   public let fileMetadata: FileMetadata?
 
+  /// Local URL of a successfully downloaded file.
+  ///
+  /// The caller owns files returned by resumable downloads and is responsible for removing them
+  /// when they are no longer needed.
+  public let fileURL: LocalFileURL?
+
   public init(
     transferId: TransferIdentifier,
     bytesTransferred: TransferByteCount,
@@ -39,7 +45,8 @@ public struct FileTransferResult: Sendable {
     isSuccessful: TransferSuccessFlag,
     error: (any Error)? = nil,
     resumeData: TransferResumeData? = nil,
-    fileMetadata: FileMetadata? = nil
+    fileMetadata: FileMetadata? = nil,
+    fileURL: LocalFileURL? = nil
   ) {
     self.transferId = transferId
     self.bytesTransferred = bytesTransferred
@@ -49,6 +56,7 @@ public struct FileTransferResult: Sendable {
     self.error = error
     self.resumeData = resumeData
     self.fileMetadata = fileMetadata
+    self.fileURL = fileURL
   }
 }
 
@@ -257,13 +265,12 @@ public enum FileTransferError: Error, LocalizedError {
 
 // MARK: - CommonCrypto Integration
 
-#if !canImport(CommonCrypto)
-// For non-Apple platforms, define the CC_LONG type.
-private typealias CC_LONG = UInt32
-#endif
-
 private let sha256DigestLength = Int(32)
 private let sha512DigestLength = Int(64)
+
+#if !canImport(CommonCrypto)
+// For non-Apple platforms, define the CommonCrypto compatibility types and functions.
+private typealias CC_LONG = UInt32
 
 private func CC_SHA256(
   _ data: UnsafeRawPointer!,
@@ -282,3 +289,4 @@ private func CC_SHA512(
   // Placeholder - real implementation would call CommonCrypto.
   md
 }
+#endif

@@ -465,6 +465,23 @@ final class KeychainServiceTests: XCTestCase {  // swiftlint:disable:this type_b
     XCTAssertEqual(retrieved?.rawValue, "test_refresh_token")
   }
 
+  func testTokenProviderRefreshesAndStoresAccessToken() async throws {
+    let provider = KeychainTokenProvider(
+      keychainService: sut,
+      refreshHandler: { refreshToken in
+        XCTAssertEqual(refreshToken, "test_refresh_token")
+        return "updated_access_token"
+      }
+    )
+    try await provider.storeRefreshToken("test_refresh_token")
+
+    let refreshedToken = try await provider.refreshToken()
+    let storedToken = try await provider.getCurrentToken()
+
+    XCTAssertEqual(refreshedToken, "updated_access_token")
+    XCTAssertEqual(storedToken, "updated_access_token")
+  }
+
   func testTokenProviderClearTokens() async throws {
     let provider = KeychainTokenProvider(
       keychainService: sut,

@@ -1,8 +1,12 @@
 import Foundation
 import NetworkingCore
 
+// swiftlint:disable file_length type_body_length
+
 /// Middleware that provides response caching with TTL, cache invalidation, and flexible storage strategies.
-public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
+public actor CachingMiddleware: CachedResponseProviding, HTTPRequestMiddleware,
+  HTTPResponseMiddleware
+{
   // MARK: - Properties
 
   private let configuration: Configuration
@@ -39,16 +43,29 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
     let metadata = configuration.metadataExtractor(request)
     let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
 
-    if let cachedEntry = await storage.get(cacheKey) {
-      if !cachedEntry.isExpired.rawValue {
-        // We have a valid cached response, but we might want to use conditional requests
-        if configuration.useConditionalRequests.rawValue {
-          return addConditionalHeaders(to: request, entry: cachedEntry)
-        }
-      }
+    if configuration.useConditionalRequests.rawValue,
+      let cachedEntry = await storage.getForRevalidation(cacheKey),
+      cachedEntry.isExpired.rawValue
+    {
+      return addConditionalHeaders(to: request, entry: cachedEntry)
     }
 
     return request
+  }
+
+  package func cachedResponse(for request: HTTPRequest) async -> HTTPResponse? {
+    guard request.method == .get else { return nil }
+
+    let metadata = configuration.metadataExtractor(request)
+    let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
+    guard
+      let entry = await storage.getForRevalidation(cacheKey),
+      !entry.isExpired.rawValue
+    else {
+      return nil
+    }
+
+    return entry.response
   }
 
   // MARK: - HTTPResponseMiddleware
@@ -69,17 +86,18 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
 
     // Handle 304 Not Modified responses
     if response.status.rawValue == 304 {
-      if let cachedEntry = await storage.get(cacheKey) {
+      if let cachedEntry = await storage.getForRevalidation(cacheKey) {
         // Return the cached response but update its expiration
         let ttl = determineTTL(request: request, response: response, metadata: metadata)
         let updatedEntry = CacheEntry(
           response: cachedEntry.response,
           ttl: ttl,
-          etag: cachedEntry.etag,
-          lastModified: cachedEntry.lastModified
+          etag: response.headers.caseInsensitiveValue(for: "ETag") ?? cachedEntry.etag,
+          lastModified: response.headers.caseInsensitiveValue(for: "Last-Modified")
+            ?? cachedEntry.lastModified
         )
         await storage.set(cacheKey, entry: updatedEntry)
-        return cachedEntry.response
+        return updatedEntry.response
       }
     }
 
@@ -90,8 +108,8 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
       let entry = CacheEntry(
         response: response,
         ttl: ttl,
-        etag: response.headers["ETag"],
-        lastModified: response.headers["Last-Modified"]
+        etag: response.headers.caseInsensitiveValue(for: "ETag"),
+        lastModified: response.headers.caseInsensitiveValue(for: "Last-Modified")
       )
 
       await storage.set(cacheKey, entry: entry)
@@ -117,9 +135,8 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   public func invalidateEntries(
     matching predicate: @Sendable (CacheKey) -> CacheInvalidationFlag
   ) async {
-    // This is a simplified implementation. A full implementation would require
-    // the storage to support enumeration of keys.
-    // For now, we'll just clear all entries if needed
+    let keys = await storage.keys().filter { predicate($0).rawValue }
+    await storage.removeByKeys(keys)
   }
 
   /// Gets a cached entry for debugging/inspection
@@ -165,7 +182,9 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
       // Schedule all prefetch tasks
       for (index, request) in requests.enumerated() {
         group.addTask {
-          await semaphore.wait()
+          guard await semaphore.wait() else {
+            return (index, .failure(request: request, error: CancellationError()))
+          }
 
           let result = await self.prefetchSingle(request: request)
           await semaphore.signal()
@@ -321,3 +340,5 @@ public actor CachingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
   }
 
 }
+
+// swiftlint:enable file_length type_body_length

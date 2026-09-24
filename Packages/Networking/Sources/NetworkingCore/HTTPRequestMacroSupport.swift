@@ -28,7 +28,9 @@ extension HTTPRequest {
     guard let url = URL(string: urlString) else {
       // If URL construction fails, use a placeholder URL
       // In production, this should be caught by validation
-      let fallbackURL = URL(string: "http://invalid.url")!
+      let fallbackURL =
+        URL(string: "http://invalid.url")
+        ?? URL(fileURLWithPath: "/invalid-request")
       self.init(
         method: method,
         url: HTTPRequestURL(fallbackURL),
@@ -78,7 +80,7 @@ extension HTTPRequest {
       url: HTTPRequestURL(newURL),
       headers: self.headers,
       body: self.body,
-      timeout: self.timeout
+      timeout: self.timeoutOverride
     )
   }
 
@@ -95,7 +97,7 @@ extension HTTPRequest {
       url: self.url,
       headers: self.headers,
       body: data,
-      timeout: self.timeout
+      timeout: self.timeoutOverride
     )
   }
 
@@ -117,7 +119,7 @@ extension HTTPRequest {
       url: self.url,
       headers: newHeaders,
       body: self.body,
-      timeout: self.timeout
+      timeout: self.timeoutOverride
     )
   }
 
@@ -139,7 +141,7 @@ extension HTTPRequest {
       url: self.url,
       headers: newHeaders,
       body: self.body,
-      timeout: self.timeout
+      timeout: self.timeoutOverride
     )
   }
 }

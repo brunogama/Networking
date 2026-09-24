@@ -27,6 +27,7 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   private let metadataFile: CacheDirectoryURL
   private var metadata: [CacheKey: DiskCacheMetadata] = [:]
   private var tagIndex: [CacheTagName: Set<CacheKey>] = [:]
+  private var metadataLoaded = false
   private let sizePolicy: CacheSizePolicy
   private let expirationStrategy: ExpirationStrategy
   private let compressionEnabled: CompressionEnabledFlag
@@ -71,17 +72,35 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
 
   // MARK: - CacheStorage Implementation
 
+  public func keys() async -> [CacheKey] {
+    await loadMetadataIfNeeded()
+    return Array(metadata.keys)
+  }
+
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     await loadMetadataIfNeeded()
     guard let meta = metadata[key] else { return nil }
     guard await !removeExpiredEntryIfNeeded(for: key, metadata: meta) else { return nil }
+    return await loadCacheEntry(for: key, metadata: meta)
+  }
+
+  public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
+    await loadMetadataIfNeeded()
+    guard let meta = metadata[key] else { return nil }
+    return await loadCacheEntry(for: key, metadata: meta)
+  }
+
+  private func loadCacheEntry(
+    for key: CacheKey,
+    metadata: DiskCacheMetadata
+  ) async -> CachingMiddleware.CacheEntry? {
     guard let data = await loadStoredData(for: key) else { return nil }
-    guard validateChecksum(for: data, metadata: meta) else {
+    guard validateChecksum(for: data, metadata: metadata) else {
       await remove(key)
       return nil
     }
 
-    return await deserializeCacheEntry(from: data, metadata: meta, key: key)
+    return await deserializeCacheEntry(from: data, metadata: metadata, key: key)
   }
 
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
@@ -91,15 +110,15 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   /// Enhanced set method with tag support
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry, tags: [CacheTagName]) async
   {
+    await loadMetadataIfNeeded()
+
     // Serialize response
     let serializableResponse = SerializableHTTPResponse(from: entry.response)
     guard let responseData = try? JSONEncoder().encode(serializableResponse) else {
       return
     }
 
-    // Compress if enabled
-    let dataToStore =
-      compressionEnabled.rawValue ? responseData.gzipped() ?? responseData : responseData
+    let dataToStore = dataForStorage(responseData)
 
     // Calculate checksum
     let checksum = dataToStore.sha256
@@ -107,7 +126,7 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
     // Store to disk
     let dataFile = cacheDirectory.appendingPathComponent(sanitizeFilename(key))
     do {
-      try dataToStore.write(to: dataFile.rawValue)
+      try dataToStore.write(to: dataFile.rawValue, options: .atomic)
     } catch {
       return
     }
@@ -124,15 +143,7 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
       checksum: FileChecksum(checksum)
     )
 
-    metadata[key] = meta
-
-    // Update tag index
-    for tag in tags {
-      if tagIndex[tag] == nil {
-        tagIndex[tag] = Set<CacheKey>()
-      }
-      tagIndex[tag]?.insert(key)
-    }
+    updateMetadata(meta, for: key)
 
     // Save metadata and enforce size
     await saveMetadata()
@@ -140,6 +151,8 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func remove(_ key: CacheKey) async {
+    await loadMetadataIfNeeded()
+
     // Remove file
     let dataFile = cacheDirectory.appendingPathComponent(sanitizeFilename(key))
     try? fileManager.removeItem(at: dataFile.rawValue)
@@ -170,10 +183,13 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
 
     metadata.removeAll()
     tagIndex.removeAll()
+    metadataLoaded = true
     await saveMetadata()
   }
 
   public func removeExpired() async {
+    await loadMetadataIfNeeded()
+
     let now = Date()
     let expiredKeys = metadata.compactMap { key, meta in
       now > meta.expiresAt ? key : nil
@@ -185,6 +201,8 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func removeByTags(_ tags: [CacheTagName]) async {
+    await loadMetadataIfNeeded()
+
     var keysToRemove = Set<CacheKey>()
 
     for tag in tags {
@@ -199,6 +217,8 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
+    await loadMetadataIfNeeded()
+
     let regex: NSRegularExpression?
     do {
       let regexPattern =
@@ -223,6 +243,8 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func removeByKeys(_ keys: [CacheKey]) async {
+    await loadMetadataIfNeeded()
+
     for key in keys {
       await remove(key)
     }
@@ -248,7 +270,7 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   private func enforceMaxEntries(_ max: CacheEntryLimit) async {
-    while metadata.count >= max.rawValue {
+    while metadata.count > max.rawValue {
       guard let keyToEvict = selectOldestKey() else { break }
       await remove(keyToEvict)
     }
@@ -274,24 +296,31 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   // MARK: - Metadata Management
 
   private func loadMetadata() async {
-    guard fileManager.fileExists(atPath: metadataFile.path) else { return }
+    metadataLoaded = true
+    var (loadedMetadata, shouldSaveMetadata) = readMetadata()
 
-    do {
-      let data = try Data(contentsOf: metadataFile.rawValue)
-      let loadedMetadata = try JSONDecoder().decode([CacheKey: DiskCacheMetadata].self, from: data)
-      self.metadata = loadedMetadata
-      rebuildTagIndex(from: loadedMetadata)
-    } catch {
-      // Failed to load, start fresh
-      self.metadata.removeAll()
-      self.tagIndex.removeAll()
+    let indexedEntryCount = loadedMetadata.count
+    loadedMetadata = loadedMetadata.filter { key, _ in
+      let dataFile = cacheDirectory.appendingPathComponent(sanitizeFilename(key))
+      return fileManager.fileExists(atPath: dataFile.path)
+    }
+    shouldSaveMetadata = shouldSaveMetadata || loadedMetadata.count != indexedEntryCount
+
+    metadata = loadedMetadata
+    rebuildTagIndex(from: loadedMetadata)
+
+    let indexedFilenames = Set(loadedMetadata.keys.map(sanitizeFilename))
+    removeUnindexedDataFiles(indexedFilenames: indexedFilenames)
+
+    if shouldSaveMetadata {
+      await saveMetadata()
     }
   }
 
   private func saveMetadata() async {
     do {
       let data = try JSONEncoder().encode(metadata)
-      try data.write(to: metadataFile.rawValue)
+      try data.write(to: metadataFile.rawValue, options: .atomic)
     } catch {
       // Failed to save metadata
     }
@@ -300,19 +329,15 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
   // MARK: - Utilities
 
   private func sanitizeFilename(_ filename: CacheKey) -> String {
-    // Convert cache key to safe filename
-    filename.rawValue
-      .replacingOccurrences(of: "/", with: "_")
-      .replacingOccurrences(of: ":", with: "_")
-      .replacingOccurrences(of: "?", with: "_")
-      .replacingOccurrences(of: "#", with: "_")
-      .prefix(255)  // Filesystem limit
-      + ".cache"
+    Data(filename.rawValue.utf8).sha256 + ".cache"
   }
 
   /// Returns current disk usage in bytes
   public var diskUsage: StorageSizeBytes {
-    get async { getCurrentDiskUsage() }
+    get async {
+      await loadMetadataIfNeeded()
+      return getCurrentDiskUsage()
+    }
   }
 
   /// Returns cache directory URL
@@ -323,8 +348,63 @@ public actor DiskCacheStorage: CachingMiddleware.CacheStorage {
 // swiftlint:enable type_body_length
 
 private extension DiskCacheStorage {
+  private func dataForStorage(_ data: Data) -> Data {
+    guard compressionEnabled.rawValue else { return data }
+    return data.compressedForCache() ?? data
+  }
+
+  private func updateMetadata(_ newMetadata: DiskCacheMetadata, for key: CacheKey) {
+    if let previousMetadata = metadata.updateValue(newMetadata, forKey: key) {
+      removeTagReferences(for: key, tags: previousMetadata.tags)
+    }
+
+    for tag in newMetadata.tags {
+      tagIndex[tag, default: Set<CacheKey>()].insert(key)
+    }
+  }
+
+  private func removeTagReferences(for key: CacheKey, tags: [CacheTagName]) {
+    for tag in tags {
+      tagIndex[tag]?.remove(key)
+      if tagIndex[tag]?.isEmpty == true {
+        tagIndex.removeValue(forKey: tag)
+      }
+    }
+  }
+
+  private func readMetadata() -> (
+    metadata: [CacheKey: DiskCacheMetadata],
+    shouldSave: Bool
+  ) {
+    guard fileManager.fileExists(atPath: metadataFile.path) else { return ([:], false) }
+
+    do {
+      let data = try Data(contentsOf: metadataFile.rawValue)
+      let metadata = try JSONDecoder().decode([CacheKey: DiskCacheMetadata].self, from: data)
+      return (metadata, false)
+    } catch {
+      return ([:], true)
+    }
+  }
+
+  private func removeUnindexedDataFiles(indexedFilenames: Set<String>) {
+    guard
+      let contents = try? fileManager.contentsOfDirectory(
+        at: cacheDirectory.rawValue,
+        includingPropertiesForKeys: nil
+      )
+    else {
+      return
+    }
+
+    for url in contents
+    where url.pathExtension == "cache" && !indexedFilenames.contains(url.lastPathComponent) {
+      try? fileManager.removeItem(at: url)
+    }
+  }
+
   private func loadMetadataIfNeeded() async {
-    guard metadata.isEmpty else { return }
+    guard !metadataLoaded else { return }
     await loadMetadata()
   }
 
@@ -359,7 +439,7 @@ private extension DiskCacheStorage {
     metadata: DiskCacheMetadata,
     key: CacheKey
   ) async -> CachingMiddleware.CacheEntry? {
-    let responseData = compressionEnabled.rawValue ? data.gunzipped() ?? data : data
+    let responseData = compressionEnabled.rawValue ? data.decompressedForCache() ?? data : data
     guard
       let response = try? JSONDecoder().decode(SerializableHTTPResponse.self, from: responseData)
     else {

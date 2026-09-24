@@ -16,9 +16,10 @@ extension CachingMiddleware {
       etag: HTTPHeaderValue? = nil,
       lastModified: HTTPHeaderValue? = nil
     ) {
+      let now = Date()
       self.response = response
-      self.cachedAt = Date()
-      self.expiresAt = Date().addingTimeInterval(ttl.rawValue)
+      self.cachedAt = now
+      self.expiresAt = now.addingTimeInterval(ttl.rawValue)
       self.etag = etag
       self.lastModified = lastModified
     }
@@ -36,8 +37,16 @@ extension CachingMiddleware {
 
   /// Protocol for cache storage implementations
   public protocol CacheStorage: Sendable {
+    /// Lists stored keys for selective invalidation.
+    func keys() async -> [CacheKey]
+
     /// Retrieves a cached entry for the given key
     func get(_ key: CacheKey) async -> CacheEntry?
+
+    /// Retrieves a cached entry without discarding it when it has expired.
+    ///
+    /// Conditional requests need the stale response and validators to resolve a 304 response.
+    func getForRevalidation(_ key: CacheKey) async -> CacheEntry?
 
     /// Stores a cache entry with the given key
     func set(_ key: CacheKey, entry: CacheEntry) async
@@ -95,8 +104,7 @@ extension CachingMiddleware {
       cacheKeyGenerator: @escaping @Sendable (HTTPRequest) -> CacheKey = Self.defaultCacheKey,
       intelligentCacheKeyGenerator: @escaping @Sendable (HTTPRequest, CacheMetadata?) -> CacheKey =
         Self.defaultIntelligentCacheKey,
-      ttlCalculator: @escaping @Sendable (HTTPRequest, HTTPResponse) -> CacheMaxAge = Self
-        .defaultTTLCalculator,
+      ttlCalculator: (@Sendable (HTTPRequest, HTTPResponse) -> CacheMaxAge)? = nil,
       metadataExtractor: @escaping @Sendable (HTTPRequest) -> CacheMetadata? = Self
         .defaultMetadataExtractor,
       useConditionalRequests: CacheRevalidationFlag = true
@@ -106,7 +114,10 @@ extension CachingMiddleware {
       self.shouldCache = shouldCache
       self.cacheKeyGenerator = cacheKeyGenerator
       self.intelligentCacheKeyGenerator = intelligentCacheKeyGenerator
-      self.ttlCalculator = ttlCalculator
+      self.ttlCalculator =
+        ttlCalculator ?? { _, response in
+          Self.responseTTL(from: response) ?? defaultTTL
+        }
       self.metadataExtractor = metadataExtractor
       self.useConditionalRequests = useConditionalRequests
     }
@@ -123,7 +134,9 @@ extension CachingMiddleware {
       guard response.status.isSuccess.rawValue else { return false }
 
       // Don't cache responses with Cache-Control: no-cache or no-store
-      if let cacheControl = response.headers["Cache-Control"]?.lowercased() {
+      if let cacheControl = response.headers.caseInsensitiveValue(for: "Cache-Control")?
+        .rawValue.lowercased()
+      {
         if cacheControl.contains("no-cache") || cacheControl.contains("no-store") {
           return false
         }
@@ -142,9 +155,13 @@ extension CachingMiddleware {
       _ request: HTTPRequest,
       _ metadata: CacheMetadata?
     ) -> CacheKey {
-      // Use custom key if provided
+      let authorizationPartition =
+        request.headers
+        .caseInsensitiveValue(for: "Authorization")
+        .map { Data($0.rawValue.utf8).sha256 } ?? "public"
+
       if let customKey = metadata?.customKey {
-        return customKey
+        return CacheKey("\(customKey.rawValue):authorization:\(authorizationPartition)")
       }
 
       // Generate normalized URL key
@@ -157,10 +174,13 @@ extension CachingMiddleware {
 
       let normalizedURL = components?.url?.absoluteString ?? request.url.absoluteString
 
-      // Include tags in key for better cache segmentation
-      let tagsHash = metadata?.tags.sorted().joined(separator: ",").hashValue
+      let tagNames = metadata?.tags.sorted().map(\.rawValue) ?? []
+      let encodedTags = tagNames.map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
+      let tagsPartition = encodedTags.isEmpty ? "none" : Data(encodedTags.utf8).sha256
 
-      return CacheKey("\(request.method.rawValue.rawValue):\(normalizedURL):\(tagsHash ?? 0)")
+      return CacheKey(
+        "\(request.method.rawValue.rawValue):\(normalizedURL):authorization:\(authorizationPartition):tags:\(tagsPartition)"
+      )
     }
 
     /// Default metadata extractor (placeholder for macro-generated code)
@@ -175,23 +195,19 @@ extension CachingMiddleware {
       _ request: HTTPRequest,
       _ response: HTTPResponse
     ) -> CacheMaxAge {
-      if let cacheControlTTL = cacheControlTTL(from: response) {
-        return cacheControlTTL
-      }
+      responseTTL(from: response) ?? 300.0  // 5 minutes
+    }
 
-      if let expiresHeaderTTL = expiresHeaderTTL(from: response) {
-        return expiresHeaderTTL
-      }
-
-      return 300.0  // 5 minutes
+    static func responseTTL(from response: HTTPResponse) -> CacheMaxAge? {
+      cacheControlTTL(from: response) ?? expiresHeaderTTL(from: response)
     }
 
     private static func cacheControlTTL(from response: HTTPResponse) -> CacheMaxAge? {
-      guard let cacheControl = response.headers["Cache-Control"] else {
+      guard let cacheControl = response.headers.caseInsensitiveValue(for: "Cache-Control") else {
         return nil
       }
 
-      let components = cacheControl.lowercased().components(separatedBy: ",")
+      let components = cacheControl.rawValue.lowercased().components(separatedBy: ",")
       for component in components {
         let trimmed = component.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("max-age=") else { continue }
@@ -205,18 +221,32 @@ extension CachingMiddleware {
     }
 
     private static func expiresHeaderTTL(from response: HTTPResponse) -> CacheMaxAge? {
-      guard let expiresString = response.headers["Expires"] else {
+      guard let expires = response.headers.caseInsensitiveValue(for: "Expires") else {
         return nil
       }
 
       let formatter = DateFormatter()
       formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-      guard let expiresDate = formatter.date(from: expiresString) else {
+      guard let expiresDate = formatter.date(from: expires.rawValue) else {
         return nil
       }
 
       let ttl = expiresDate.timeIntervalSinceNow
       return CacheMaxAge(max(ttl, 0))
     }
+  }
+}
+
+public extension CachingMiddleware.CacheStorage {
+  func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
+    await get(key)
+  }
+}
+
+extension HTTPHeaders {
+  func caseInsensitiveValue(for name: String) -> HTTPHeaderValue? {
+    first { header in
+      header.key.rawValue.caseInsensitiveCompare(name) == .orderedSame
+    }?.value
   }
 }

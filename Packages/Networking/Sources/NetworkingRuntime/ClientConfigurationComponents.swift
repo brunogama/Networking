@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Foundation
 import NetworkingCore
 
@@ -118,13 +117,7 @@ public struct EnableRetry: ConfigurationComponent {
   }
 
   public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
-    // Note: We need to create a placeholder client for the retry middleware
-    // In practice, this would be resolved when the NetworkClient is built
-    let retryMiddleware = RetryMiddleware(
-      configuration: self.configuration,
-      client: NetworkClient()  // This will be replaced with the actual client
-    )
-    configuration.errorMiddlewares.append(retryMiddleware)
+    configuration.legacyRetryConfiguration = self.configuration
   }
 }
 
@@ -158,6 +151,7 @@ public struct CustomSession: ConfigurationComponent {
 
   public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
     configuration.session = session
+    configuration.hasCustomSession = true
   }
 }
 
@@ -172,4 +166,3 @@ public struct EnableSecurity: ConfigurationComponent {
     configuration.securityConfiguration = securityConfiguration
   }
 }
-

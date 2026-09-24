@@ -59,7 +59,7 @@ extension HTTPRequest {
     partial.url = self.url
     partial.headers = self.headers
     partial.body = self.body
-    partial.timeout = self.timeout
+    partial.timeout = self.timeoutOverride
 
     // Apply new components
     for component in newComponents {

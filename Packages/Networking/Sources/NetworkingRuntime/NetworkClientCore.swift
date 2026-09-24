@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Foundation
 import NetworkingCore
 
@@ -65,56 +64,108 @@ import FoundationNetworking
 /// - <doc:Client-Configuration>: Complete configuration guide
 /// - <doc:Middleware-System>: Creating custom middleware
 /// - <doc:Core-Networking>: Understanding HTTP primitives
-public final class NetworkClient: HTTPClient {
+public final class NetworkClient: HTTPFileTransferClient {
   // MARK: - Properties
 
-  private let session: URLSession
+  let session: URLSession
   private let requestMiddlewares: [any HTTPRequestMiddleware]
-  private let responseMiddlewares: [any HTTPResponseMiddleware]
+  let responseMiddlewares: [any HTTPResponseMiddleware]
   private let errorMiddlewares: [any HTTPErrorMiddleware]
+  private let defaultTimeout: RequestTimeout?
+
+  package var canPerformNativeFileTransfer: Bool {
+    errorMiddlewares.isEmpty
+  }
 
   // MARK: - Initialization
 
+  /// Creates a client with a URL session and optional middleware.
   public init(
     session: URLSession = .shared,
     requestMiddlewares: [any HTTPRequestMiddleware] = [],
     responseMiddlewares: [any HTTPResponseMiddleware] = [],
-    errorMiddlewares: [any HTTPErrorMiddleware] = []
+    errorMiddlewares: [any HTTPErrorMiddleware] = [],
+    defaultTimeout: RequestTimeout? = nil
   ) {
     self.session = session
     self.requestMiddlewares = requestMiddlewares
     self.responseMiddlewares = responseMiddlewares
     self.errorMiddlewares = errorMiddlewares
+    self.defaultTimeout = defaultTimeout
   }
 
   // MARK: - HTTPClient
 
+  /// Executes a request through the configured middleware pipeline.
+  /// - Throws: A transport, middleware, or HTTP status error.
   public func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
+    var currentRequest = request
     do {
-      // Apply request middlewares
-      let processedRequest = try await applyRequestMiddlewares(request)
-
-      // Execute the request
-      let response = try await performRequest(processedRequest)
-      // Apply response middlewares
-      return try await applyResponseMiddlewares(response, for: processedRequest)
+      currentRequest = try await applyRequestMiddlewares(currentRequest)
+      if let cached = try await cachedResponse(for: currentRequest) {
+        return cached
+      }
+      let response = try await performRequest(currentRequest)
+      return try await finishResponse(response, for: currentRequest)
     } catch let error as HTTPError {
-      // Try to handle error with middlewares
-      return try await handleErrorWithMiddlewares(error, for: request)
+      let recovered = try await handleErrorWithMiddlewares(error, for: currentRequest)
+      return try await finishResponse(recovered, for: currentRequest)
+    } catch is CancellationError {
+      throw HTTPError.cancelled(request: currentRequest)
     } catch {
-      // Convert other errors to HTTPError
       let httpError = HTTPError(
         category: .network(.serverUnreachable),
-        request: request,
+        request: currentRequest,
         underlyingError: error
       )
-      return try await handleErrorWithMiddlewares(httpError, for: request)
+      let recovered = try await handleErrorWithMiddlewares(httpError, for: currentRequest)
+      return try await finishResponse(recovered, for: currentRequest)
     }
   }
 
   // MARK: - Private Methods
 
-  private func applyRequestMiddlewares(_ request: HTTPRequest) async throws -> HTTPRequest {
+  private func cachedResponse(for request: HTTPRequest) async throws -> HTTPResponse? {
+    for middleware in requestMiddlewares {
+      guard let provider = middleware as? any CachedResponseProviding,
+        let response = await provider.cachedResponse(for: request)
+      else {
+        continue
+      }
+      return try await finishResponse(
+        response,
+        for: request,
+        skipping: ObjectIdentifier(provider)
+      )
+    }
+    return nil
+  }
+
+  func finishResponse(
+    _ response: HTTPResponse,
+    for request: HTTPRequest,
+    skipping skippedMiddleware: ObjectIdentifier? = nil
+  ) async throws -> HTTPResponse {
+    let processedResponse = try await applyResponseMiddlewares(
+      response,
+      for: request,
+      skipping: skippedMiddleware
+    )
+
+    if processedResponse.status.isClientError.rawValue
+      || processedResponse.status.isServerError.rawValue
+    {
+      throw HTTPError.http(
+        status: processedResponse.status,
+        request: request,
+        response: processedResponse
+      )
+    }
+
+    return processedResponse
+  }
+
+  func applyRequestMiddlewares(_ request: HTTPRequest) async throws -> HTTPRequest {
     var currentRequest = request
     for middleware in requestMiddlewares {
       currentRequest = try await middleware.modifyRequest(currentRequest)
@@ -124,10 +175,17 @@ public final class NetworkClient: HTTPClient {
 
   private func applyResponseMiddlewares(
     _ response: HTTPResponse,
-    for request: HTTPRequest
+    for request: HTTPRequest,
+    skipping skippedMiddleware: ObjectIdentifier?
   ) async throws -> HTTPResponse {
     var currentResponse = response
     for middleware in responseMiddlewares {
+      if let skippedMiddleware,
+        let object = middleware as AnyObject?,
+        ObjectIdentifier(object) == skippedMiddleware
+      {
+        continue
+      }
       currentResponse = try await middleware.processResponse(currentResponse, for: request)
     }
     return currentResponse
@@ -142,6 +200,8 @@ public final class NetworkClient: HTTPClient {
         return try await middleware.handleError(currentError, for: request)
       } catch let newError as HTTPError {
         currentError = newError
+      } catch is CancellationError {
+        throw HTTPError.cancelled(request: request)
       } catch {
         currentError = HTTPError(
           category: .network(.serverUnreachable),
@@ -175,10 +235,12 @@ public final class NetworkClient: HTTPClient {
       throw mapURLError(error, for: request)
     }
   }
-  private func buildURLRequest(from httpRequest: HTTPRequest) throws -> URLRequest {
+  func buildURLRequest(from httpRequest: HTTPRequest) throws -> URLRequest {
     var urlRequest = URLRequest(url: httpRequest.urlValue)
     urlRequest.httpMethod = httpRequest.method.methodValue
-    urlRequest.timeoutInterval = httpRequest.timeoutInterval
+    urlRequest.timeoutInterval =
+      (httpRequest.timeoutOverride ?? defaultTimeout)?.rawValue
+      ?? session.configuration.timeoutIntervalForRequest
     // Use session's configuration cache policy if set, otherwise default
     urlRequest.cachePolicy = session.configuration.requestCachePolicy
 
@@ -194,18 +256,24 @@ public final class NetworkClient: HTTPClient {
   }
 
   // swiftlint:disable:next cyclomatic_complexity
-  private func mapURLError(_ error: URLError, for request: HTTPRequest) -> HTTPError {
+  func mapURLError(_ error: URLError, for request: HTTPRequest) -> HTTPError {
     let networkError: HTTPError.NetworkError
 
     switch error.code {
-    case .notConnectedToInternet, .networkConnectionLost:
+    case .notConnectedToInternet:
       networkError = .noConnection
+
+    case .networkConnectionLost:
+      networkError = .connectionLost
 
     case .cannotFindHost, .dnsLookupFailed:
       networkError = .dnsFailure
 
-    case .cannotConnectToHost, .timedOut:
+    case .cannotConnectToHost:
       networkError = .serverUnreachable
+
+    case .timedOut:
+      return HTTPError(category: .timeout, request: request, underlyingError: error)
 
     case .secureConnectionFailed, .serverCertificateUntrusted:
       networkError = .sslError

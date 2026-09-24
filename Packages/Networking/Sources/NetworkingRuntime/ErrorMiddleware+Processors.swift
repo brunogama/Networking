@@ -144,7 +144,7 @@ extension ErrorMiddleware {
         url: sanitizedURL,
         headers: sanitizedHeaders,
         body: request.body,
-        timeout: request.timeout
+        timeout: request.timeoutOverride
       )
     }
   }
