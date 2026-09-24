@@ -172,49 +172,6 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  notify-docs-needed:
-    name: Documentation Notice
-    needs: detect-api-changes
-    if: |
-      needs.detect-api-changes.outputs.has_changes == 'true' &&
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-    steps:
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        env:
-          NEW_COUNT: ${{ needs.detect-api-changes.outputs.new_count }}
-          NEW_SYMBOLS: ${{ needs.detect-api-changes.outputs.new_symbols }}
-        with:
-          script: |
-            const newCount = process.env.NEW_COUNT;
-            const newSymbols = process.env.NEW_SYMBOLS;
-
-            const body = `## Documentation Required
-
-            This PR introduces **${newCount} new public framework API(s)** that need documentation.
-
-            ### New Symbols
-            \`\`\`
-            ${newSymbols}
-            \`\`\`
-
-            Please ensure Documentation.docc is updated with:
-            - Extension files for new types (\`Documentation.docc/Extensions/<TypeName>.md\`)
-            - Updated topic groups in \`Documentation.docc/Networking.md\`
-
-            Run \`/docs-sync\` locally to auto-generate documentation.`;
-
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-
   create-doc-issues:
     name: Create Documentation Issues
     needs: detect-api-changes
