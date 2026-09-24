@@ -75,7 +75,7 @@ jobs:
           for symfile in .build/symbol-graphs/*.symbols.json; do
             if [ -f "$symfile" ]; then
               pkg=$(basename "$symfile" .symbols.json)
-              echo "Extracting symbols from $pkg..."
+              echo "Extracting symbols from $pkg..." >&2
               jq -c --arg pkg "$pkg" '[
                 .symbols[]? |
                 select(.accessLevel == "public" or .accessLevel == "open") |
@@ -101,7 +101,7 @@ jobs:
 
             # Find new symbols
             NEW_PRECISES=$(comm -23 /tmp/current.txt /tmp/baseline.txt)
-            NEW_SYMBOL_COUNT=$(echo "$NEW_PRECISES" | grep -c . || echo "0")
+            NEW_SYMBOL_COUNT=$(echo "$NEW_PRECISES" | grep -c . || true)
 
             if [ "$NEW_SYMBOL_COUNT" -gt 0 ]; then
               echo "has_changes=true" >> $GITHUB_OUTPUT
