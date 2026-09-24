@@ -2,9 +2,13 @@
 
 Fundamental HTTP networking components and protocols.
 
+---
+
 ## Overview
 
 The core networking layer provides the foundation for all HTTP operations in Networking. This includes HTTP primitives, client protocols, and middleware interfaces.
+
+---
 
 ## HTTP Primitives
 
@@ -120,6 +124,8 @@ public struct HTTPStatus: Sendable, Hashable, ExpressibleByIntegerLiteral {
 - `isClientError`: 4xx status codes
 - `isServerError`: 5xx status codes
 
+---
+
 ## Client Protocol
 
 ### HTTPClient
@@ -143,6 +149,8 @@ The primary implementation is ``NetworkClient``, which provides:
 let client: HTTPClient = NetworkClient()
 let response = try await client.execute(request)
 ```
+
+---
 
 ## Middleware Protocols
 
@@ -200,11 +208,13 @@ public protocol HTTPErrorMiddleware: Sendable {
 - Circuit breaker patterns
 - Error recovery strategies
 
+---
+
 ## Error Handling
 
 ### HTTPError
 
-``HTTPError`` provides comprehensive error categorization:
+``HTTPError`` separates transport, HTTP status, and other failure categories:
 
 ```swift
 public struct HTTPError: Error, Sendable, LocalizedError {
@@ -231,6 +241,8 @@ public struct HTTPError: Error, Sendable, LocalizedError {
 - `.serverUnreachable`: Server not responding
 - `.sslError`: SSL/TLS errors
 
+---
+
 ## Concurrency and Thread Safety
 
 All core networking components are designed for Swift's structured concurrency:
@@ -239,6 +251,8 @@ All core networking components are designed for Swift's structured concurrency:
 - **Actor Isolation**: Internal state uses actors where appropriate
 - **Structured Concurrency**: Full support for async/await and TaskGroup operations
 - **Cancellation**: Proper cancellation handling throughout the stack
+
+---
 
 ## Performance Considerations
 
@@ -257,9 +271,10 @@ All core networking components are designed for Swift's structured concurrency:
 - Keep-alive connections
 - DNS caching and resolution optimization
 
+---
+
 ## Related Topics
 
 - <doc:Request-Building>: Building HTTP requests with the fluent API
-- <doc:Response-Processing>: Processing and transforming responses
-- <doc:Middleware-System>: Creating custom middleware
-- <doc:Error-Handling>: Comprehensive error handling strategies
+- <doc:Middleware-Guide>: Creating custom middleware
+- <doc:Error-Handling>: Error categories and recovery

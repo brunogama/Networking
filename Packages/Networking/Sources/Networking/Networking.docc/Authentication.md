@@ -1,10 +1,14 @@
 # Authentication
 
-Comprehensive authentication support with automatic token management.
+Bearer tokens, Basic authentication, API keys, and token refresh.
+
+---
 
 ## Overview
 
-Networking provides robust authentication capabilities including Bearer tokens, Basic authentication, API keys, and custom authentication schemes. The framework handles token refresh, authentication errors, and secure credential storage automatically.
+`AuthenticationMiddleware` adds credentials to requests and can refresh a token after an authentication error. The package also provides a Keychain token provider for stored credentials.
+
+---
 
 ## Authentication Configuration
 
@@ -54,6 +58,8 @@ let response = try await client.execute {
     APIKey(key: apiKey, headerName: "X-API-Key")
 }
 ```
+
+---
 
 ## Token Providers
 
@@ -147,6 +153,8 @@ struct CustomTokenProvider: BearerTokenProvider {
 }
 ```
 
+---
+
 ## Authentication Strategies
 
 ### Automatic Token Refresh
@@ -201,6 +209,8 @@ let client = NetworkClient {
     }
 }
 ```
+
+---
 
 ## Custom Authentication
 
@@ -306,6 +316,8 @@ struct TokenResponse: Codable {
 }
 ```
 
+---
+
 ## Per-Request Authentication
 
 ### Request-Level Authentication
@@ -345,6 +357,8 @@ let client = NetworkClient {
     }
 }
 ```
+
+---
 
 ## OAuth2 Integration
 
@@ -471,6 +485,8 @@ class PKCEManager {
 }
 ```
 
+---
+
 ## Secure Token Storage
 
 ### Keychain Integration
@@ -569,6 +585,8 @@ extension KeychainService {
 }
 ```
 
+---
+
 ## Error Handling
 
 ### Authentication Errors
@@ -628,6 +646,8 @@ func handleAuthenticationError(_ error: HTTPError) async {
 }
 ```
 
+---
+
 ## Testing Authentication
 
 ### Mock Token Provider
@@ -672,6 +692,8 @@ func testTokenRefresh() async throws {
     // Implementation depends on your testing setup
 }
 ```
+
+---
 
 ## Related Topics
 
