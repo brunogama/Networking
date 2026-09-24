@@ -26,6 +26,7 @@ public struct NetworkClientBuilder {
     public var cachingConfiguration: CachingConfiguration?
     public var sessionConfiguration: SessionConfiguration?
     public var securityConfiguration: SecurityConfiguration?
+    public var trafficRecorder: NetworkTrafficRecorder?
 
     public init() {}
   }

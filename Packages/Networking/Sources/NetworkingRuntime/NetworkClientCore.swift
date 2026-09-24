@@ -72,6 +72,7 @@ public final class NetworkClient: HTTPFileTransferClient {
   let responseMiddlewares: [any HTTPResponseMiddleware]
   private let errorMiddlewares: [any HTTPErrorMiddleware]
   private let defaultTimeout: RequestTimeout?
+  private let trafficRecorder: NetworkTrafficRecorder?
 
   package var canPerformNativeFileTransfer: Bool {
     errorMiddlewares.isEmpty
@@ -89,13 +90,15 @@ public final class NetworkClient: HTTPFileTransferClient {
     requestMiddlewares: [any HTTPRequestMiddleware] = [],
     responseMiddlewares: [any HTTPResponseMiddleware] = [],
     errorMiddlewares: [any HTTPErrorMiddleware] = [],
-    defaultTimeout: RequestTimeout? = nil
+    defaultTimeout: RequestTimeout? = nil,
+    trafficRecorder: NetworkTrafficRecorder? = nil
   ) {
     self.session = session
     self.requestMiddlewares = requestMiddlewares
     self.responseMiddlewares = responseMiddlewares
     self.errorMiddlewares = errorMiddlewares
     self.defaultTimeout = defaultTimeout
+    self.trafficRecorder = trafficRecorder
   }
 
   // MARK: - HTTPClient
@@ -220,24 +223,14 @@ public final class NetworkClient: HTTPFileTransferClient {
   private func performRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
     let urlRequest = try buildURLRequest(from: request)
 
-    do {
-      let (data, response) = try await session.data(for: urlRequest)
-
-      guard let httpResponse = response as? HTTPURLResponse else {
-        throw HTTPError(
-          category: .network(.serverUnreachable),
-          request: request
-        )
-      }
-
-      return HTTPResponse(
-        request: request,
-        httpURLResponse: httpResponse,
-        body: HTTPBody(data)
+    if let trafficRecorder {
+      return try await performRecordedRequest(
+        urlRequest,
+        for: request,
+        recorder: trafficRecorder
       )
-    } catch let error as URLError {
-      throw mapURLError(error, for: request)
     }
+    return try await performUnrecordedRequest(urlRequest, for: request)
   }
   func buildURLRequest(from httpRequest: HTTPRequest) throws -> URLRequest {
     var urlRequest = URLRequest(url: httpRequest.urlValue)

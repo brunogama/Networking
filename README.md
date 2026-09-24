@@ -132,6 +132,26 @@ let response = try await client.execute(request)
 
 ## Advanced Features
 
+### Traffic Debugging
+
+```swift
+let traffic = NetworkTrafficRecorder()
+let client = try NetworkClient {
+    EnableTrafficDebugging(traffic)
+}
+
+_ = try await client.execute(request)
+
+for attempt in await traffic.records() {
+    print(attempt.sequence, attempt.request.method, attempt.response?.statusCode as Any)
+    for transaction in attempt.transactions {
+        print(transaction.connectStart as Any, transaction.responseEnd as Any)
+    }
+}
+```
+
+The recorder captures `NetworkClient` data requests, including redirects and retry attempts. Records are kept in request start order. By default, query values, header values, and bodies are omitted. Native file transfers, background transfers, and server-sent events use separate paths.
+
 ### File Operations
 
 ```swift
