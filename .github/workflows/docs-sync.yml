@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   detect-api-changes:
-    name: Detect API Changes
+    name: Detect Framework API Changes
     runs-on: macos-15
     outputs:
       has_changes: ${{ steps.diff.outputs.has_changes }}
@@ -77,7 +77,7 @@ jobs:
             local graph_path="$3"
             local output_path="$4"
             mkdir -p "$graph_path"
-            for product in Networking NetworkingObservabilityOTLP NetworkingMacros; do
+            for product in Networking NetworkingObservabilityOTLP; do
               swift build --package-path "$source_path" --scratch-path "$scratch_path" \
                 --product "$product" \
                 -Xswiftc -emit-symbol-graph \
@@ -121,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           NEW_COUNT=$(jq 'length' .cache/current-symbols.json)
-          echo "Total public symbols across shipped products: $NEW_COUNT"
+          echo "Total public framework symbols: $NEW_COUNT"
 
           # Get precise identifiers from both commits
           jq -r '.[].precise' .cache/current-symbols.json | sort -u > "$RUNNER_TEMP/current.txt"
@@ -158,6 +158,8 @@ jobs:
           {
             echo "## API Change Detection"
             echo ""
+            echo "Scope: Networking and NetworkingObservabilityOTLP. NetworkingMacros, NetworkingTesting, and NetworkingBDD are outside this check."
+            echo ""
             if [ "$HAS_CHANGES" = "true" ]; then
               echo "**New APIs detected:** $NEW_COUNT"
               echo ""
@@ -193,7 +195,7 @@ jobs:
 
             const body = `## Documentation Required
 
-            This PR introduces **${newCount} new public API(s)** that need documentation.
+            This PR introduces **${newCount} new public framework API(s)** that need documentation.
 
             ### New Symbols
             \`\`\`
@@ -316,7 +318,7 @@ jobs:
               const issue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `docs: Document ${newCount} new public API(s) from ${sha}`,
+                title: `docs: Document ${newCount} new public framework API(s) from ${sha}`,
                 body: body,
                 labels: ['documentation', 'auto-generated', 'good first issue']
               });
