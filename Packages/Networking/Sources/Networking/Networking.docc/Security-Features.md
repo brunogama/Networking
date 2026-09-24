@@ -1,10 +1,14 @@
 # Security Features
 
-Comprehensive security capabilities including SSL pinning, certificate validation, and security headers.
+Certificate pinning, certificate validation, security headers, and credential storage.
+
+---
 
 ## Overview
 
-Networking provides enterprise-grade security features to protect your application's network communications. The framework includes SSL/TLS pinning, certificate validation, security headers, and secure credential storage.
+Networking includes certificate pinning, certificate validation, security headers, and Keychain-based credential storage.
+
+---
 
 ## SSL Pinning
 
@@ -69,6 +73,8 @@ EnableSecurity {
     SkipPinningForDebug(false)      // Disable in debug builds
 }
 ```
+
+---
 
 ## Certificate Validation
 
@@ -142,6 +148,8 @@ EnableSecurity {
 }
 ```
 
+---
+
 ## Security Headers
 
 ### Automatic Security Headers
@@ -208,6 +216,8 @@ EnableSecurity {
 }
 ```
 
+---
+
 ## Credential Security
 
 ### Keychain Integration
@@ -259,6 +269,8 @@ try await keychainService.store(
 )
 ```
 
+---
+
 ## Network Security
 
 ### TLS Configuration
@@ -293,6 +305,8 @@ Session {
     UseEphemeralSession(true)
 }
 ```
+
+---
 
 ## Data Protection
 
@@ -386,6 +400,8 @@ Caching {
 }
 ```
 
+---
+
 ## Security Monitoring
 
 ### Security Event Logging
@@ -453,6 +469,8 @@ struct CTMonitoringMiddleware: HTTPResponseMiddleware {
 }
 ```
 
+---
+
 ## Security Best Practices
 
 ### Production Configuration
@@ -469,7 +487,7 @@ let productionClient = NetworkClient {
         AuthRefreshStrategy(.automatic)
     }
     
-    // Comprehensive security
+    // Security configuration
     EnableSecurity {
         SSLPinning(.certificates(productionCertificates))
         SecurityHeaders(.strict)
@@ -517,6 +535,8 @@ let client = NetworkClient {
     }
 }
 ```
+
+---
 
 ## Related Topics
 

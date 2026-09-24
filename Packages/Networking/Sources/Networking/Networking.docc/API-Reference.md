@@ -1,13 +1,17 @@
 # API Reference
 
-Complete reference for all public APIs in Networking.
+Types and functions grouped by module.
+
+---
 
 ## Overview
 
-This comprehensive API reference covers all public types, protocols, and functions available in Networking, organized by functionality.
+This reference groups Networking types, protocols, and functions by purpose.
 
 `Networking` re-exports the split package graph for compatibility. Advanced users can depend on
 smaller modules directly when they want tighter package boundaries.
+
+---
 
 ## Package Layout
 
@@ -19,6 +23,8 @@ smaller modules directly when they want tighter package boundaries.
 - `NetworkingObservabilityOTLP`: OTLP exporters and configuration
 - `NetworkingTesting`: mocks, fakes, and testing helpers
 - `NetworkingInterceptorsCompat`: compatibility-only interceptor APIs
+
+---
 
 ## Core Networking Types
 
@@ -37,6 +43,8 @@ Core types representing HTTP concepts:
 - ``HTTPMethod``
 - ``HTTPStatus``
 - ``HTTPError``
+
+---
 
 ## Client Implementation
 
@@ -105,6 +113,8 @@ Client configuration using the declarative DSL:
 #### Security Configuration
 - ``EnableSecurity``
 - ``SecurityConfiguration``
+
+---
 
 ## Request Building
 
@@ -176,6 +186,8 @@ Extensions providing additional functionality:
 - Request combination operators (`+`, `|>`)
 - Fluent chaining support
 
+---
+
 ## Response Processing
 
 ### Response Transformation
@@ -210,6 +222,8 @@ Validate responses with structured validation:
 - ``StatusCodeValidationMiddleware``
 - ``ContentTypeValidationMiddleware``
 
+---
+
 ## Middleware System
 
 ### Middleware Protocols
@@ -222,7 +236,7 @@ Core middleware interfaces:
 
 ### Built-in Middleware
 
-Production-ready middleware implementations:
+Middleware implementations:
 
 #### Authentication
 - ``AuthenticationMiddleware``
@@ -247,6 +261,8 @@ Production-ready middleware implementations:
 #### Circuit Breaker
 - ``CircuitBreakerMiddleware``
 
+---
+
 ## Security Features
 
 ### SSL Pinning and Certificate Validation
@@ -268,6 +284,8 @@ HTTP security header management:
 
 - ``HeaderSecurity``
 
+---
+
 ## Progress Tracking
 
 Monitor upload and download progress:
@@ -275,11 +293,15 @@ Monitor upload and download progress:
 - ``ProgressTracking``
 - ``TransferControls``
 
+---
+
 ## File Transfer Operations
 
 Handle file uploads and downloads:
 
 - ``FileTransferOperations``
+
+---
 
 ## Caching System
 
@@ -293,6 +315,8 @@ Different caching backend implementations:
 - ``ExpirationStrategy``
 - ``CacheMetrics``
 
+---
+
 ## Metrics and Observability
 
 ### Metrics Collection
@@ -301,16 +325,20 @@ Collect and report networking metrics:
 
 - ``MetricsCollector``
 
+---
+
 ## Error Handling
 
 ### Error Types and Recovery
 
-Comprehensive error handling and recovery:
+Error handling and recovery:
 
 - ``HTTPError``
 - ``ErrorRecoveryStrategies``
 - ``ActionableErrorInfo``
 - ``CircuitBreakerError``
+
+---
 
 ## Generated API Clients
 
@@ -337,6 +365,8 @@ Macros for generating type-safe API clients:
 - ``@Cacheable(ttl:tags:key:)``
 - ``@CacheInvalidation(tags:pattern:keys:)``
 
+---
+
 ## Type Aliases and Utilities
 
 ### Common Type Aliases
@@ -353,6 +383,8 @@ Version and compatibility information:
   - `version`: Framework version string
   - `swiftVersion`: Required Swift version
 
+---
+
 ## Configuration Protocols
 
 ### Base Configuration Protocols
@@ -364,6 +396,8 @@ Protocols for configuration components:
 - ``RetryComponent``
 - ``CachingComponent``
 - ``SessionComponent``
+
+---
 
 ## Extensions and Utilities
 
@@ -382,6 +416,8 @@ Extensions providing additional functionality:
 - Result type extensions for HTTP operations
 - Optional extensions for safe unwrapping
 
+---
+
 ## Sendable Compliance
 
 All public APIs are designed with Swift 6 concurrency in mind:
@@ -390,6 +426,8 @@ All public APIs are designed with Swift 6 concurrency in mind:
 - Actor-based isolation for mutable shared state
 - Structured concurrency support throughout
 - Thread-safe access patterns
+
+---
 
 ## Deprecated APIs
 
@@ -403,6 +441,8 @@ Compatibility guidance for the split architecture:
 - Treat `NetworkingInterceptorsCompat` as compatibility-only for legacy interceptor pipelines
 - Use `NetworkingTesting` for fakes, mocks, and `MockURLProtocol` instead of widening public API
 - See <doc:Module-Migration> for direct module dependency guidance
+
+---
 
 ## Platform Availability
 
@@ -421,6 +461,8 @@ Framework availability across Apple platforms:
 - Swift 6 compliant
 - Xcode 15.0+ required
 
+---
+
 ## Related Documentation
 
 ### Guides and Tutorials
@@ -434,5 +476,4 @@ Framework availability across Apple platforms:
 
 - <doc:Core-Networking>: Fundamental networking concepts
 - <doc:Request-Building>: Request construction patterns
-- <doc:Response-Processing>: Response handling strategies
 - <doc:Error-Handling>: Error management approaches

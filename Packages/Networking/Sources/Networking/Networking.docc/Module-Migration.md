@@ -3,6 +3,8 @@
 Use this guide when you want to adopt the split package graph directly instead of relying only on
 the `Networking` umbrella.
 
+---
+
 ## Default Recommendation
 
 Most downstream targets should continue to:
@@ -12,7 +14,9 @@ import Networking
 ```
 
 The umbrella target re-exports the core runtime modules so existing consumer code can keep a single
-import while the package graph is modernized underneath it.
+import while choosing individual modules remains optional.
+
+---
 
 ## Package Map
 
@@ -26,6 +30,8 @@ Choose the smallest module set that matches the behavior you need:
 - `NetworkingObservabilityOTLP`: OTLP exporters and related OpenTelemetry integration
 - `NetworkingTesting`: mocks, fakes, `MockURLProtocol`, and test helpers
 - `NetworkingInterceptorsCompat`: compatibility-only interceptor APIs
+
+---
 
 ## Common Import Sets
 
@@ -53,6 +59,8 @@ import Networking
 import NetworkingTesting
 ```
 
+---
+
 ## Compatibility Rules
 
 - Keep `import Networking` as the default consumer-facing import during the migration.
@@ -60,6 +68,8 @@ import NetworkingTesting
 - Treat `NetworkingInterceptorsCompat` as a legacy compatibility surface.
 - Use `NetworkingTesting` for test doubles instead of expanding the public protocol surface.
 - Add `NetworkingObservabilityOTLP` only when you actually need OTLP exporters.
+
+---
 
 ## Public Protocol Notes
 
@@ -76,6 +86,8 @@ act as real consumer extension seams:
   because custom steps are a first-class BDD extension point.
 - New testability work should prefer `NetworkingTesting` fakes and helpers over adding new public
   protocols to production modules.
+
+---
 
 ## Migration Notes
 
