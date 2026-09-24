@@ -49,16 +49,21 @@ extension NetworkClient {
         for: urlRequest,
         delegate: FileTransferTaskDelegate(progress: progress)
       )
-      guard let httpResponse = response as? HTTPURLResponse else {
-        throw HTTPError.network(.serverUnreachable, request: preparedRequest)
+      do {
+        guard let httpResponse = response as? HTTPURLResponse else {
+          throw HTTPError.network(.serverUnreachable, request: preparedRequest)
+        }
+        let result = HTTPResponse(
+          request: preparedRequest,
+          httpURLResponse: httpResponse,
+          body: HTTPBody(Data())
+        )
+        let processedResponse = try await processDownloadedResponse(result, for: preparedRequest)
+        return HTTPFileDownload(temporaryFileURL: fileURL, response: processedResponse)
+      } catch {
+        try? FileManager.default.removeItem(at: fileURL)
+        throw error
       }
-      let result = HTTPResponse(
-        request: preparedRequest,
-        httpURLResponse: httpResponse,
-        body: HTTPBody(Data())
-      )
-      let processedResponse = try await processDownloadedResponse(result, for: preparedRequest)
-      return HTTPFileDownload(temporaryFileURL: fileURL, response: processedResponse)
     } catch let error as URLError {
       throw mapURLError(error, for: preparedRequest)
     } catch is CancellationError {

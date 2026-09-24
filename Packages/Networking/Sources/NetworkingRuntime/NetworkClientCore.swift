@@ -77,6 +77,10 @@ public final class NetworkClient: HTTPFileTransferClient {
     errorMiddlewares.isEmpty
   }
 
+  package var canPerformNativeDownload: Bool {
+    canPerformNativeFileTransfer && responseMiddlewares.isEmpty
+  }
+
   // MARK: - Initialization
 
   /// Creates a client with a URL session and optional middleware.

@@ -10,6 +10,79 @@ import FoundationNetworking
 
 @Suite("NetworkClient middleware integration")
 struct NetworkClientMiddlewareIntegrationTests {
+  @Test("A file download gives response middleware the downloaded body")
+  func fileDownloadPreservesResponseBodyForMiddleware() async throws {
+    let contextID = MockContextIdentifier()
+    let url = HTTPRequestURL(try #require(URL(string: "https://api.example.com/download-body")))
+    MockURLProtocol.clearAll(contextID: contextID)
+    defer { MockURLProtocol.clearAll(contextID: contextID) }
+
+    let body = HTTPBody(Data("downloaded body".utf8))
+    MockURLProtocol.stub(
+      matching: .url(url),
+      response: .success(statusCode: 200, data: body),
+      contextID: contextID
+    )
+
+    let session = URLSession(
+      configuration: MockURLProtocol.createMockConfiguration(contextID: contextID)
+    )
+    defer { session.invalidateAndCancel() }
+    let middleware = MockHTTPResponseMiddleware()
+    let client = NetworkClient(session: session, responseMiddlewares: [middleware])
+    let transfers = FileTransferOperations(httpClient: client)
+
+    let result = try await transfers.downloadData(from: RemoteTransferURL(url.rawValue))
+
+    #expect(result.data == body)
+    #expect(middleware.getLastCapturedResponse()?.response.body == body)
+  }
+
+  @Test("A rejected native download removes its URLSession temporary file")
+  func rejectedDownloadRemovesTemporaryFile() async throws {
+    let contextID = MockContextIdentifier()
+    let url = HTTPRequestURL(try #require(URL(string: "https://api.example.com/download-cleanup")))
+    MockURLProtocol.clearAll(contextID: contextID)
+    defer { MockURLProtocol.clearAll(contextID: contextID) }
+
+    let marker = UUID().uuidString
+    MockURLProtocol.stubSequential(
+      url: url,
+      responses: [
+        .success(statusCode: 200, data: HTTPBody(Data(marker.utf8))),
+        .success(statusCode: 404, data: HTTPBody(Data(marker.utf8))),
+      ],
+      contextID: contextID
+    )
+
+    let session = URLSession(
+      configuration: MockURLProtocol.createMockConfiguration(contextID: contextID)
+    )
+    defer { session.invalidateAndCancel() }
+    let client = NetworkClient(session: session)
+    let request = HTTPRequest(method: .get, url: url)
+
+    let successfulDownload = try await client.download(request, progress: nil)
+    let temporaryDirectory = successfulDownload.temporaryFileURL.deletingLastPathComponent()
+    try FileManager.default.removeItem(at: successfulDownload.temporaryFileURL)
+    let filesBefore = try Set(
+      FileManager.default.contentsOfDirectory(atPath: temporaryDirectory.path)
+    )
+
+    await #expect(throws: HTTPError.self) {
+      _ = try await client.download(request, progress: nil)
+    }
+
+    let filesAfter = try Set(
+      FileManager.default.contentsOfDirectory(atPath: temporaryDirectory.path)
+    )
+    let leakedFiles = filesAfter.subtracting(filesBefore).filter { name in
+      let fileURL = temporaryDirectory.appendingPathComponent(name)
+      return (try? Data(contentsOf: fileURL)) == Data(marker.utf8)
+    }
+    #expect(leakedFiles.isEmpty)
+  }
+
   @Test("A 401 refreshes authentication and retries with the new token")
   func refreshesAuthenticationAfterUnauthorizedResponse() async throws {
     let contextID = MockContextIdentifier()

@@ -154,7 +154,7 @@ public actor FileTransferOperations {
     )
 
     if let transferClient = httpClient as? any HTTPFileTransferClient,
-      transferClient.canPerformNativeFileTransfer
+      transferClient.canPerformNativeDownload
     {
       return try await performFileDownload(
         client: transferClient,
@@ -191,7 +191,7 @@ public actor FileTransferOperations {
     )
 
     if let transferClient = httpClient as? any HTTPFileTransferClient,
-      transferClient.canPerformNativeFileTransfer
+      transferClient.canPerformNativeDownload
     {
       return try await performDataDownload(
         client: transferClient,

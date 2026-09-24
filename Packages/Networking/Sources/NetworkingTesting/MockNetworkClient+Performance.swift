@@ -1,6 +1,10 @@
 import NetworkingRuntime
 import Foundation
 
+#if canImport(Darwin)
+import Darwin
+#endif
+
 // MARK: - Performance Testing Extensions
 
 extension MockNetworkClient {
@@ -9,12 +13,12 @@ extension MockNetworkClient {
   /// - Returns: Performance metrics
   public func measurePerformance(for request: HTTPRequest) async throws -> PerformanceMetrics {
     let startTime = Date()
-    let startMemory = getCurrentMemoryUsage()
+    let startMemory = getPeakMemoryUsage()
 
     let response = try await execute(request)
 
     let duration = MeasurementDuration(Date().timeIntervalSince(startTime))
-    let endMemory = getCurrentMemoryUsage()
+    let endMemory = getPeakMemoryUsage()
 
     return PerformanceMetrics(
       duration: duration,
@@ -23,20 +27,11 @@ extension MockNetworkClient {
     )
   }
 
-  private func getCurrentMemoryUsage() -> Int {
+  private func getPeakMemoryUsage() -> Int {
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
-    var info = mach_task_basic_info()
-    var count = mach_msg_type_number_t(
-      MemoryLayout.size(ofValue: info) / MemoryLayout<integer_t>.size
-    )
-    let result = withUnsafeMutablePointer(to: &info) {
-      $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-        task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
-      }
-    }
-    return result == KERN_SUCCESS ? Int(info.resident_size) : 0
+    var usage = rusage()
+    return getrusage(RUSAGE_SELF, &usage) == 0 ? Int(usage.ru_maxrss) : 0
     #else
-    // On Linux, memory tracking is not available via this method
     return 0
     #endif
   }
@@ -46,6 +41,7 @@ extension MockNetworkClient {
 
 public struct PerformanceMetrics {
   public let duration: MeasurementDuration
+  /// Growth in peak resident memory during the request.
   public let memoryDelta: StorageSizeValue
   public let responseSize: ResponseSize
 
