@@ -77,9 +77,12 @@ jobs:
             local graph_path="$3"
             local output_path="$4"
             mkdir -p "$graph_path"
-            swift build --package-path "$source_path" --scratch-path "$scratch_path" \
-              -Xswiftc -emit-symbol-graph \
-              -Xswiftc -emit-symbol-graph-dir -Xswiftc "$graph_path"
+            for product in Networking NetworkingObservabilityOTLP NetworkingMacros; do
+              swift build --package-path "$source_path" --scratch-path "$scratch_path" \
+                --product "$product" \
+                -Xswiftc -emit-symbol-graph \
+                -Xswiftc -emit-symbol-graph-dir -Xswiftc "$graph_path"
+            done
 
             shopt -s nullglob
             local graphs=("$graph_path"/Networking*.symbols.json)
@@ -118,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           NEW_COUNT=$(jq 'length' .cache/current-symbols.json)
-          echo "Total public symbols across all packages: $NEW_COUNT"
+          echo "Total public symbols across shipped products: $NEW_COUNT"
 
           # Get precise identifiers from both commits
           jq -r '.[].precise' .cache/current-symbols.json | sort -u > "$RUNNER_TEMP/current.txt"
