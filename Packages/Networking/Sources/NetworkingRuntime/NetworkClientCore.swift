@@ -5,68 +5,11 @@ import NetworkingCore
 import FoundationNetworking
 #endif
 
-/// Modern HTTP client implementation using URLSession and structured concurrency.
+/// Executes HTTP requests through `URLSession` and the configured middleware.
 ///
-/// `NetworkClient` is the primary implementation of ``HTTPClient`` that provides a comprehensive
-/// networking solution built on top of URLSession. It supports a middleware pipeline for request
-/// and response processing, automatic error recovery, and is fully compatible with Swift's
-/// structured concurrency model.
-///
-/// ## Usage
-///
-/// ### Basic Client Creation
-///
-/// ```swift
-/// let client = NetworkClient()
-/// let response = try await client.execute(request)
-/// ```
-///
-/// ### Client with Middleware
-///
-/// ```swift
-/// let client = NetworkClient(
-///     requestMiddlewares: [AuthenticationMiddleware()],
-///     responseMiddlewares: [CachingMiddleware()],
-///     errorMiddlewares: [RetryMiddleware()]
-/// )
-/// ```
-///
-/// ### Configuration-Based Client
-///
-/// ```swift
-/// let client = NetworkClient {
-///     BaseURL("https://api.example.com")
-///     EnableLogging()
-///     EnableRetry()
-///     Authentication {
-///         BearerToken(tokenProvider)
-///     }
-/// }
-/// ```
-///
-/// ## Architecture
-///
-/// The client processes requests through a three-stage middleware pipeline:
-///
-/// 1. **Request Middleware**: Modifies requests before execution (authentication, logging, etc.)
-/// 2. **Network Execution**: Performs the actual HTTP request using URLSession
-/// 3. **Response Middleware**: Processes responses after execution (caching, validation, etc.)
-/// 4. **Error Middleware**: Handles errors and provides recovery strategies (retry, fallback, etc.)
-///
-/// ## Thread Safety
-///
-/// `NetworkClient` is fully thread-safe and `Sendable`. All middleware operations are executed
-/// in a controlled manner that ensures safe concurrent access. The client can be safely shared
-/// across multiple tasks and actors.
-///
-/// ## Related Documentation
-///
-/// - <doc:Client-Configuration>: Complete configuration guide
-/// - <doc:Middleware-System>: Creating custom middleware
-/// - <doc:Core-Networking>: Understanding HTTP primitives
+/// Request middleware runs before a network call or cache lookup. Response middleware
+/// processes the result. Error middleware can recover a failed request.
 public final class NetworkClient: HTTPFileTransferClient {
-  // MARK: - Properties
-
   let session: URLSession
   private let requestMiddlewares: [any HTTPRequestMiddleware]
   let responseMiddlewares: [any HTTPResponseMiddleware]
@@ -81,9 +24,6 @@ public final class NetworkClient: HTTPFileTransferClient {
     canPerformNativeFileTransfer && responseMiddlewares.isEmpty
   }
 
-  // MARK: - Initialization
-
-  /// Creates a client with a URL session and optional middleware.
   public init(
     session: URLSession = .shared,
     requestMiddlewares: [any HTTPRequestMiddleware] = [],
@@ -97,8 +37,6 @@ public final class NetworkClient: HTTPFileTransferClient {
     self.errorMiddlewares = errorMiddlewares
     self.defaultTimeout = defaultTimeout
   }
-
-  // MARK: - HTTPClient
 
   /// Executes a request through the configured middleware pipeline.
   /// - Throws: A transport, middleware, or HTTP status error.
@@ -126,8 +64,6 @@ public final class NetworkClient: HTTPFileTransferClient {
       return try await finishResponse(recovered, for: currentRequest)
     }
   }
-
-  // MARK: - Private Methods
 
   private func cachedResponse(for request: HTTPRequest) async throws -> HTTPResponse? {
     for middleware in requestMiddlewares {
@@ -245,15 +181,12 @@ public final class NetworkClient: HTTPFileTransferClient {
     urlRequest.timeoutInterval =
       (httpRequest.timeoutOverride ?? defaultTimeout)?.rawValue
       ?? session.configuration.timeoutIntervalForRequest
-    // Use session's configuration cache policy if set, otherwise default
     urlRequest.cachePolicy = session.configuration.requestCachePolicy
 
-    // Set headers
     for (key, value) in httpRequest.headers {
       urlRequest.setValue(value.rawValue, forHTTPHeaderField: key.rawValue)
     }
 
-    // Set body
     urlRequest.httpBody = httpRequest.bodyValue
 
     return urlRequest
