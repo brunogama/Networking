@@ -2,15 +2,19 @@
 
 This file is the definitive source of truth for AI agents working on the ModernNetworking project. If `AGENTS.md`, `CLAUDE.md`, or `.cursorrules` contradict this file, this file takes precedence.
 
+---
+
 ## 1. Core Philosophy
 
 - **Production-Grade Quality**: All changes must be production-ready unless the user explicitly asks for a prototype.
 - **Safety First**: Treat security, concurrency safety, and input validation as mandatory.
 - **Minimalism**: Write the smallest correct change. Avoid speculative abstractions and unrelated cleanup.
 
+---
+
 ## 2. Workspace Awareness
 
-- The root [Package.swift](Package.swift) is a workspace shell with no targets or tests.
+- The root [Package.swift](Package.swift) declares products and targets for package consumers.
 - The buildable packages are:
   - `Packages/Networking`
   - `Packages/NetworkingMacros`
@@ -24,6 +28,8 @@ This file is the definitive source of truth for AI agents working on the ModernN
   - `AGENTS.md`
   - `RULES.md`
   - files under `scripts/`
+
+---
 
 ## 3. Mandatory Constraints (MUST)
 
@@ -48,7 +54,7 @@ This file is the definitive source of truth for AI agents working on the ModernN
 
 ### Dependency Hygiene
 
-- The root manifest only aggregates local packages; do not add targets or products there.
+- Keep the root manifest and affected package manifests consistent when products, targets, or dependencies change.
 - Add or update external dependencies only with clear justification.
 - Update only the relevant `Package.resolved` files when the dependency graph changes.
 - Keep dependency order assumptions consistent with [scripts/test-affected-packages.sh](scripts/test-affected-packages.sh).
@@ -58,13 +64,17 @@ This file is the definitive source of truth for AI agents working on the ModernN
 - **No Secrets**: Never commit API keys, tokens, passwords, or other secrets.
 - **Input Validation**: Validate all external inputs, including URLs, headers, request bodies, and file-system inputs.
 
+---
+
 ## 4. Workflow
 
 - **Plan First**: Analyze the task and identify the affected package or packages before writing code.
-- **Read Local Guidance**: Read [AGENTS.md](AGENTS.md) and the relevant package-specific `CLAUDE.md` files for the area you are touching.
+- **Read Local Guidance**: Read [AGENTS.md](AGENTS.md) and any tracked package-specific guidance for the area you are touching.
 - **Step-by-Step**: Execute complex work in small, verifiable steps.
 - **Self-Correction**: If validation fails, stop, analyze, and fix the issue rather than retrying blindly.
 - **Scope Control**: Avoid unrelated refactors, file moves, renames, or mass formatting outside the task.
+
+---
 
 ## 5. Communication
 
