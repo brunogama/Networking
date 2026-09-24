@@ -11,6 +11,9 @@ package struct NetworkTrafficDelegateSnapshot: Sendable {
   package let receivedMetrics: Bool
 }
 
+// URLSession already owns the forwarded delegate and delivers its callbacks on the
+// delegate queue. This adapter never mutates that delegate; its own mutable state
+// is protected by lock and snapshots copy only Sendable values.
 package final class NetworkTrafficTaskDelegate: NSObject, URLSessionTaskDelegate,
   @unchecked Sendable
 {
