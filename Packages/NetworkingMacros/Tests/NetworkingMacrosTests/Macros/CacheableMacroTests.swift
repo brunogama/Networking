@@ -32,7 +32,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(Duration.seconds(300)), policy nil .standard)
+            return CacheConfiguration(duration: ttl(Duration.seconds(300)), policy: .standard)
           }
         }
       }
@@ -57,7 +57,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(Duration.seconds(600)), policy nil .standard)
+            return CacheConfiguration(duration: ttl(Duration.seconds(600)), policy: .standard)
           }
         }
       }
@@ -82,7 +82,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(Duration.seconds(300)), policy nil .aggressive)
+            return CacheConfiguration(duration: ttl(Duration.seconds(300)), policy: .aggressive)
           }
         }
       }
@@ -107,7 +107,7 @@ final class CacheableMacroTests: XCTestCase {
       extension PostAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(Duration.seconds(1800)), policy nil .standard)
+            return CacheConfiguration(duration: ttl(Duration.seconds(1800)), policy: .standard)
           }
         }
       }
@@ -176,7 +176,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(Duration.seconds(0)), policy nil .standard)
+            return CacheConfiguration(duration: ttl(Duration.seconds(0)), policy: .standard)
           }
         }
       }
@@ -201,7 +201,7 @@ final class CacheableMacroTests: XCTestCase {
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(Duration.seconds(86400)), policy nil .standard)
+            return CacheConfiguration(duration: ttl(Duration.seconds(86400)), policy: .standard)
           }
         }
       }

@@ -2,7 +2,6 @@ import Foundation
 
 // MARK: - Configurable Middleware Implementations
 
-/// A retry middleware that can be configured through the DSL.
 struct ConfigurableRetryMiddleware: HTTPErrorMiddleware {
   let configuration: RetryConfiguration
   let client: any HTTPClient

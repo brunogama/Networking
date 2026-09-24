@@ -1,3 +1,4 @@
+// swiftlint:disable line_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -8,7 +9,7 @@ extension RequestCompositionTests {
   func testSingleQueryParameter() {
     assertMacro {
       """
-      @GET(.path("/users"), query: [.parameter("page")])
+      @GET(.path("/users"), queryParameters: [.parameter("page")])
       func listUsers(page: Int) async throws -> [User]
       """
     } expansion: {
@@ -16,10 +17,24 @@ extension RequestCompositionTests {
       func listUsers(page: Int) async throws -> [User]
 
       func listUsers(page: Int) async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.addQueryParameter(name: "page", value: page)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
       }
       """
     }
@@ -28,18 +43,34 @@ extension RequestCompositionTests {
   func testMultipleQueryParameters() {
     assertMacro {
       """
-      @GET(.path("/search"), query: [.parameter("q"), .parameter("limit"), .parameter("offset")])
+      @GET(.path("/search"), queryParameters: [.parameter("q"), .parameter("limit"), .parameter("offset")])
       func search(q: String, limit: Int, offset: Int) async throws -> SearchResults
       """
     } expansion: {
       """
       func search(q: String, limit: Int, offset: Int) async throws -> SearchResults
 
-      func search(q: String limit: Int offset: Int) async throws -> SearchResults {
-          let path = "/search"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(SearchResults.self, from response.data)
+      func search(q: String, limit: Int, offset: Int) async throws -> SearchResults {
+        let path = "/search"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.addQueryParameter(name: "q", value: q)
+        request.addQueryParameter(name: "limit", value: limit)
+        request.addQueryParameter(name: "offset", value: offset)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(SearchResults.self, from: responseBody.rawValue)
       }
       """
     }
@@ -48,7 +79,7 @@ extension RequestCompositionTests {
   func testOptionalQueryParameter() {
     assertMacro {
       """
-      @GET(.path("/users"), query: [.parameter("filter")])
+      @GET(.path("/users"), queryParameters: [.parameter("filter")])
       func listUsers(filter: String?) async throws -> [User]
       """
     } expansion: {
@@ -56,10 +87,26 @@ extension RequestCompositionTests {
       func listUsers(filter: String?) async throws -> [User]
 
       func listUsers(filter: String?) async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        if let filter {
+          request.addQueryParameter(name: "filter", value: filter)
+        }
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
       }
       """
     }
@@ -70,18 +117,32 @@ extension RequestCompositionTests {
   func testPathAndQueryComposition() {
     assertMacro {
       """
-      @GET(.path("/users/{id}/posts"), query: [.parameter("status")])
+      @GET(.path("/users/{id}/posts"), queryParameters: [.parameter("status")])
       func getUserPosts(id: String, status: String) async throws -> [Post]
       """
     } expansion: {
       #"""
       func getUserPosts(id: String, status: String) async throws -> [Post]
 
-      func getUserPosts(id: String status: String) async throws -> [Post] {
-          let path = "/users/\(id)/posts"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([Post].self, from response.data)
+      func getUserPosts(id: String, status: String) async throws -> [Post] {
+        let path = "/users/\(id)/posts"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.addQueryParameter(name: "status", value: status)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([Post].self, from: responseBody.rawValue)
       }
       """#
     }
@@ -90,7 +151,7 @@ extension RequestCompositionTests {
   func testPathBodyAndQueryComposition() {
     assertMacro {
       """
-      @POST(.path("/projects/{projectId}/tasks"), query: [.parameter("notify")])
+      @POST(.path("/projects/{projectId}/tasks"), queryParameters: [.parameter("notify")])
       @Body(.parameter("task"))
       func createTask(projectId: String, task: TaskRequest, notify: Bool) async throws -> Task
       """
@@ -99,16 +160,30 @@ extension RequestCompositionTests {
       @Body(.parameter("task"))
       func createTask(projectId: String, task: TaskRequest, notify: Bool) async throws -> Task
 
-      func createTask(projectId: String task: TaskRequest notify: Bool) async throws -> Task {
-          let path = "/projects/\(projectId)/tasks"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(task))
+      func createTask(projectId: String, task: TaskRequest, notify: Bool) async throws -> Task {
+        let path = "/projects/\(projectId)/tasks"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(task)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(Task.self, from response.data)
+        request.addQueryParameter(name: "notify", value: notify)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Task.self, from: responseBody.rawValue)
       }
       """#
     }
   }
 }
+// swiftlint:enable line_length

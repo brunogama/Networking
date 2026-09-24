@@ -195,7 +195,7 @@ extension CachingMiddleware {
       _ request: HTTPRequest,
       _ response: HTTPResponse
     ) -> CacheMaxAge {
-      responseTTL(from: response) ?? 300.0  // 5 minutes
+      responseTTL(from: response) ?? 5 * 60
     }
 
     static func responseTTL(from response: HTTPResponse) -> CacheMaxAge? {

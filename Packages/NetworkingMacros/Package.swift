@@ -19,10 +19,12 @@ let package = Package(
     )
   ],
   dependencies: [
+    .package(path: "../Networking"),
+
     // MacroTemplateKit - Type-safe templating for macro code generation
     .package(
       url: "https://github.com/brunogama/MacroTemplateKit.git",
-      from: "0.0.1"
+      exact: "0.0.7"
     ),
 
     // Swift Syntax for macro implementations
@@ -62,6 +64,8 @@ let package = Package(
       dependencies: [
         "NetworkingMacros",
         "NetworkingMacrosPlugin",
+        .product(name: "Networking", package: "Networking"),
+        .product(name: "NetworkingTesting", package: "Networking"),
         .product(name: "MacroTesting", package: "swift-macro-testing"),
         .product(name: "SwiftParser", package: "swift-syntax"),
       ]

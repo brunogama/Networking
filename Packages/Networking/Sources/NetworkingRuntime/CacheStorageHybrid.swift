@@ -68,7 +68,6 @@ public actor HybridCacheStorage: CachingMiddleware.CacheStorage {
       await memoryCache.remove(key)
     }
 
-    // Disk is the durable backing store; memory is the fast front cache.
     await diskCache.set(key, entry: entry)
   }
 

@@ -1,3 +1,4 @@
+// swiftlint:disable file_length function_body_length line_length type_body_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -9,7 +10,6 @@ import XCTest
 final class AttachedMacroIntegrationTests: XCTestCase {
   override func invokeTest() {
     withMacroTesting(
-      record: .missing,  // Use record mode to capture actual expansions
       macros: [
         APIMacro.self,
         GETMacro.self,
@@ -41,20 +41,34 @@ final class AttachedMacroIntegrationTests: XCTestCase {
       """
       protocol UserAPI {
         func getUsers() async throws -> [User]
+      }
 
+      struct UserAPIImplementation: UserAPI, Sendable {
+        private let client: any HTTPClient
+        private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+        private let defaultHeaders: HTTPHeaders = [:]
+        private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+        init(client: any HTTPClient = NetworkClient()) {
+          self.client = client
+        }
         func getUsers() async throws -> [User] {
           let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
-        }
-
-        public struct UserAPIImplementation: UserAPI {
-          private let client: NetworkClient
-          private let baseURL: String = "https://api.example.com"
-          public init(client: NetworkClient = .shared) {
-            self.client = client
+          guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+            throw URLError(.badURL)
           }
+          let request = HTTPRequest(
+            method: .get,
+            url: url,
+            headers: defaultHeaders,
+            timeout: defaultTimeout
+          )
+          let response = try await client.execute(request)
+          guard let responseBody = response.body else {
+            throw DecodingError.dataCorrupted(
+              DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+            )
+          }
+          return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
         }
       }
       """
@@ -108,20 +122,34 @@ final class AttachedMacroIntegrationTests: XCTestCase {
       #"""
       protocol UserAPI {
         func getUser(id: String) async throws -> User
+      }
 
+      struct UserAPIImplementation: UserAPI, Sendable {
+        private let client: any HTTPClient
+        private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+        private let defaultHeaders: HTTPHeaders = [:]
+        private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+        init(client: any HTTPClient = NetworkClient()) {
+          self.client = client
+        }
         func getUser(id: String) async throws -> User {
           let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
-        }
-
-        public struct UserAPIImplementation: UserAPI {
-          private let client: NetworkClient
-          private let baseURL: String = "https://api.example.com"
-          public init(client: NetworkClient = .shared) {
-            self.client = client
+          guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+            throw URLError(.badURL)
           }
+          let request = HTTPRequest(
+            method: .get,
+            url: url,
+            headers: defaultHeaders,
+            timeout: defaultTimeout
+          )
+          let response = try await client.execute(request)
+          guard let responseBody = response.body else {
+            throw DecodingError.dataCorrupted(
+              DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+            )
+          }
+          return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
         }
       }
       """#
@@ -144,21 +172,34 @@ final class AttachedMacroIntegrationTests: XCTestCase {
       """
       protocol UserAPI {
         func getUsers() async throws -> [User]
+      }
 
+      struct UserAPIImplementation: UserAPI, Sendable {
+        private let client: any HTTPClient
+        private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+        private let defaultHeaders: HTTPHeaders = ["Authorization": "Bearer token", "Content-Type": "application/json"]
+        private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+        init(client: any HTTPClient = NetworkClient()) {
+          self.client = client
+        }
         func getUsers() async throws -> [User] {
           let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
-        }
-
-        public struct UserAPIImplementation: UserAPI {
-          private let client: NetworkClient
-          private let baseURL: String = "https://api.example.com"
-          private let defaultHeaders: [String: String] = ["Authorization" : "Bearer token", "Content-Type" : "application/json"]
-          public init(client: NetworkClient = .shared) {
-            self.client = client
+          guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+            throw URLError(.badURL)
           }
+          let request = HTTPRequest(
+            method: .get,
+            url: url,
+            headers: defaultHeaders,
+            timeout: defaultTimeout
+          )
+          let response = try await client.execute(request)
+          guard let responseBody = response.body else {
+            throw DecodingError.dataCorrupted(
+              DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+            )
+          }
+          return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
         }
       }
       """
@@ -179,21 +220,34 @@ final class AttachedMacroIntegrationTests: XCTestCase {
       """
       protocol UserAPI {
         func getUsers() async throws -> [User]
+      }
 
+      struct UserAPIImplementation: UserAPI, Sendable {
+        private let client: any HTTPClient
+        private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+        private let defaultHeaders: HTTPHeaders = [:]
+        private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+        init(client: any HTTPClient = NetworkClient()) {
+          self.client = client
+        }
         func getUsers() async throws -> [User] {
           let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
-        }
-
-        public struct UserAPIImplementation: UserAPI {
-          private let client: NetworkClient
-          private let baseURL: String = "https://api.example.com"
-          private let defaultTimeout: Double = 30.0
-          public init(client: NetworkClient = .shared) {
-            self.client = client
+          guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+            throw URLError(.badURL)
           }
+          let request = HTTPRequest(
+            method: .get,
+            url: url,
+            headers: defaultHeaders,
+            timeout: defaultTimeout
+          )
+          let response = try await client.execute(request)
+          guard let responseBody = response.body else {
+            throw DecodingError.dataCorrupted(
+              DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+            )
+          }
+          return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
         }
       }
       """
@@ -214,27 +268,41 @@ final class AttachedMacroIntegrationTests: XCTestCase {
       """
       protocol UserAPI {
         func getUsers() async throws -> [User]
+      }
 
+      struct UserAPIImplementation: UserAPI, Sendable {
+        private let client: any HTTPClient
+        private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+        private let defaultHeaders: HTTPHeaders = [:]
+        private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+        init(client: any HTTPClient = NetworkClient()) {
+          self.client = client
+        }
         func getUsers() async throws -> [User] {
           let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
-        }
-
-        public struct UserAPIImplementation: UserAPI {
-          private let client: NetworkClient
-          private let baseURL: String = "https://api.example.com"
-          public init(client: NetworkClient = .shared) {
-            self.client = client
+          guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+            throw URLError(.badURL)
           }
+          let request = HTTPRequest(
+            method: .get,
+            url: url,
+            headers: defaultHeaders,
+            timeout: defaultTimeout
+          )
+          let response = try await client.execute(request)
+          guard let responseBody = response.body else {
+            throw DecodingError.dataCorrupted(
+              DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+            )
+          }
+          return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
         }
       }
 
       extension UserAPI {
         static var cacheConfiguration: CacheConfiguration {
           get {
-            return CacheConfiguration(duration ttl(Duration.seconds(300)), policy nil .standard)
+            return CacheConfiguration(duration: ttl(Duration.seconds(300)), policy: .standard)
           }
         }
       }
@@ -278,3 +346,4 @@ final class AttachedMacroIntegrationTests: XCTestCase {
     }
   }
 }
+// swiftlint:enable file_length function_body_length line_length type_body_length

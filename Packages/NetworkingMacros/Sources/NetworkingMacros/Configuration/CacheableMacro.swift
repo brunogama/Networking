@@ -87,10 +87,7 @@ public struct CacheableMacro: PeerMacro {
         ),
         (
           label: "policy",
-          value: .propertyAccess(
-            base: .literal(.nil),
-            property: policy
-          )
+          value: .implicitMember(policy)
         ),
       ]
     )

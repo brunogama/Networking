@@ -1,3 +1,4 @@
+// swiftlint:disable line_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -25,11 +26,19 @@ final class DELETEMacroTests: XCTestCase {
       #"""
       func deleteUser(id: String) async throws
 
-      func deleteUser(id: String) async throws -> Void {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .DELETE, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Void.self, from response.data)
+      func deleteUser(id: String) async throws {
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .delete,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        _ = try await client.execute(request)
+        return
       }
       """#
     }
@@ -45,11 +54,19 @@ final class DELETEMacroTests: XCTestCase {
       #"""
       func deleteTask(projectId: String, taskId: String) async throws
 
-      func deleteTask(projectId: String taskId: String) async throws -> Void {
-          let path = "/projects/\(projectId)/tasks/\(taskId)"
-          var request = HTTPRequest(method nil .DELETE, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Void.self, from response.data)
+      func deleteTask(projectId: String, taskId: String) async throws {
+        let path = "/projects/\(projectId)/tasks/\(taskId)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .delete,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        _ = try await client.execute(request)
+        return
       }
       """#
     }
@@ -65,11 +82,19 @@ final class DELETEMacroTests: XCTestCase {
       """
       func clearCache() async throws
 
-      func clearCache() async throws -> Void {
-          let path = "/cache"
-          var request = HTTPRequest(method nil .DELETE, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Void.self, from response.data)
+      func clearCache() async throws {
+        let path = "/cache"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .delete,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        _ = try await client.execute(request)
+        return
       }
       """
     }
@@ -125,3 +150,4 @@ final class DELETEMacroTests: XCTestCase {
     }
   }
 }
+// swiftlint:enable line_length

@@ -100,7 +100,7 @@ enum ArgumentExtractors {
     }
 
     for argument in arguments {
-      if argument.label?.text == "queryParameters",
+      if argument.label?.text == "queryParameters" || argument.label?.text == "query",
         let queryParameters = BoundaryExpressionParser.arrayOfStrings(from: argument.expression)
       {
         return queryParameters

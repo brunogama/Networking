@@ -13,7 +13,7 @@ enum ParameterParser {
   ///
   /// - Parameter parametersString: Comma-separated parameter list
   /// - Returns: Array of parameter signatures
-  static func parse(_ parametersString: String) -> [ParameterSignature] {
+  static func parse(_ parametersString: String) -> [ParameterSignature<Void>] {
     guard !parametersString.isEmpty else { return [] }
 
     return parametersString.split(separator: ",").map { paramStr in
@@ -23,7 +23,7 @@ enum ParameterParser {
 
   // MARK: - Private Helpers
 
-  private static func parseParameter(_ parameterString: String) -> ParameterSignature {
+  private static func parseParameter(_ parameterString: String) -> ParameterSignature<Void> {
     let trimmed = parameterString.trimmingCharacters(in: .whitespaces)
     let components = trimmed.split(separator: ":")
 

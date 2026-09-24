@@ -1,4 +1,3 @@
-import MacroTemplateKit
 import SwiftSyntax
 
 enum FunctionSignatureAdapter {
@@ -27,8 +26,14 @@ enum FunctionSignatureAdapter {
   static func invocationArgumentList(
     from signature: FunctionSignatureSyntax
   ) -> String {
-    parameterSignatures(from: signature)
-      .map(invocationArgument(for:))
+    signature.parameterClause.parameters
+      .map { parameter in
+        let label = parameter.firstName.text
+        let name = parameter.secondName?.text ?? label
+        let prefix = label == "_" ? "" : "\(label): "
+        let value = parameter.type.trimmedDescription.hasPrefix("inout ") ? "&\(name)" : name
+        return "\(prefix)\(value)"
+      }
       .joined(separator: ", ")
   }
 
@@ -41,29 +46,4 @@ enum FunctionSignatureAdapter {
     .joined(separator: " ")
   }
 
-  static func parameterSignatures(
-    from signature: FunctionSignatureSyntax
-  ) -> [ParameterSignature] {
-    signature.parameterClause.parameters.map { parameter in
-      let typeDescription = parameter.type.trimmedDescription
-      let isInout = typeDescription.hasPrefix("inout ")
-      let normalizedType =
-        isInout ? String(typeDescription.dropFirst("inout ".count)) : typeDescription
-
-      return ParameterSignature(
-        label: parameter.firstName.text == "_" ? "_" : parameter.firstName.text,
-        name: parameter.secondName?.text ?? parameter.firstName.text,
-        type: normalizedType,
-        isInout: isInout,
-        defaultValue: parameter.defaultValue?.value.trimmedDescription
-      )
-    }
-  }
-
-  private static func invocationArgument(for parameter: ParameterSignature) -> String {
-    let label = parameter.label == "_" ? nil : parameter.label
-    let argumentLabel = label.map { "\($0): " } ?? ""
-    let value = parameter.isInout ? "&\(parameter.name)" : parameter.name
-    return "\(argumentLabel)\(value)"
-  }
 }
