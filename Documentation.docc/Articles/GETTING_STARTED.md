@@ -31,7 +31,7 @@ let package = Package(
         .watchOS(.v9)
     ],
     dependencies: [
-        .package(url: "https://github.com/brunogama/Networking.git", from: "1.0.0")
+        .package(url: "https://github.com/brunogama/Networking.git", branch: "main")
     ],
     targets: [
         .target(
