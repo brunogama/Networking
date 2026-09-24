@@ -118,10 +118,9 @@ jobs:
               echo "new_count=0" >> $GITHUB_OUTPUT
             fi
           else
-            echo "No baseline found - all $NEW_COUNT symbols are new"
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "new_count=$NEW_COUNT" >> $GITHUB_OUTPUT
-            echo "new_symbols=Initial baseline creation" >> $GITHUB_OUTPUT
+            echo "No baseline found - recording $NEW_COUNT symbols without a change comparison"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "new_count=0" >> $GITHUB_OUTPUT
           fi
 
           # Update baseline
@@ -152,8 +151,13 @@ jobs:
   notify-docs-needed:
     name: Documentation Notice
     needs: detect-api-changes
-    if: needs.detect-api-changes.outputs.has_changes == 'true' && github.event_name == 'pull_request'
+    if: |
+      needs.detect-api-changes.outputs.has_changes == 'true' &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -175,11 +179,9 @@ jobs:
             - Extension files for new types (\`Documentation.docc/Extensions/<TypeName>.md\`)
             - Updated topic groups in \`Documentation.docc/Networking.md\`
 
-            Run \`/docs-sync\` locally to auto-generate documentation.
+            Run \`/docs-sync\` locally to auto-generate documentation.`;
 
-            A documentation issue has been created to track this work.`;
-
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -196,6 +198,8 @@ jobs:
         (github.event_name == 'workflow_dispatch' && github.event.inputs.create_issue == 'true')
       )
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Create Documentation Issue
         uses: actions/github-script@v7
