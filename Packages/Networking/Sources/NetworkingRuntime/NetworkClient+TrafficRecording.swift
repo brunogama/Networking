@@ -26,6 +26,7 @@ extension NetworkClient {
       for: request,
       attempt: attempt
     )
+    let endedAt = Date()
     let responseSnapshot = NetworkTrafficSnapshot.response(
       from: response,
       body: data,
@@ -35,6 +36,7 @@ extension NetworkClient {
       let httpResponse = try makeHTTPResponse(from: response, data: data, request: request)
       await completeTrafficAttempt(
         attempt,
+        endedAt: endedAt,
         response: responseSnapshot,
         failure: nil
       )
@@ -42,6 +44,7 @@ extension NetworkClient {
     } catch {
       await completeTrafficAttempt(
         attempt,
+        endedAt: endedAt,
         response: responseSnapshot,
         failure: NetworkTrafficSnapshot.failure(from: error)
       )
@@ -69,8 +72,10 @@ extension NetworkClient {
     do {
       return try await session.data(for: urlRequest, delegate: attempt.delegate)
     } catch {
+      let endedAt = Date()
       await completeTrafficAttempt(
         attempt,
+        endedAt: endedAt,
         response: nil,
         failure: NetworkTrafficSnapshot.failure(from: error)
       )
@@ -83,6 +88,7 @@ extension NetworkClient {
 
   private func completeTrafficAttempt(
     _ attempt: RecordedTrafficAttempt,
+    endedAt: Date,
     response: NetworkTrafficResponse?,
     failure: NetworkTrafficFailure?
   ) async {
@@ -90,7 +96,7 @@ extension NetworkClient {
     await attempt.recorder.complete(
       attempt.token,
       with: NetworkTrafficAttemptResult(
-        endedAt: Date(),
+        endedAt: endedAt,
         response: response,
         failure: failure,
         delegateSnapshot: delegateSnapshot

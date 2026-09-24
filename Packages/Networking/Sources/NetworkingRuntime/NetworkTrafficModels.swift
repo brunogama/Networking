@@ -100,6 +100,7 @@ public struct NetworkTrafficRedirect: Sendable, Equatable {
 public struct NetworkTrafficRecord: Sendable, Equatable, Identifiable {
   public let id: UUID
   public let sequence: UInt64
+  /// Identifies the request passed to the transport after request middleware runs.
   public let requestID: HTTPRequestID
   public let startedAt: Date
   public let endedAt: Date
