@@ -14,12 +14,12 @@ The core networking layer provides the foundation for all HTTP operations in Net
 
 ```swift
 public struct HTTPRequest: Sendable, Identifiable {
-    public let id: UUID
+    public let id: HTTPRequestID
     public let method: HTTPMethod
-    public let url: URL
-    public let headers: [String: String]
-    public let body: Data?
-    public let timeout: TimeInterval
+    public let url: HTTPRequestURL
+    public let headers: HTTPHeaders
+    public let body: HTTPBody?
+    public let timeout: RequestTimeout
 }
 ```
 
@@ -31,9 +31,12 @@ public struct HTTPRequest: Sendable, Identifiable {
 
 **Usage:**
 ```swift
+guard let url = URL(string: "https://api.example.com/users") else {
+    throw URLError(.badURL)
+}
 let request = HTTPRequest(
     method: .get,
-    url: URL(string: "https://api.example.com/users")!,
+    url: url,
     headers: ["Accept": "application/json"],
     timeout: 30.0
 )
@@ -47,8 +50,8 @@ let request = HTTPRequest(
 public struct HTTPResponse: Sendable {
     public let request: HTTPRequest
     public let status: HTTPStatus
-    public let headers: [String: String]
-    public let body: Data?
+    public let headers: HTTPHeaders
+    public let body: HTTPBody?
 }
 ```
 
@@ -61,8 +64,8 @@ public struct HTTPResponse: Sendable {
 **Usage:**
 ```swift
 // Status code checking
-if response.status.isSuccess {
-    let data = response.body
+if response.status.isSuccess.rawValue {
+    let data = response.body?.rawValue
 }
 
 // Header access
@@ -77,7 +80,7 @@ let user: User = try response.decode(User.self)
 ``HTTPMethod`` provides a type-safe representation of HTTP methods:
 
 ```swift
-public struct HTTPMethod: Sendable, Hashable, ExpressibleByStringLiteral {
+public struct HTTPMethod: Sendable, Hashable {
     public static let get = HTTPMethod("GET")
     public static let post = HTTPMethod("POST")
     public static let put = HTTPMethod("PUT")
@@ -90,7 +93,7 @@ public struct HTTPMethod: Sendable, Hashable, ExpressibleByStringLiteral {
 
 **Features:**
 - Predefined common methods
-- String literal initialization for custom methods
+- Custom methods through `HTTPMethod(rawValue:)`
 - Hash and equality support for collections
 
 ### HTTPStatus

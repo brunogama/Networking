@@ -11,16 +11,18 @@ public struct NetworkClientBuilder {
   /// Intermediate configuration storage.
   public struct Configuration: Sendable {
     public var session: URLSession = .shared
+    public var hasCustomSession = false
     public var requestMiddlewares: [any HTTPRequestMiddleware] = []
     public var responseMiddlewares: [any HTTPResponseMiddleware] = []
     public var errorMiddlewares: [any HTTPErrorMiddleware] = []
     public var baseURL: HTTPRequestURL?
     public var defaultHeaders: HTTPHeaders = [:]
-    public var timeout = RequestTimeout(rawValue: 30.0)
+    public var timeout: RequestTimeout?
 
     // Configuration components storage
     public var authenticationConfiguration: AuthenticationConfiguration?
     public var retryConfiguration: RetryConfiguration?
+    public var legacyRetryConfiguration: RetryMiddleware.Configuration?
     public var cachingConfiguration: CachingConfiguration?
     public var sessionConfiguration: SessionConfiguration?
     public var securityConfiguration: SecurityConfiguration?

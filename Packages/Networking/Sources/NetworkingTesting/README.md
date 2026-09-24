@@ -1,6 +1,6 @@
 # Networking Framework Testing Utilities
 
-This directory contains testing utilities that are automatically available when you import the Networking framework in your test targets.
+Add the `NetworkingTesting` product to your test target and import it alongside `Networking`.
 
 ## Available Testing Tools
 
@@ -10,6 +10,7 @@ URLProtocol-based mock for comprehensive request/response simulation.
 
 ```swift
 import Networking
+import NetworkingTesting
 
 // Set up mock responses
 MockURLProtocol.stub(
@@ -40,6 +41,7 @@ Expectation-based mock network client for declarative testing.
 
 ```swift
 import Networking
+import NetworkingTesting
 
 let mockClient = MockNetworkClient()
 

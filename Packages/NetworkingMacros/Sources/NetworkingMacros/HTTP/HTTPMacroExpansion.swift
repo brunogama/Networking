@@ -53,7 +53,6 @@ extension HTTPMacroExpansion {
     providingPeersOf declaration: some DeclSyntaxProtocol,
     in context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
-    // Step 1: Validate function declaration
     guard let function = declaration.as(FunctionDeclSyntax.self) else {
       MacroHelpers.emitError(
         "@\(config.method) can only be applied to function declarations",
@@ -62,6 +61,27 @@ extension HTTPMacroExpansion {
       )
       return []
     }
+
+    // @API owns concrete methods for protocol requirements. Swift macro nodes are
+    // detached from their parents, so use the expansion context's lexical stack.
+    if belongsToAPIProtocol(in: context) {
+      return []
+    }
+
+    return try endpointExpansion(
+      of: node,
+      function: function,
+      accessLevel: nil,
+      context: context
+    )
+  }
+
+  static func endpointExpansion(
+    of node: AttributeSyntax,
+    function: FunctionDeclSyntax,
+    accessLevel: String?,
+    context: some MacroExpansionContext
+  ) throws -> [DeclSyntax] {
 
     // Step 2: Validate async throws
     try MacroHelpers.validateAsyncThrows(function: function, context: context)
@@ -93,24 +113,47 @@ extension HTTPMacroExpansion {
       return []
     }
 
-    // Step 6: Emit deprecation warning for old syntax
-    if usesOldSyntax {
-      MacroHelpers.emitWarning(
-        "Old syntax is deprecated. Use @Body and @Headers macros instead.",
-        node: Syntax(node),
-        context: context
-      )
-    }
+    emitOldSyntaxWarningIfNeeded(usesOldSyntax, node: node, context: context)
 
     // Steps 7-10: Delegate to helper methods
     return try expandWithHelpers(
-      function: function,
-      node: node,
-      path: path,
-      usesOldSyntax: usesOldSyntax,
-      newBodyParam: newBodyParam,
-      newHeaders: newHeaders,
+      HTTPMacroEndpointInput(
+        function: function,
+        node: node,
+        path: path,
+        usesOldSyntax: usesOldSyntax,
+        bodyParameter: newBodyParam,
+        headers: newHeaders,
+        accessLevel: accessLevel
+      ),
       context: context
     )
+  }
+
+  private static func emitOldSyntaxWarningIfNeeded(
+    _ usesOldSyntax: Bool,
+    node: AttributeSyntax,
+    context: some MacroExpansionContext
+  ) {
+    guard usesOldSyntax else { return }
+    MacroHelpers.emitWarning(
+      "Old syntax is deprecated. Use @Body and @Headers macros instead.",
+      node: Syntax(node),
+      context: context
+    )
+  }
+
+  private static func belongsToAPIProtocol(
+    in context: some MacroExpansionContext
+  ) -> Bool {
+    context.lexicalContext.contains { lexicalNode in
+      guard let protocolDeclaration = lexicalNode.as(ProtocolDeclSyntax.self) else {
+        return false
+      }
+      return protocolDeclaration.attributes.contains { element in
+        guard case .attribute(let attribute) = element else { return false }
+        return attribute.attributeName.trimmedDescription.split(separator: ".").last == "API"
+      }
+    }
   }
 }

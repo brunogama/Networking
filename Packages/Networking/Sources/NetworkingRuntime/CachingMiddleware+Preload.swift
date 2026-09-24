@@ -61,52 +61,65 @@ public struct CachePreloadPattern: Sendable {
 
 /// Simple async semaphore for controlling concurrency
 public actor AsyncSemaphore {
-  private let maxCount: CachePreloadConcurrency
-  private var currentCount: CachePreloadConcurrency
-  private var waiters: [CheckedContinuation<Void, Never>] = []
-
-  public init(value: CachePreloadConcurrency) {
-    self.maxCount = value
-    self.currentCount = value
+  private struct Waiter: Sendable {
+    let id: UInt64
+    let continuation: CheckedContinuation<Bool, Never>
   }
 
-  public func wait() async {
+  private let maxCount: Int
+  private var currentCount: Int
+  private var nextWaiterID: UInt64 = 0
+  private var waiters: [Waiter] = []
+
+  public init(value: CachePreloadConcurrency) {
+    let count = max(1, value.rawValue)
+    self.maxCount = count
+    self.currentCount = count
+  }
+
+  @discardableResult
+  public func wait() async -> Bool {
+    guard !Task.isCancelled else { return false }
+
     if currentCount > 0 {
-      currentCount = CachePreloadConcurrency(currentCount.rawValue - 1)
-    } else {
-      await withTaskCancellationHandler {
-        await withCheckedContinuation { continuation in
-          // Check cancellation before storing
-          if Task.isCancelled {
-            continuation.resume()
-            return
-          }
-          waiters.append(continuation)
-        }
-      } onCancel: {
-        Task {
-          await self.cancelWait()
+      currentCount -= 1
+      return true
+    }
+
+    let waiterID = nextWaiterID
+    nextWaiterID &+= 1
+    let acquired = await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        if Task.isCancelled {
+          continuation.resume(returning: false)
+        } else {
+          waiters.append(Waiter(id: waiterID, continuation: continuation))
         }
       }
+    } onCancel: {
+      Task { await self.cancelWait(waiterID) }
     }
+
+    if acquired, Task.isCancelled {
+      signal()
+      return false
+    }
+
+    return acquired
   }
 
   public func signal() {
     if let waiter = waiters.first {
       waiters.removeFirst()
-      waiter.resume()
+      waiter.continuation.resume(returning: true)
     } else {
       currentCount = min(currentCount + 1, maxCount)
     }
   }
 
-  /// Cancels a waiting continuation when task is cancelled
-  private func cancelWait() {
-    // When cancelled, we need to release one waiter if any are waiting
-    // This ensures the continuation stored before cancellation is resumed
-    if !waiters.isEmpty {
-      let waiter = waiters.removeFirst()
-      waiter.resume()
-    }
+  private func cancelWait(_ waiterID: UInt64) {
+    guard let index = waiters.firstIndex(where: { $0.id == waiterID }) else { return }
+    let waiter = waiters.remove(at: index)
+    waiter.continuation.resume(returning: false)
   }
 }

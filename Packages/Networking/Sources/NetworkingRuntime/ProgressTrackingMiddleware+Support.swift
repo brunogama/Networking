@@ -102,11 +102,11 @@ extension ProgressTrackingMiddleware {
     callback: @escaping ProgressCallback,
     configuration: ProgressTrackingConfiguration = .default
   ) -> ProgressTrackingMiddleware {
-    let middleware = ProgressTrackingMiddleware(configuration: configuration)
-    Task {
-      await middleware.setProgressCallback(for: requestId, callback: callback)
-    }
-    return middleware
+    configured(
+      for: requestId,
+      callback: callback,
+      configuration: configuration
+    )
   }
 }
 

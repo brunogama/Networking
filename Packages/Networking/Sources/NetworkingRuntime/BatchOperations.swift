@@ -97,17 +97,17 @@ public struct BatchConfiguration: Sendable {
   /// Creates a batch configuration.
   ///
   /// - Parameters:
-  ///   - maxConcurrency: Maximum concurrent requests (default: unlimited, 0 = unlimited)
+  ///   - maxConcurrency: Maximum concurrent requests (default: 8, 0 = unlimited)
   ///   - cancelOnFailure: Cancel remaining on first failure (default: false)
   public init(
-    maxConcurrency: BatchConcurrencyLimit = 0,
+    maxConcurrency: BatchConcurrencyLimit = 8,
     cancelOnFailure: CancelOnFailureFlag = false
   ) {
     self.maxConcurrency = maxConcurrency
     self.cancelOnFailure = cancelOnFailure
   }
 
-  /// Default configuration with unlimited concurrency and no cancel-on-failure.
+  /// Default configuration with eight concurrent requests and no cancel-on-failure.
   public static let `default` = Self()
 
   /// Serial execution (one request at a time).
@@ -159,6 +159,7 @@ extension HTTPClient {
     return await executeBatch(requests, configuration: configuration)
   }
 
+  // swiftlint:disable cyclomatic_complexity function_body_length
   /// Executes an array of HTTP requests concurrently.
   ///
   /// - Parameters:
@@ -171,15 +172,25 @@ extension HTTPClient {
   ) async -> [BatchResult] {
     guard !requests.isEmpty else { return [] }
 
-    let limiter = BatchConcurrencyLimiter(maxConcurrency: configuration.maxConcurrency)
-
     return await withTaskGroup(of: BatchExecutionResult.self) { group in
-      for (index, request) in requests.enumerated() {
-        group.addTask { await self.executeBatchRequest(request, at: index, limiter: limiter) }
+      let configuredLimit = configuration.maxConcurrency.rawValue
+      let taskLimit = configuredLimit > 0 ? min(configuredLimit, requests.count) : requests.count
+      var nextRequestIndex = 0
+
+      while nextRequestIndex < taskLimit, !Task.isCancelled {
+        let index = nextRequestIndex
+        let request = requests[index]
+        group.addTask { await self.executeBatchRequest(request, at: index) }
+        nextRequestIndex += 1
       }
 
       var results = [BatchResult]()
       results.reserveCapacity(requests.count)
+      var shouldScheduleRequests = !Task.isCancelled
+
+      if !shouldScheduleRequests {
+        group.cancelAll()
+      }
 
       for await batchResult in group {
         results.append(
@@ -189,21 +200,35 @@ extension HTTPClient {
             result: batchResult.result
           )
         )
+
+        if configuration.cancelOnFailure.rawValue, case .failure = batchResult.result {
+          shouldScheduleRequests = false
+          group.cancelAll()
+        }
+
+        if Task.isCancelled {
+          shouldScheduleRequests = false
+          group.cancelAll()
+        }
+
+        if shouldScheduleRequests, nextRequestIndex < requests.count {
+          let index = nextRequestIndex
+          let request = requests[index]
+          group.addTask { await self.executeBatchRequest(request, at: index) }
+          nextRequestIndex += 1
+        }
       }
 
       // Sort by original index to preserve order
       return results.sorted { $0.index < $1.index }
     }
   }
+  // swiftlint:enable cyclomatic_complexity function_body_length
 
   private func executeBatchRequest(
     _ request: HTTPRequest,
-    at index: Int,
-    limiter: BatchConcurrencyLimiter
+    at index: Int
   ) async -> BatchExecutionResult {
-    await limiter.acquire()
-    defer { Task { await limiter.release() } }
-
     do {
       let response = try await execute(request)
       return BatchExecutionResult(

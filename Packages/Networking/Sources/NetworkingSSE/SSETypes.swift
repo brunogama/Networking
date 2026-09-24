@@ -47,18 +47,26 @@ public struct SSEConfiguration: Sendable, Equatable {
   public var respectServerRetry: SSERespectServerRetry
   public var lastEventID: SSELastEventID?
   public var acceptHeader: SSEAcceptHeader
+  /// Maximum events waiting for a consumer before the stream fails.
+  public var maxBufferedEvents: Int
 
   public init(
     reconnectMode: SSEReconnectMode = .automatic(.init()),
     respectServerRetry: SSERespectServerRetry = true,
     lastEventID: SSELastEventID? = nil,
-    acceptHeader: SSEAcceptHeader = "text/event-stream"
+    acceptHeader: SSEAcceptHeader = "text/event-stream",
+    maxBufferedEvents: Int = 256
   ) {
     self.reconnectMode = reconnectMode
     self.respectServerRetry = respectServerRetry
     self.lastEventID = lastEventID
     self.acceptHeader = acceptHeader
+    self.maxBufferedEvents = max(1, maxBufferedEvents)
   }
+}
+
+public enum SSEStreamError: Error, Sendable {
+  case bufferOverflow
 }
 
 public struct SSEEvent: Sendable, Equatable {

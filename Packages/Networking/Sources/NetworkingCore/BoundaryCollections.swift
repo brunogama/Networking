@@ -6,17 +6,27 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral, 
   private var storage: [HTTPHeaderName: HTTPHeaderValue]
 
   public init(_ storage: [HTTPHeaderName: HTTPHeaderValue] = [:]) {
-    self.storage = storage
+    self.storage = [:]
+    for (name, value) in storage {
+      self[name] = value
+    }
   }
 
   package init(_ rawStorage: [String: String]) {
-    self.storage = Dictionary(
-      uniqueKeysWithValues: rawStorage.map { (HTTPHeaderName($0.key), HTTPHeaderValue($0.value)) }
+    self.init(
+      Dictionary(
+        uniqueKeysWithValues: rawStorage.map {
+          (HTTPHeaderName($0.key), HTTPHeaderValue($0.value))
+        }
+      )
     )
   }
 
   public init(dictionaryLiteral elements: (HTTPHeaderName, HTTPHeaderValue)...) {
-    self.storage = Dictionary(uniqueKeysWithValues: elements)
+    self.storage = [:]
+    for (name, value) in elements {
+      self[name] = value
+    }
   }
 
   public var isEmpty: HTTPHeaderCollectionEmptyFlag {
@@ -39,20 +49,23 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral, 
     rawValue.description
   }
 
+  public static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.count == rhs.count && lhs.storage.allSatisfy { rhs[$0.key] == $0.value }
+  }
+
   public subscript(_ name: HTTPHeaderName) -> HTTPHeaderValue? {
-    get { storage[name] }
-    set { storage[name] = newValue }
+    get { matchingKey(for: name).flatMap { storage[$0] } }
+    set {
+      let key = matchingKey(for: name) ?? name
+      storage[key] = newValue
+    }
   }
 
   package subscript(_ name: String) -> String? {
-    get { storage[HTTPHeaderName(name)]?.rawValue }
+    get { self[HTTPHeaderName(name)]?.rawValue }
     set {
       let headerName = HTTPHeaderName(name)
-      if let newValue {
-        storage[headerName] = HTTPHeaderValue(newValue)
-      } else {
-        storage.removeValue(forKey: headerName)
-      }
+      self[headerName] = newValue.map { HTTPHeaderValue($0) }
     }
   }
 
@@ -76,7 +89,19 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral, 
     _ other: Self,
     uniquingKeysWith combine: (HTTPHeaderValue, HTTPHeaderValue) throws -> HTTPHeaderValue
   ) rethrows -> Self {
-    Self(try storage.merging(other.storage, uniquingKeysWith: combine))
+    var result = self
+    for (name, value) in other {
+      if let existing = result[name] {
+        result[name] = try combine(existing, value)
+      } else {
+        result[name] = value
+      }
+    }
+    return result
+  }
+
+  private func matchingKey(for name: HTTPHeaderName) -> HTTPHeaderName? {
+    storage.keys.first { $0.rawValue.caseInsensitiveCompare(name.rawValue) == .orderedSame }
   }
 
   public init(from decoder: any Decoder) throws {

@@ -29,10 +29,7 @@ enum InterceptorCodeGenerator {
           (label: "path", value: .variable(path, payload: ())),
           (
             label: "method",
-            value: .propertyAccess(
-              base: .literal(.nil),
-              property: method
-            )
+            value: .implicitMember(method)
           ),
           (label: "attemptCount", value: .literal(.integer(0))),
         ]
@@ -107,28 +104,6 @@ enum InterceptorCodeGenerator {
     return InterceptorMethodBuilder.buildFunctionDeclaration(config: config, body: body)
   }
 
-  /// Legacy API: Generates complete method implementation (backward compatibility).
-  static func generateMethodImplementation(
-    functionName: String,
-    parameters: String,
-    returnType: String,
-    pathCode: String,
-    method: String,
-    additionalRequestCode: String,
-    hasInterceptors: Bool
-  ) -> DeclSyntax {
-    let config = InterceptorMethodBuilder.MethodConfig(
-      functionName: functionName,
-      parameters: parameters,
-      returnType: returnType,
-      pathCode: pathCode,
-      method: method,
-      additionalRequestCode: additionalRequestCode
-    )
-
-    return generateMethodImplementation(config: config, hasInterceptors: hasInterceptors)
-  }
-
   // MARK: - Private Statement Builders
 
   private static func buildRequestResultBinding(requestVar: String) -> Statement<Void> {
@@ -154,7 +129,7 @@ enum InterceptorCodeGenerator {
   private static func buildRequestGuard(returnType: String) -> Statement<Void> {
     .guardStatement(
       condition: .binaryOperation(
-        left: .propertyAccess(base: .literal(.nil), property: "proceed"),
+        left: .implicitMember("proceed"),
         operator: "~=",
         right: .variable("requestResult", payload: ())
       ),
@@ -230,7 +205,7 @@ enum InterceptorCodeGenerator {
   private static func buildResponseGuard() -> Statement<Void> {
     .guardStatement(
       condition: .binaryOperation(
-        left: .propertyAccess(base: .literal(.nil), property: "proceed"),
+        left: .implicitMember("proceed"),
         operator: "~=",
         right: .variable("responseResult", payload: ())
       ),

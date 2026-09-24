@@ -1,3 +1,4 @@
+// swiftlint:disable file_length function_body_length line_length type_body_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -9,7 +10,6 @@ import XCTest
 final class IntegrationTests: XCTestCase {
   override func invokeTest() {
     withMacroTesting(
-      record: .missing,
       macros: [
         APIMacro.self,
         GETMacro.self,
@@ -168,11 +168,24 @@ final class IntegrationTests: XCTestCase {
       #"""
       func getComment(userId: String, postId: String, commentId: String) async throws -> Comment
 
-      func getComment(userId: String postId: String commentId: String) async throws -> Comment {
-          let path = "/users/\(userId)/posts/\(postId)/comments/\(commentId)"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Comment.self, from response.data)
+      func getComment(userId: String, postId: String, commentId: String) async throws -> Comment {
+        let path = "/users/\(userId)/posts/\(postId)/comments/\(commentId)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Comment.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -181,18 +194,34 @@ final class IntegrationTests: XCTestCase {
   func testQueryParameterCombinations() {
     assertMacro {
       """
-      @GET(.path("/search"), query: [.parameter("q"), .parameter("page"), .parameter("limit")])
+      @GET(.path("/search"), queryParameters: [.parameter("q"), .parameter("page"), .parameter("limit")])
       func search(q: String, page: Int, limit: Int) async throws -> SearchResults
       """
     } expansion: {
       """
       func search(q: String, page: Int, limit: Int) async throws -> SearchResults
 
-      func search(q: String page: Int limit: Int) async throws -> SearchResults {
-          let path = "/search"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(SearchResults.self, from response.data)
+      func search(q: String, page: Int, limit: Int) async throws -> SearchResults {
+        let path = "/search"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.addQueryParameter(name: "q", value: q)
+        request.addQueryParameter(name: "page", value: page)
+        request.addQueryParameter(name: "limit", value: limit)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(SearchResults.self, from: responseBody.rawValue)
       }
       """
     }
@@ -201,16 +230,17 @@ final class IntegrationTests: XCTestCase {
   func testMixedBodyAndQueryParams() {
     assertMacro {
       """
-      @POST(.path("/users/search"), query: [.parameter("includeDeleted")])
+      @POST(.path("/users/search"), queryParameters: [.parameter("includeDeleted")])
       func searchUsers(@Body criteria: SearchCriteria, includeDeleted: Bool) async throws -> [User]
       """
     } diagnostics: {
       """
-      @POST(.path("/users/search"), query: [.parameter("includeDeleted")])
-      ┬───────────────────────────────────────────────────────────────────
+      @POST(.path("/users/search"), queryParameters: [.parameter("includeDeleted")])
+      ┬─────────────────────────────────────────────────────────────────────────────
       ╰─ 🛑 @POST requires a body parameter. Use @Body("paramName") macro.
       func searchUsers(@Body criteria: SearchCriteria, includeDeleted: Bool) async throws -> [User]
       """
     }
   }
 }
+// swiftlint:enable file_length function_body_length line_length type_body_length

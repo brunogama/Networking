@@ -6,66 +6,37 @@ import NetworkingCore
 import FoundationNetworking
 #endif
 
-// Main class for handling file transfer operations.
-// swiftlint:disable:next type_body_length
+// swiftlint:disable type_body_length
+/// Performs file uploads, downloads, and resumable transfers.
 public actor FileTransferOperations {
   // MARK: - Properties
 
   private let httpClient: any HTTPClient
   private let configuration: FileTransferConfiguration
-  private let progressMiddleware: ProgressTrackingMiddleware
-  private let progressStreamManager = ProgressTracking.ProgressStreamManager()
-  private var activeTransfers: [UUID: ActiveTransfer] = [:]
+  private let fileInspector: FileTransferFileInspector
+  private let backgroundTransfers: BackgroundTransferCoordinator
 
-  /// Background URLSession for file transfers.
-  ///
-  /// - Note: `nonisolated(unsafe)` justification:
-  ///   1. URLSession is thread-safe by design (Apple documentation)
-  ///   2. Only set once during initialization in init(), never mutated after
-  ///   3. All access goes through actor-isolated methods, serializing reads
-  ///   4. Session lifetime matches actor lifetime (invalidated with actor)
-  ///
-  /// Alternative would require making session access async, but URLSession
-  /// delegates already handle threading internally.
-  nonisolated(unsafe) private var backgroundSession: URLSession?
-
-  // MARK: - Internal State
-
-  private struct ActiveTransfer {
-    let transferId: UUID
-    let startTime: Date
-    let fileMetadata: FileMetadata?
-    let progressCallback: ProgressCallback?
-    var task: URLSessionTask?
-    var resumeData: Data?
-    var isCancelled: Bool = false
-
-    var duration: TimeInterval {
-      Date().timeIntervalSince(startTime)
-    }
-  }
+  private var backgroundSession: URLSession?
 
   // MARK: - Initialization
 
+  /// Creates a file transfer service with the given HTTP client and configuration.
   public init(
     httpClient: any HTTPClient,
     configuration: FileTransferConfiguration = .default
   ) {
     self.httpClient = httpClient
     self.configuration = configuration
-    self.progressMiddleware = ProgressTrackingMiddleware(
-      configuration: ProgressTrackingConfiguration(
-        trackUploadProgress: true,
-        trackDownloadProgress: true,
-        enableChunkedTransfer: ChunkedTransferSupportFlag(
-          configuration.allowResumableTransfers.rawValue
-        )
-      )
-    )
+    self.fileInspector = FileTransferFileInspector(configuration: configuration)
+    self.backgroundTransfers = BackgroundTransferCoordinator(configuration: configuration)
 
     #if !os(Linux)
     if configuration.backgroundTransferConfiguration.enableBackgroundTransfer.rawValue {
-      self.backgroundSession = createBackgroundSession()
+      self.backgroundSession = makeBackgroundTransferSession(
+        transferConfiguration: configuration,
+        backgroundConfiguration: configuration.backgroundTransferConfiguration,
+        coordinator: backgroundTransfers
+      )
     }
     #endif
   }
@@ -78,6 +49,7 @@ public actor FileTransferOperations {
   ///   - destinationURL: Remote URL to upload to
   ///   - progressCallback: Optional callback for progress updates
   /// - Returns: File transfer result
+  /// - Throws: A file validation or network error.
   public func uploadFile(
     from fileURL: LocalFileURL,
     to destinationURL: RemoteTransferURL,
@@ -88,17 +60,34 @@ public actor FileTransferOperations {
     try validateFileTransfer(metadata: metadata)
 
     // Create request
-    let request = try await createUploadRequest(
-      fileURL: fileURL.rawValue,
+    let request = createFileUploadRequest(
       destinationURL: destinationURL.rawValue,
       metadata: metadata
     )
 
-    return try await performTransfer(
-      request: request,
+    if let transferClient = httpClient as? any HTTPFileTransferClient,
+      transferClient.canPerformNativeFileTransfer
+    {
+      return try await performFileUpload(
+        client: transferClient,
+        request: request,
+        fileURL: fileURL.rawValue,
+        metadata: metadata,
+        progressCallback: progressCallback
+      )
+    }
+
+    let data = try HTTPBody(Data(contentsOf: fileURL.rawValue))
+    return try await performBufferedTransfer(
+      request: createDataUploadRequest(
+        data: data,
+        fileName: metadata.name,
+        destinationURL: destinationURL.rawValue,
+        mimeType: metadata.mimeType
+      ),
+      direction: .upload,
       metadata: metadata,
-      progressCallback: progressCallback,
-      transferType: .upload
+      progressCallback: progressCallback
     )
   }
 
@@ -110,6 +99,7 @@ public actor FileTransferOperations {
   ///   - mimeType: MIME type of the file
   ///   - progressCallback: Optional callback for progress updates
   /// - Returns: File transfer result
+  /// - Throws: A file validation or network error.
   public func uploadData(
     _ data: HTTPBody,
     fileName: FileName,
@@ -126,18 +116,18 @@ public actor FileTransferOperations {
 
     try validateFileTransfer(metadata: metadata)
 
-    let request = try createDataUploadRequest(
+    let request = createDataUploadRequest(
       data: data,
       fileName: fileName,
       destinationURL: destinationURL.rawValue,
       mimeType: mimeType
     )
 
-    return try await performTransfer(
+    return try await performBufferedTransfer(
       request: request,
+      direction: .upload,
       metadata: metadata,
-      progressCallback: progressCallback,
-      transferType: .upload
+      progressCallback: progressCallback
     )
   }
 
@@ -149,6 +139,7 @@ public actor FileTransferOperations {
   ///   - destinationURL: Local URL to save the file
   ///   - progressCallback: Optional callback for progress updates
   /// - Returns: File transfer result
+  /// - Throws: A network or file error.
   public func downloadFile(
     from sourceURL: RemoteTransferURL,
     to destinationURL: LocalFileURL,
@@ -162,11 +153,22 @@ public actor FileTransferOperations {
       )
     )
 
-    return try await performTransfer(
+    if let transferClient = httpClient as? any HTTPFileTransferClient,
+      transferClient.canPerformNativeDownload
+    {
+      return try await performFileDownload(
+        client: transferClient,
+        request: request,
+        destinationURL: destinationURL.rawValue,
+        progressCallback: progressCallback
+      )
+    }
+
+    return try await performBufferedTransfer(
       request: request,
+      direction: .download,
       destinationURL: destinationURL.rawValue,
-      progressCallback: progressCallback,
-      transferType: .download
+      progressCallback: progressCallback
     )
   }
 
@@ -175,6 +177,7 @@ public actor FileTransferOperations {
   ///   - sourceURL: Remote URL to download from
   ///   - progressCallback: Optional callback for progress updates
   /// - Returns: Downloaded file data and transfer result
+  /// - Throws: A network or file error.
   public func downloadData(
     from sourceURL: RemoteTransferURL,
     progressCallback: ProgressCallback? = nil
@@ -187,19 +190,27 @@ public actor FileTransferOperations {
       )
     )
 
-    let result = try await performTransfer(
-      request: request,
-      progressCallback: progressCallback,
-      transferType: .download
-    )
+    if let transferClient = httpClient as? any HTTPFileTransferClient,
+      transferClient.canPerformNativeDownload
+    {
+      return try await performDataDownload(
+        client: transferClient,
+        request: request,
+        progressCallback: progressCallback
+      )
+    }
 
-    // Get the downloaded data from response
-    let response = try await httpClient.execute(request)
-    guard let data = response.body else {
+    let transfer = try await executeBufferedTransfer(
+      request: request,
+      direction: .download,
+      progressCallback: progressCallback,
+      destinationURL: nil
+    )
+    guard let data = transfer.response.body else {
       throw FileTransferError.fileNotFound(path: FileSystemPath(sourceURL.absoluteString))
     }
 
-    return (data: data, result: result)
+    return (data: data, result: transfer.result)
   }
 
   // MARK: - Resumable Transfer Operations
@@ -209,6 +220,7 @@ public actor FileTransferOperations {
   ///   - resumeData: Resume data from previous transfer
   ///   - progressCallback: Optional callback for progress updates
   /// - Returns: File transfer result
+  /// - Throws: An invalid resume data, cancellation, or transfer error.
   public func resumeTransfer(
     with resumeData: TransferResumeData,
     progressCallback: ProgressCallback? = nil
@@ -228,59 +240,20 @@ public actor FileTransferOperations {
     }
 
     let transferId = TransferIdentifier()
-    let startTime = Date()
-
-    // Create task from resume data
     let task = backgroundSession.downloadTask(withResumeData: resumeData.rawValue)
 
-    let activeTransfer = ActiveTransfer(
-      transferId: transferId.rawValue,
-      startTime: startTime,
-      fileMetadata: nil,
-      progressCallback: progressCallback,
+    return try await backgroundTransfers.resume(
       task: task,
-      resumeData: resumeData.rawValue
+      transferId: transferId,
+      progressCallback: progressCallback
     )
-
-    activeTransfers[transferId.rawValue] = activeTransfer
-
-    // Set progress callback
-    if let progressCallback = progressCallback {
-      await progressMiddleware.setProgressCallback(
-        for: HTTPRequestID(transferId.rawValue),
-        callback: progressCallback
-      )
-    }
-
-    // Start task
-    task.resume()
-
-    // Wait for completion (simplified for this implementation)
-    return try await waitForTransferCompletion(transferId: transferId)
   }
 
   /// Cancels an active transfer and returns resume data if available.
   /// - Parameter transferId: The ID of the transfer to cancel
   /// - Returns: Resume data for later resumption, if available
   public func cancelTransfer(_ transferId: TransferIdentifier) async -> TransferResumeData? {
-    guard var activeTransfer = activeTransfers[transferId.rawValue] else {
-      return nil
-    }
-
-    activeTransfer.isCancelled = true
-    activeTransfers[transferId.rawValue] = activeTransfer
-
-    // Cancel the task and collect resume data
-    if let task = activeTransfer.task as? URLSessionDownloadTask {
-      return await withCheckedContinuation { continuation in
-        task.cancel { resumeData in
-          continuation.resume(returning: resumeData.map { TransferResumeData($0) })
-        }
-      }
-    } else {
-      activeTransfer.task?.cancel()
-      return activeTransfer.resumeData.map { TransferResumeData($0) }
-    }
+    await backgroundTransfers.cancel(transferId)
   }
 
   // MARK: - Background Transfer Support
@@ -292,7 +265,11 @@ public actor FileTransferOperations {
   ) async {
     #if !os(Linux)
     if configuration.enableBackgroundTransfer.rawValue {
-      self.backgroundSession = createBackgroundSession(with: configuration)
+      self.backgroundSession = makeBackgroundTransferSession(
+        transferConfiguration: self.configuration,
+        backgroundConfiguration: configuration,
+        coordinator: backgroundTransfers
+      )
     } else {
       self.backgroundSession?.invalidateAndCancel()
       self.backgroundSession = nil
@@ -303,35 +280,7 @@ public actor FileTransferOperations {
   // MARK: - Private Methods
 
   private func validateAndCreateMetadata(for fileURL: URL) async throws -> FileMetadata {
-    guard FileManager.default.fileExists(atPath: fileURL.path) else {
-      throw FileTransferError.fileNotFound(path: FileSystemPath(fileURL.path))
-    }
-
-    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-    let fileSize = attributes[.size] as? Int64 ?? 0
-    let createdAt = attributes[.creationDate] as? Date
-    let modifiedAt = attributes[.modificationDate] as? Date
-
-    let fileName = fileURL.lastPathComponent
-    let mimeType = getMimeType(for: fileURL)
-
-    // Calculate checksum if enabled
-    let checksum: FileChecksum?
-    if configuration.enableIntegrityCheck.rawValue {
-      let data = try HTTPBody(Data(contentsOf: fileURL))
-      checksum = calculateChecksum(for: data)
-    } else {
-      checksum = nil
-    }
-
-    return FileMetadata(
-      name: FileName(fileName),
-      size: FileSize(fileSize),
-      mimeType: mimeType,
-      createdAt: createdAt,
-      modifiedAt: modifiedAt,
-      checksum: checksum
-    )
+    try fileInspector.metadata(for: fileURL)
   }
 
   private func validateFileTransfer(metadata: FileMetadata) throws {
@@ -357,17 +306,16 @@ public actor FileTransferOperations {
     }
   }
 
-  private func createUploadRequest(
-    fileURL: URL,
+  private func createFileUploadRequest(
     destinationURL: URL,
     metadata: FileMetadata
-  ) async throws -> HTTPRequest {
-    let data = try HTTPBody(Data(contentsOf: fileURL))
-    return try createDataUploadRequest(
-      data: data,
-      fileName: metadata.name,
+  ) -> HTTPRequest {
+    createUploadRequest(
       destinationURL: destinationURL,
-      mimeType: metadata.mimeType
+      fileName: metadata.name,
+      contentLength: metadata.size.rawValue,
+      mimeType: metadata.mimeType,
+      body: nil
     )
   }
 
@@ -376,9 +324,26 @@ public actor FileTransferOperations {
     fileName: FileName,
     destinationURL: URL,
     mimeType: HTTPMediaType?
-  ) throws -> HTTPRequest {
+  ) -> HTTPRequest {
+    createUploadRequest(
+      destinationURL: destinationURL,
+      fileName: fileName,
+      contentLength: Int64(data.count.rawValue),
+      mimeType: mimeType,
+      body: data
+    )
+  }
+
+  // swiftlint:disable:next function_parameter_count
+  private func createUploadRequest(
+    destinationURL: URL,
+    fileName: FileName,
+    contentLength: Int64,
+    mimeType: HTTPMediaType?,
+    body: HTTPBody?
+  ) -> HTTPRequest {
     var headers: [String: String] = [
-      "Content-Length": "\(data.count)"
+      "Content-Length": "\(contentLength)"
     ]
 
     if let mimeType = mimeType {
@@ -391,172 +356,329 @@ public actor FileTransferOperations {
       method: .post,
       url: HTTPRequestURL(destinationURL),
       headers: HTTPHeaders(headers),
-      body: data,
+      body: body,
       timeout: RequestTimeout(
         configuration.backgroundTransferConfiguration.timeoutIntervalForResource.rawValue
       )
     )
   }
 
-  private enum TransferType {
+  private enum TransferDirection: Sendable {
     case upload
     case download
+
+    var activePhase: TransferPhase {
+      switch self {
+      case .upload:
+        return .uploading
+      case .download:
+        return .downloading
+      }
+    }
   }
 
-  // swiftlint:disable:next cyclomatic_complexity function_body_length
-  private func performTransfer(
+  private struct BufferedTransfer: Sendable {
+    let response: HTTPResponse
+    let result: FileTransferResult
+  }
+
+  private func performBufferedTransfer(
     request: HTTPRequest,
+    direction: TransferDirection,
     metadata: FileMetadata? = nil,
     destinationURL: URL? = nil,
-    progressCallback: ProgressCallback? = nil,
-    transferType: TransferType
+    progressCallback: ProgressCallback? = nil
   ) async throws -> FileTransferResult {
+    try await executeBufferedTransfer(
+      request: request,
+      direction: direction,
+      metadata: metadata,
+      progressCallback: progressCallback,
+      destinationURL: destinationURL
+    ).result
+  }
+
+  private func executeBufferedTransfer(
+    request: HTTPRequest,
+    direction: TransferDirection,
+    metadata: FileMetadata? = nil,
+    progressCallback: ProgressCallback?,
+    destinationURL: URL?
+  ) async throws -> BufferedTransfer {
     let transferId = TransferIdentifier()
     let startTime = Date()
 
-    let activeTransfer = ActiveTransfer(
-      transferId: transferId.rawValue,
-      startTime: startTime,
-      fileMetadata: metadata,
-      progressCallback: progressCallback
-    )
+    do {
+      let response = try await httpClient.execute(request)
+      try write(response.body, to: destinationURL)
 
-    activeTransfers[transferId.rawValue] = activeTransfer
+      let bytesTransferred: Int64
+      switch direction {
+      case .upload:
+        bytesTransferred = Int64(request.body?.count.rawValue ?? 0)
+      case .download:
+        bytesTransferred = Int64(response.body?.count.rawValue ?? 0)
+      }
 
-    // Set progress callback
-    if let progressCallback = progressCallback {
-      await progressMiddleware.setProgressCallback(
-        for: HTTPRequestID(transferId.rawValue),
+      try validateChecksum(
+        for: direction == .upload ? request.body : response.body,
+        expectedChecksum: metadata?.checksum
+      )
+
+      let result = makeResult(
+        transferId: transferId,
+        startTime: startTime,
+        bytesTransferred: bytesTransferred,
+        metadata: metadata,
+        destinationURL: destinationURL
+      )
+      reportCompletion(
+        bytesTransferred: bytesTransferred,
+        startTime: startTime,
         callback: progressCallback
       )
-    }
-
-    do {
-      // Execute the request
-      let response = try await httpClient.execute(request)
-
-      // Handle download to file if destination URL provided
-      if let destinationURL = destinationURL, let data = response.body {
-        try data.write(to: destinationURL)
-      }
-
-      // Calculate results
-      let duration = Date().timeIntervalSince(startTime)
-      let bytesTransferred = Int64((response.body?.count ?? request.body?.count ?? 0).rawValue)
-      let averageSpeed = duration > 0 ? Double(bytesTransferred) / duration : 0
-
-      // Verify checksum if applicable
-      if configuration.enableIntegrityCheck.rawValue,
-        let data = response.body ?? request.body,
-        let expectedChecksum = metadata?.checksum
-      {
-        let actualChecksum = calculateChecksum(for: data)
-        if actualChecksum != expectedChecksum {
-          throw FileTransferError.checksumMismatch(
-            expected: expectedChecksum,
-            actual: actualChecksum
-          )
-        }
-      }
-
-      let result = FileTransferResult(
-        transferId: transferId,
-        bytesTransferred: TransferByteCount(bytesTransferred),
-        duration: TransferDuration(duration),
-        averageSpeed: TransferSpeed(averageSpeed),
-        isSuccessful: true,
-        fileMetadata: metadata
-      )
-
-      activeTransfers.removeValue(forKey: transferId.rawValue)
-      return result
+      return BufferedTransfer(response: response, result: result)
     } catch {
-      let duration = Date().timeIntervalSince(startTime)
-      _ = FileTransferResult(
-        transferId: transferId,
-        bytesTransferred: 0,
-        duration: TransferDuration(duration),
-        averageSpeed: 0,
-        isSuccessful: false,
-        error: error,
-        fileMetadata: metadata
-      )
-
-      activeTransfers.removeValue(forKey: transferId.rawValue)
+      reportFailure(callback: progressCallback)
       throw error
     }
   }
 
-  private func waitForTransferCompletion(
-    transferId: TransferIdentifier
+  // swiftlint:disable:next function_parameter_count
+  private func performFileUpload(
+    client: any HTTPFileTransferClient,
+    request: HTTPRequest,
+    fileURL: URL,
+    metadata: FileMetadata,
+    progressCallback: ProgressCallback?
   ) async throws -> FileTransferResult {
-    // Simplified implementation - in a real scenario, this would monitor the URLSessionTask
-    while activeTransfers[transferId.rawValue] != nil {
-      try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
+    let transferId = TransferIdentifier()
+    let startTime = Date()
+    let nativeProgress = makeNativeProgressCallback(
+      direction: .upload,
+      startTime: startTime,
+      expectedBytes: metadata.size.rawValue,
+      callback: progressCallback
+    )
 
-      if let activeTransfer = activeTransfers[transferId.rawValue], activeTransfer.isCancelled {
-        throw FileTransferError.transferCancelled
-      }
+    do {
+      _ = try await client.upload(request, fromFile: fileURL, progress: nativeProgress)
+      let result = makeResult(
+        transferId: transferId,
+        startTime: startTime,
+        bytesTransferred: metadata.size.rawValue,
+        metadata: metadata,
+        destinationURL: nil
+      )
+      reportCompletion(
+        bytesTransferred: metadata.size.rawValue,
+        startTime: startTime,
+        callback: progressCallback
+      )
+      return result
+    } catch {
+      reportFailure(callback: progressCallback)
+      throw error
     }
+  }
 
-    // Return a basic result (in real implementation, this would come from task completion)
+  private func performFileDownload(
+    client: any HTTPFileTransferClient,
+    request: HTTPRequest,
+    destinationURL: URL,
+    progressCallback: ProgressCallback?
+  ) async throws -> FileTransferResult {
+    let transferId = TransferIdentifier()
+    let startTime = Date()
+    let nativeProgress = makeNativeProgressCallback(
+      direction: .download,
+      startTime: startTime,
+      expectedBytes: nil,
+      callback: progressCallback
+    )
+
+    do {
+      let download = try await client.download(request, progress: nativeProgress)
+      defer { try? FileManager.default.removeItem(at: download.temporaryFileURL) }
+      try installDownloadedFile(from: download.temporaryFileURL, to: destinationURL)
+      let bytesTransferred = try fileSize(at: destinationURL)
+      let result = makeResult(
+        transferId: transferId,
+        startTime: startTime,
+        bytesTransferred: bytesTransferred,
+        metadata: nil,
+        destinationURL: destinationURL
+      )
+      reportCompletion(
+        bytesTransferred: bytesTransferred,
+        startTime: startTime,
+        callback: progressCallback
+      )
+      return result
+    } catch {
+      reportFailure(callback: progressCallback)
+      throw error
+    }
+  }
+
+  private func performDataDownload(
+    client: any HTTPFileTransferClient,
+    request: HTTPRequest,
+    progressCallback: ProgressCallback?
+  ) async throws -> (data: HTTPBody, result: FileTransferResult) {
+    let transferId = TransferIdentifier()
+    let startTime = Date()
+    let nativeProgress = makeNativeProgressCallback(
+      direction: .download,
+      startTime: startTime,
+      expectedBytes: nil,
+      callback: progressCallback
+    )
+
+    do {
+      let download = try await client.download(request, progress: nativeProgress)
+      defer { try? FileManager.default.removeItem(at: download.temporaryFileURL) }
+      let data = HTTPBody(try Data(contentsOf: download.temporaryFileURL))
+      let bytesTransferred = Int64(data.count.rawValue)
+      let result = makeResult(
+        transferId: transferId,
+        startTime: startTime,
+        bytesTransferred: bytesTransferred,
+        metadata: nil,
+        destinationURL: nil
+      )
+      reportCompletion(
+        bytesTransferred: bytesTransferred,
+        startTime: startTime,
+        callback: progressCallback
+      )
+      return (data, result)
+    } catch {
+      reportFailure(callback: progressCallback)
+      throw error
+    }
+  }
+
+  private func makeNativeProgressCallback(
+    direction: TransferDirection,
+    startTime: Date,
+    expectedBytes: Int64?,
+    callback: ProgressCallback?
+  ) -> (@Sendable (HTTPFileTransferProgress) -> Void)? {
+    guard let callback else { return nil }
+
+    return { progress in
+      let duration = Date().timeIntervalSince(startTime)
+      let speed = duration > 0 ? Double(progress.transferredBytes) / duration : 0
+      callback(
+        TransferProgress(
+          totalBytes: (progress.totalBytes ?? expectedBytes).map {
+            TransferByteCount(rawValue: $0)
+          },
+          transferredBytes: TransferByteCount(progress.transferredBytes),
+          phase: direction.activePhase,
+          bytesPerSecond: TransferSpeed(speed)
+        )
+      )
+    }
+  }
+
+  // swiftlint:disable:next function_parameter_count
+  private func makeResult(
+    transferId: TransferIdentifier,
+    startTime: Date,
+    bytesTransferred: Int64,
+    metadata: FileMetadata?,
+    destinationURL: URL?
+  ) -> FileTransferResult {
+    let duration = Date().timeIntervalSince(startTime)
+    let averageSpeed = duration > 0 ? Double(bytesTransferred) / duration : 0
     return FileTransferResult(
       transferId: transferId,
-      bytesTransferred: 0,
-      duration: 0,
-      averageSpeed: 0,
-      isSuccessful: true
+      bytesTransferred: TransferByteCount(bytesTransferred),
+      duration: TransferDuration(duration),
+      averageSpeed: TransferSpeed(averageSpeed),
+      isSuccessful: true,
+      fileMetadata: metadata,
+      fileURL: destinationURL.map { LocalFileURL($0) }
     )
   }
 
-  #if !os(Linux)
-  nonisolated private func createBackgroundSession(
-    with config: BackgroundTransferConfiguration? = nil
-  ) -> URLSession {
-    let configuration = config ?? self.configuration.backgroundTransferConfiguration
-
-    let sessionConfig = URLSessionConfiguration.background(
-      withIdentifier: configuration.backgroundSessionIdentifier.rawValue
-    )
-
-    sessionConfig.allowsCellularAccess = configuration.allowsCellularAccess.rawValue
-    sessionConfig.allowsExpensiveNetworkAccess = configuration.allowsExpensiveNetworkAccess.rawValue
-    sessionConfig.timeoutIntervalForRequest = configuration.timeoutIntervalForRequest.rawValue
-    sessionConfig.timeoutIntervalForResource = configuration.timeoutIntervalForResource.rawValue
-
-    let delegate = BackgroundTransferDelegate(
-      progressStreamManager: self.progressStreamManager
-    )
-
-    return URLSession(
-      configuration: sessionConfig,
-      delegate: delegate,
-      delegateQueue: nil
+  private func reportCompletion(
+    bytesTransferred: Int64,
+    startTime: Date,
+    callback: ProgressCallback?
+  ) {
+    guard let callback else { return }
+    let duration = Date().timeIntervalSince(startTime)
+    let averageSpeed = duration > 0 ? Double(bytesTransferred) / duration : 0
+    callback(
+      TransferProgress(
+        totalBytes: TransferByteCount(bytesTransferred),
+        transferredBytes: TransferByteCount(bytesTransferred),
+        phase: .completed,
+        bytesPerSecond: TransferSpeed(averageSpeed)
+      )
     )
   }
-  #endif
 
-  private func getMimeType(for fileURL: URL) -> HTTPMediaType? {
-    let fileExtension = fileURL.pathExtension.lowercased()
+  private func reportFailure(callback: ProgressCallback?) {
+    callback?(
+      TransferProgress(
+        totalBytes: nil,
+        transferredBytes: 0,
+        phase: .failed
+      )
+    )
+  }
 
-    let mimeTypes: [String: String] = [
-      "jpg": "image/jpeg",
-      "jpeg": "image/jpeg",
-      "png": "image/png",
-      "gif": "image/gif",
-      "pdf": "application/pdf",
-      "txt": "text/plain",
-      "html": "text/html",
-      "json": "application/json",
-      "xml": "application/xml",
-      "zip": "application/zip",
-      "mp4": "video/mp4",
-      "mov": "video/quicktime",
-      "mp3": "audio/mpeg",
-      "wav": "audio/wav",
-    ]
+  private func write(_ data: HTTPBody?, to destinationURL: URL?) throws {
+    guard let destinationURL else { return }
+    guard let data else {
+      throw FileTransferError.fileNotFound(path: FileSystemPath(destinationURL.path))
+    }
+    try data.write(to: destinationURL)
+  }
 
-    return mimeTypes[fileExtension].map { HTTPMediaType($0) }
+  private func installDownloadedFile(from temporaryURL: URL, to destinationURL: URL) throws {
+    let fileManager = FileManager.default
+    let stagingURL = destinationURL.deletingLastPathComponent().appendingPathComponent(
+      ".\(UUID().uuidString)-\(destinationURL.lastPathComponent)"
+    )
+    defer { try? fileManager.removeItem(at: stagingURL) }
+
+    try fileManager.copyItem(at: temporaryURL, to: stagingURL)
+    if fileManager.fileExists(atPath: destinationURL.path) {
+      _ = try fileManager.replaceItemAt(destinationURL, withItemAt: stagingURL)
+    } else {
+      try fileManager.moveItem(at: stagingURL, to: destinationURL)
+    }
+    try? fileManager.removeItem(at: temporaryURL)
+  }
+
+  private func fileSize(at fileURL: URL) throws -> Int64 {
+    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+    return (attributes[.size] as? NSNumber)?.int64Value ?? 0
+  }
+
+  private func validateChecksum(
+    for data: HTTPBody?,
+    expectedChecksum: FileChecksum?
+  ) throws {
+    guard configuration.enableIntegrityCheck.rawValue,
+      let data,
+      let expectedChecksum
+    else {
+      return
+    }
+
+    let actualChecksum = calculateChecksum(for: data)
+    guard actualChecksum == expectedChecksum else {
+      throw FileTransferError.checksumMismatch(
+        expected: expectedChecksum,
+        actual: actualChecksum
+      )
+    }
   }
 
   private func calculateChecksum(for data: HTTPBody) -> FileChecksum {
@@ -564,3 +686,4 @@ public actor FileTransferOperations {
     return FileChecksum(hashData.rawValue.map { String(format: "%02x", $0) }.joined())
   }
 }
+// swiftlint:enable type_body_length

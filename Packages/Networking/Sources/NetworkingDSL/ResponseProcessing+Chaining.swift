@@ -149,10 +149,6 @@ extension ResponseChain {
     return ResponseChain<U>(response: response, value: transformedValue)
   }
 
-  public func recover(_ recovery: (HTTPError) throws -> T) throws -> ResponseChain<T> {
-    self
-  }
-
   public func extractValue() -> T {
     value
   }

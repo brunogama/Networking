@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -26,10 +27,23 @@ final class RequestCompositionTests: XCTestCase {
       func getUsers() async throws -> [User]
 
       func getUsers() async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
       }
       """
     }
@@ -46,10 +60,23 @@ final class RequestCompositionTests: XCTestCase {
       func getUser(id: String) async throws -> User
 
       func getUser(id: String) async throws -> User {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -65,11 +92,24 @@ final class RequestCompositionTests: XCTestCase {
       #"""
       func getPost(userId: String, postId: String) async throws -> Post
 
-      func getPost(userId: String postId: String) async throws -> Post {
-          let path = "/users/\(userId)/posts/\(postId)"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Post.self, from response.data)
+      func getPost(userId: String, postId: String) async throws -> Post {
+        let path = "/users/\(userId)/posts/\(postId)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Post.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -85,11 +125,24 @@ final class RequestCompositionTests: XCTestCase {
       #"""
       func getProject(orgId: String, teamId: String, projectId: String) async throws -> Project
 
-      func getProject(orgId: String teamId: String projectId: String) async throws -> Project {
-          let path = "/orgs/\(orgId)/teams/\(teamId)/projects/\(projectId)"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode(Project.self, from response.data)
+      func getProject(orgId: String, teamId: String, projectId: String) async throws -> Project {
+        let path = "/orgs/\(orgId)/teams/\(teamId)/projects/\(projectId)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Project.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -110,13 +163,25 @@ final class RequestCompositionTests: XCTestCase {
       func createUser(user: CreateUserRequest) async throws -> User
 
       func createUser(user: CreateUserRequest) async throws -> User {
-          let path = "/users"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(user))
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(user)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """
     }
@@ -134,17 +199,30 @@ final class RequestCompositionTests: XCTestCase {
       @Body(.parameter("user"))
       func updateUser(id: String, user: UpdateUserRequest) async throws -> User
 
-      func updateUser(id: String user: UpdateUserRequest) async throws -> User {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .PUT, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(user))
+      func updateUser(id: String, user: UpdateUserRequest) async throws -> User {
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .put,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(user)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """#
     }
   }
 
 }
+// swiftlint:enable file_length type_body_length

@@ -6,11 +6,13 @@ on:
     paths:
       - 'Sources/**/*.swift'
       - 'Packages/**/Sources/**/*.swift'
+      - '.github/workflows/docs-sync.yml'
   pull_request:
     branches: [main, dev]
     paths:
       - 'Sources/**/*.swift'
       - 'Packages/**/Sources/**/*.swift'
+      - '.github/workflows/docs-sync.yml'
   workflow_dispatch:
     inputs:
       force:
@@ -30,7 +32,7 @@ concurrency:
 
 jobs:
   detect-api-changes:
-    name: Detect API Changes
+    name: Detect Framework API Changes
     runs-on: macos-15
     outputs:
       has_changes: ${{ steps.diff.outputs.has_changes }}
@@ -48,34 +50,48 @@ jobs:
       - name: Install jq
         run: brew install jq
 
-      - name: Download Previous Baseline
-        uses: actions/download-artifact@v4
-        with:
-          name: api-baseline
-          path: .cache
-        continue-on-error: true
-
-      - name: Clear Baseline (if force)
-        if: github.event.inputs.force == 'true'
-        run: rm -f .cache/api-baseline.json
+      - name: Select Baseline Commit
+        id: baseline
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            base_sha="$PR_BASE_SHA"
+          elif [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$PUSH_BEFORE_SHA" != 0000000000000000000000000000000000000000 ]]; then
+            base_sha="$PUSH_BEFORE_SHA"
+          else
+            base_sha=$(git rev-parse HEAD^)
+          fi
+          git cat-file -e "$base_sha^{commit}"
+          echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
 
       - name: Generate Symbol Graphs
         run: |
-          mkdir -p .build/symbol-graphs
-          echo "Building workspace with symbol graph generation..."
-          swift build \
-            -Xswiftc -emit-symbol-graph \
-            -Xswiftc -emit-symbol-graph-dir -Xswiftc .build/symbol-graphs
-
-      - name: Extract and Compare Symbols
-        id: diff
-        run: |
-          # Consolidate all package symbols into single baseline
+          set -euo pipefail
           mkdir -p .cache
-          for symfile in .build/symbol-graphs/*.symbols.json; do
-            if [ -f "$symfile" ]; then
+
+          extract_symbols() {
+            local source_path="$1"
+            local scratch_path="$2"
+            local graph_path="$3"
+            local output_path="$4"
+            mkdir -p "$graph_path"
+            for target in Networking NetworkingObservabilityOTLP; do
+              swift build --package-path "$source_path" --scratch-path "$scratch_path" \
+                --target "$target" \
+                -Xswiftc -emit-symbol-graph \
+                -Xswiftc -emit-symbol-graph-dir -Xswiftc "$graph_path"
+            done
+
+            shopt -s nullglob
+            local graphs=("$graph_path"/Networking*.symbols.json)
+            if [ "${#graphs[@]}" -eq 0 ]; then
+              echo "No Networking symbol graphs were generated" >&2
+              exit 1
+            fi
+            for symfile in "${graphs[@]}"; do
               pkg=$(basename "$symfile" .symbols.json)
-              echo "Extracting symbols from $pkg..."
               jq -c --arg pkg "$pkg" '[
                 .symbols[]? |
                 select(.accessLevel == "public" or .accessLevel == "open") |
@@ -87,104 +103,74 @@ jobs:
                   precise: .identifier.precise
                 }
               ]' "$symfile"
-            fi
-          done | jq -s 'add // []' > .cache/current-symbols.json
+            done | jq -s 'add // []' > "$output_path"
+          }
 
+          base_path="$RUNNER_TEMP/api-baseline-source"
+          git worktree add --detach "$base_path" "${{ steps.baseline.outputs.sha }}"
+          extract_symbols "$base_path" "$RUNNER_TEMP/api-baseline-build" \
+            "$RUNNER_TEMP/api-baseline-graphs" "$GITHUB_WORKSPACE/.cache/api-baseline.json"
+          git worktree remove --force "$base_path"
+          rm -rf "$RUNNER_TEMP/api-baseline-build" "$RUNNER_TEMP/api-baseline-graphs"
+
+          extract_symbols "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.build" \
+            "$GITHUB_WORKSPACE/.build/symbol-graphs" "$GITHUB_WORKSPACE/.cache/current-symbols.json"
+
+      - name: Extract and Compare Symbols
+        id: diff
+        run: |
+          set -euo pipefail
           NEW_COUNT=$(jq 'length' .cache/current-symbols.json)
-          echo "Total public symbols across all packages: $NEW_COUNT"
+          echo "Total public framework symbols: $NEW_COUNT"
 
-          # Compare with baseline if exists
-          if [ -f .cache/api-baseline.json ]; then
-            # Get precise identifiers from both
-            jq -r '.[].precise' .cache/current-symbols.json | sort > /tmp/current.txt
-            jq -r '.[].precise' .cache/api-baseline.json | sort > /tmp/baseline.txt
+          # Get precise identifiers from both commits
+          jq -r '.[].precise' .cache/current-symbols.json | sort -u > "$RUNNER_TEMP/current.txt"
+          jq -r '.[].precise' .cache/api-baseline.json | sort -u > "$RUNNER_TEMP/baseline.txt"
 
-            # Find new symbols
-            NEW_PRECISES=$(comm -23 /tmp/current.txt /tmp/baseline.txt)
-            NEW_SYMBOL_COUNT=$(echo "$NEW_PRECISES" | grep -c . || echo "0")
+          # Find new symbols
+          NEW_PRECISES=$(comm -23 "$RUNNER_TEMP/current.txt" "$RUNNER_TEMP/baseline.txt")
+          NEW_SYMBOL_COUNT=$(printf '%s\n' "$NEW_PRECISES" | grep -c . || true)
 
-            if [ "$NEW_SYMBOL_COUNT" -gt 0 ]; then
-              echo "has_changes=true" >> $GITHUB_OUTPUT
-              echo "new_count=$NEW_SYMBOL_COUNT" >> $GITHUB_OUTPUT
-
-              # Get details of new symbols
-              NEW_DETAILS=$(jq -c --argjson precises "$(echo "$NEW_PRECISES" | jq -R . | jq -s .)" \
-                '[.[] | select(.precise as $p | $precises | index($p))]' .cache/current-symbols.json)
-              echo "new_symbols<<EOF" >> $GITHUB_OUTPUT
-              echo "$NEW_DETAILS" | jq -r '.[] | "- \(.kind): \(.name)"' >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-            else
-              echo "has_changes=false" >> $GITHUB_OUTPUT
-              echo "new_count=0" >> $GITHUB_OUTPUT
-            fi
+          if [ "$NEW_SYMBOL_COUNT" -gt 0 ]; then
+            # Get details of new symbols
+            NEW_DETAILS=$(jq -c --argjson precises "$(printf '%s\n' "$NEW_PRECISES" | jq -R . | jq -s .)" \
+              '[.[] | select(.precise as $p | $precises | index($p))] | unique_by(.precise)' .cache/current-symbols.json)
+            {
+              echo "has_changes=true"
+              echo "new_count=$NEW_SYMBOL_COUNT"
+              echo "new_symbols<<EOF"
+              printf '%s\n' "$NEW_DETAILS" | jq -r '.[] | "- \(.kind): \(.name)"'
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "No baseline found - all $NEW_COUNT symbols are new"
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "new_count=$NEW_COUNT" >> $GITHUB_OUTPUT
-            echo "new_symbols=Initial baseline creation" >> $GITHUB_OUTPUT
+            {
+              echo "has_changes=false"
+              echo "new_count=0"
+            } >> "$GITHUB_OUTPUT"
           fi
-
-          # Update baseline
-          cp .cache/current-symbols.json .cache/api-baseline.json
-
-      - name: Upload Baseline
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-baseline
-          path: .cache/api-baseline.json
-          retention-days: 90
 
       - name: Summary
+        env:
+          HAS_CHANGES: ${{ steps.diff.outputs.has_changes }}
+          NEW_COUNT: ${{ steps.diff.outputs.new_count }}
+          NEW_SYMBOLS: ${{ steps.diff.outputs.new_symbols }}
         run: |
-          echo "## API Change Detection" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.diff.outputs.has_changes }}" == "true" ]; then
-            echo "**New APIs detected:** ${{ steps.diff.outputs.new_count }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### New Symbols" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps.diff.outputs.new_symbols }}" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No new public APIs detected." >> $GITHUB_STEP_SUMMARY
-          fi
-
-  notify-docs-needed:
-    name: Documentation Notice
-    needs: detect-api-changes
-    if: needs.detect-api-changes.outputs.has_changes == 'true' && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const newCount = '${{ needs.detect-api-changes.outputs.new_count }}';
-            const newSymbols = `${{ needs.detect-api-changes.outputs.new_symbols }}`;
-
-            const body = `## Documentation Required
-
-            This PR introduces **${newCount} new public API(s)** that need documentation.
-
-            ### New Symbols
-            \`\`\`
-            ${newSymbols}
-            \`\`\`
-
-            Please ensure Documentation.docc is updated with:
-            - Extension files for new types (\`Documentation.docc/Extensions/<TypeName>.md\`)
-            - Updated topic groups in \`Documentation.docc/Networking.md\`
-
-            Run \`/docs-sync\` locally to auto-generate documentation.
-
-            A documentation issue has been created to track this work.`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
+          {
+            echo "## API Change Detection"
+            echo ""
+            echo "Scope: Networking and NetworkingObservabilityOTLP. NetworkingMacros, NetworkingTesting, and NetworkingBDD are outside this check."
+            echo ""
+            if [ "$HAS_CHANGES" = "true" ]; then
+              echo "**New APIs detected:** $NEW_COUNT"
+              echo ""
+              echo "### New Symbols"
+              echo '```'
+              printf '%s\n' "$NEW_SYMBOLS"
+              echo '```'
+            else
+              echo "No new public APIs detected."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   create-doc-issues:
     name: Create Documentation Issues
@@ -196,14 +182,20 @@ jobs:
         (github.event_name == 'workflow_dispatch' && github.event.inputs.create_issue == 'true')
       )
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Create Documentation Issue
+        id: create-doc-issues
         uses: actions/github-script@v7
+        env:
+          NEW_COUNT: ${{ needs.detect-api-changes.outputs.new_count }}
+          NEW_SYMBOLS: ${{ needs.detect-api-changes.outputs.new_symbols }}
         with:
           script: |
-            const newCount = '${{ needs.detect-api-changes.outputs.new_count }}';
-            const newSymbols = `${{ needs.detect-api-changes.outputs.new_symbols }}`;
-            const sha = '${{ github.sha }}'.substring(0, 7);
+            const newCount = process.env.NEW_COUNT;
+            const newSymbols = process.env.NEW_SYMBOLS;
+            const sha = context.sha.substring(0, 7);
             const date = new Date().toISOString().split('T')[0];
 
             // Parse symbols to categorize by type
@@ -283,7 +275,7 @@ jobs:
               const issue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `docs: Document ${newCount} new public API(s) from ${sha}`,
+                title: `docs: Document ${newCount} new public framework API(s) from ${sha}`,
                 body: body,
                 labels: ['documentation', 'auto-generated', 'good first issue']
               });
@@ -298,15 +290,17 @@ jobs:
       - name: Link Issue to Commit
         if: steps.create-doc-issues.outputs.issue_number
         uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ steps.create-doc-issues.outputs.issue_number }}
         with:
           script: |
-            const issueNumber = '${{ steps.create-doc-issues.outputs.issue_number }}';
+            const issueNumber = process.env.ISSUE_NUMBER;
             if (issueNumber) {
               // Add commit reference comment
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: parseInt(issueNumber),
-                body: `Triggered by commit ${{ github.sha }}`
+                body: `Triggered by commit ${context.sha}`
               });
             }

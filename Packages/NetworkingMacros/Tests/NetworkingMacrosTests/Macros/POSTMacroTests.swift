@@ -1,3 +1,4 @@
+// swiftlint:disable file_length line_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -28,13 +29,25 @@ final class POSTMacroTests: XCTestCase {
       func createUser(user: CreateUserRequest) async throws -> User
 
       func createUser(user: CreateUserRequest) async throws -> User {
-          let path = "/users"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(user))
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(user)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """
     }
@@ -52,14 +65,26 @@ final class POSTMacroTests: XCTestCase {
       @Body(.parameter("profile"))
       func updateProfile(id: String, profile: Profile) async throws -> Profile
 
-      func updateProfile(id: String profile: Profile) async throws -> Profile {
-          let path = "/users/\(id)/profile"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(profile))
+      func updateProfile(id: String, profile: Profile) async throws -> Profile {
+        let path = "/users/\(id)/profile"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(profile)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(Profile.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Profile.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -68,7 +93,7 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTWithQueryParameter() {
     assertMacro {
       """
-      @POST(.path("/users"), query: [.parameter("notify")])
+      @POST(.path("/users"), queryParameters: [.parameter("notify")])
       @Body(.parameter("user"))
       func createUser(user: CreateUserRequest, notify: Bool) async throws -> User
       """
@@ -77,14 +102,27 @@ final class POSTMacroTests: XCTestCase {
       @Body(.parameter("user"))
       func createUser(user: CreateUserRequest, notify: Bool) async throws -> User
 
-      func createUser(user: CreateUserRequest notify: Bool) async throws -> User {
-          let path = "/users"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(user))
+      func createUser(user: CreateUserRequest, notify: Bool) async throws -> User {
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(user)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        request.addQueryParameter(name: "notify", value: notify)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """
     }
@@ -93,7 +131,7 @@ final class POSTMacroTests: XCTestCase {
   func testPOSTWithAllParameters() {
     assertMacro {
       """
-      @POST(.path("/projects/{projectId}/tasks"), query: [.parameter("priority")])
+      @POST(.path("/projects/{projectId}/tasks"), queryParameters: [.parameter("priority")])
       @Body(.parameter("task"))
       func createTask(projectId: String, task: TaskRequest, priority: Int) async throws -> Task
       """
@@ -102,14 +140,27 @@ final class POSTMacroTests: XCTestCase {
       @Body(.parameter("task"))
       func createTask(projectId: String, task: TaskRequest, priority: Int) async throws -> Task
 
-      func createTask(projectId: String task: TaskRequest priority: Int) async throws -> Task {
-          let path = "/projects/\(projectId)/tasks"
-          var request = HTTPRequest(method nil .POST, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(task))
+      func createTask(projectId: String, task: TaskRequest, priority: Int) async throws -> Task {
+        let path = "/projects/\(projectId)/tasks"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .post,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(task)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(Task.self, from response.data)
+        request.addQueryParameter(name: "priority", value: priority)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Task.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -169,3 +220,4 @@ final class POSTMacroTests: XCTestCase {
     }
   }
 }
+// swiftlint:enable file_length line_length

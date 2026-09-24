@@ -119,7 +119,7 @@ public final class MockHTTPRequestMiddleware: HTTPRequestMiddleware, MockVerifia
         url: request.url,
         headers: updatedHeaders,
         body: request.body,
-        timeout: request.timeout
+        timeout: request.timeoutOverride
       )
     }
   }
@@ -128,7 +128,8 @@ public final class MockHTTPRequestMiddleware: HTTPRequestMiddleware, MockVerifia
 
   /// The number of times `modifyRequest` was called.
   nonisolated public var callCount: MockVerificationCount {
-    get async { MockVerificationCount(queue.sync { processCount })
+    get async {
+      MockVerificationCount(queue.sync { processCount })
     }
   }
 

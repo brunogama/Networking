@@ -45,7 +45,8 @@ public final class SSEClient: Sendable {
     _ request: HTTPRequest,
     configuration: SSEConfiguration = .init()
   ) -> AsyncThrowingStream<SSEConnectionEvent, any Error> {
-    AsyncThrowingStream { continuation in
+    AsyncThrowingStream(bufferingPolicy: .bufferingOldest(configuration.maxBufferedEvents)) {
+      continuation in
       let connectionTask = Task {
         do {
           try await runConnectionLoop(
@@ -64,6 +65,22 @@ public final class SSEClient: Sendable {
       continuation.onTermination = { @Sendable _ in
         connectionTask.cancel()
       }
+    }
+  }
+
+  func yieldEvent(
+    _ event: SSEConnectionEvent,
+    to continuation: SSEContinuation
+  ) throws {
+    switch continuation.yield(event) {
+    case .enqueued:
+      return
+    case .dropped:
+      throw SSEStreamError.bufferOverflow
+    case .terminated:
+      throw CancellationError()
+    @unknown default:
+      throw SSEStreamError.bufferOverflow
     }
   }
 }

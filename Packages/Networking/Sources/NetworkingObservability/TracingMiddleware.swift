@@ -133,7 +133,7 @@ public final class TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddlew
       url: request.url,
       headers: headers,
       body: request.body,
-      timeout: request.timeout
+      timeout: request.timeoutOverride
     )
   }
 

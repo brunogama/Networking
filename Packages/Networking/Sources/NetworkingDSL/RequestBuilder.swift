@@ -98,7 +98,7 @@ public struct RequestBuilder {
     public var url: HTTPRequestURL?
     public var headers: HTTPHeaders = [:]
     public var body: HTTPBody?
-    public var timeout = NetworkingCore.RequestTimeout(30.0)
+    public var timeout: NetworkingCore.RequestTimeout?
 
     public init() {}
   }

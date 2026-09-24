@@ -2,6 +2,26 @@
 import Foundation
 import NetworkingCore
 
+private actor ChainedResponseCache {
+  private var response: HTTPResponse?
+  private var expiresAt: Date?
+  private weak var client: AnyObject?
+
+  func freshResponse(for client: any HTTPClient) -> HTTPResponse? {
+    guard let expiresAt, Date() < expiresAt, self.client === client as AnyObject else {
+      response = nil
+      return nil
+    }
+    return response
+  }
+
+  func store(_ response: HTTPResponse, for duration: TimeInterval, client: any HTTPClient) {
+    self.response = response
+    self.client = client as AnyObject
+    expiresAt = Date().addingTimeInterval(duration)
+  }
+}
+
 // MARK: - Decoded Response
 
 /// A response that has been decoded to a typed value.
@@ -170,6 +190,8 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
   /// Optional retry configuration
   public let retryConfig: RetryConfiguration?
 
+  private let responseCache: ChainedResponseCache
+
   /// Configuration for response caching
   public struct CacheConfiguration: Sendable {
     /// Time-to-live in seconds for cached responses
@@ -212,6 +234,21 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
     self.decoder = decoder
     self.cacheConfig = cacheConfig
     self.retryConfig = retryConfig
+    self.responseCache = ChainedResponseCache()
+  }
+
+  private init(
+    request: HTTPRequest,
+    decoder: JSONDecoder,
+    cacheConfig: CacheConfiguration?,
+    retryConfig: RetryConfiguration?,
+    responseCache: ChainedResponseCache
+  ) {
+    self.request = request
+    self.decoder = decoder
+    self.cacheConfig = cacheConfig
+    self.retryConfig = retryConfig
+    self.responseCache = responseCache
   }
 
   /// Adds caching configuration to the request.
@@ -247,7 +284,8 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
         maxAttempts: maxAttempts,
         baseDelay: baseDelay,
         maxDelay: maxDelay
-      )
+      ),
+      responseCache: responseCache
     )
   }
 
@@ -262,6 +300,12 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
   /// - Returns: DecodedResponse containing the typed value
   /// - Throws: HTTPError on network, HTTP status, or decoding failures
   public func execute(on client: any HTTPClient) async throws -> DecodedResponse<T> {
+    if cacheConfig != nil, request.method == .get,
+      let cachedResponse = await responseCache.freshResponse(for: client)
+    {
+      return try decodeResponse(cachedResponse)
+    }
+
     // Execute with retry logic if configured
     let response: HTTPResponse
     if let retryConfig = retryConfig {
@@ -273,6 +317,14 @@ public struct ChainedRequest<T: Decodable & Sendable>: Sendable {
       )
     } else {
       response = try await client.execute(request)
+    }
+
+    if let cacheConfig, request.method == .get, response.status.isSuccess.rawValue,
+      cacheConfig.ttl.rawValue > 0,
+      response.headers["Cache-Control"]?.rawValue.localizedCaseInsensitiveContains("no-store")
+        != true
+    {
+      await responseCache.store(response, for: cacheConfig.ttl.rawValue, client: client)
     }
 
     return try decodeResponse(response)
