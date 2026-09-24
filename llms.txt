@@ -35,6 +35,56 @@ protocol UsersAPI {
 ## Public API
 
 
+### NetworkingMacros
+
+**Structs:**
+- `CacheConfiguration`
+- `DefaultHeaderMap`
+- `HeaderBuilder`
+- `HeaderComponent`
+- `MacroBoundaryBool`
+- `MacroBoundaryString`
+
+**Enums:**
+- `APIBaseURLTag`
+- `CacheDuration`
+- `CacheRevalidationTag`
+- `CachingPolicy`
+- `EndpointPathTag`
+- `HTTPMethodNameTag`
+- `HeaderComponent.ValueSource`
+- `HeaderNameTag`
+- `HeaderValueReferenceTag`
+- `MacroDiagnosticTextTag`
+- `MacroFunctionNameTag`
+- `MacroTypeReferenceTag`
+- `MeasuredOperationNameTag`
+- `ParameterReferenceTag`
+- `QueryParameterNameTag`
+- `TemplateURLTag`
+
+**Classes:**
+- `Metrics`
+
+**Type Aliases:**
+- `APIBaseURL`
+- `CacheAgeLimit`
+- `CacheRevalidationFlag`
+- `EndpointPath`
+- `HTTPMethodName`
+- `HeaderName`
+- `HeaderValueReference`
+- `MacroDiagnosticText`
+- `MacroFunctionName`
+- `MacroTypeReference`
+- `MeasuredDuration`
+- `MeasuredOperationName`
+- `ParameterReference`
+- `QueryParameterName`
+- `TemplateURL`
+- `TimeoutDuration`
+
+
 ## Documentation
 
 - GitHub: https://github.com/brunogama/Networking
