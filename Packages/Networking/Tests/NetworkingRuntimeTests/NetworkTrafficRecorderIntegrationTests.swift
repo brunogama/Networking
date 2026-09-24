@@ -158,6 +158,7 @@ struct NetworkTrafficRecorderIntegrationTests {
     let lastRecord = try #require(records.last)
     #expect(didStart == 1)
     #expect(records.map(\.requestID) == [slowRequest.id, fastRequest.id])
+    #expect(firstRecord.startedAt <= lastRecord.startedAt)
     #expect(firstRecord.endedAt > lastRecord.endedAt)
   }
 }

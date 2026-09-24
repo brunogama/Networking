@@ -13,8 +13,7 @@ extension NetworkClient {
   ) async throws -> HTTPResponse {
     let token = await recorder.begin(
       requestID: request.id,
-      request: urlRequest,
-      startedAt: Date()
+      request: urlRequest
     )
     let delegate = makeTrafficDelegate(for: recorder)
     let attempt = RecordedTrafficAttempt(

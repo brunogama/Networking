@@ -47,14 +47,13 @@ public actor NetworkTrafficRecorder {
 
   package func begin(
     requestID: HTTPRequestID,
-    request: URLRequest,
-    startedAt: Date
+    request: URLRequest
   ) -> NetworkTrafficAttemptToken {
     let token = NetworkTrafficAttemptToken(id: UUID())
     pending[token.id] = PendingAttempt(
       sequence: nextSequence,
       requestID: requestID,
-      startedAt: startedAt,
+      startedAt: Date(),
       request: NetworkTrafficSnapshot.request(from: request, policy: capturePolicy)
     )
     nextSequence &+= 1
