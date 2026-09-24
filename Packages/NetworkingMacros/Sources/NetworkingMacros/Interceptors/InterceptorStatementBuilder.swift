@@ -27,10 +27,7 @@ enum InterceptorStatementBuilder {
         arguments: [
           (
             label: "method",
-            value: .propertyAccess(
-              base: .literal(.nil),
-              property: method
-            )
+            value: .implicitMember(method)
           ),
           (label: "path", value: .variable("path", payload: ())),
           (label: "baseURL", value: .variable("baseURL", payload: ())),

@@ -16,17 +16,20 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     let accessCount: Int
     let lastAccessTime: Date
     let tags: Set<CacheTagName>
+    let storageSize: StorageSizeBytes
 
     init(
       cacheEntry: CachingMiddleware.CacheEntry,
       accessCount: Int = 0,
       lastAccessTime: Date = Date(),
-      tags: Set<CacheTagName> = []
+      tags: Set<CacheTagName> = [],
+      storageSize: StorageSizeBytes
     ) {
       self.cacheEntry = cacheEntry
       self.accessCount = accessCount
       self.lastAccessTime = lastAccessTime
       self.tags = tags
+      self.storageSize = storageSize
     }
 
     func incrementAccess() -> MemoryCacheEntry {
@@ -34,7 +37,8 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
         cacheEntry: cacheEntry,
         accessCount: accessCount + 1,
         lastAccessTime: Date(),
-        tags: tags
+        tags: tags,
+        storageSize: storageSize
       )
     }
   }
@@ -68,6 +72,10 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
 
   // MARK: - CacheStorage Implementation
 
+  public func keys() async -> [CacheKey] {
+    Array(cache.keys)
+  }
+
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     if let wrapper = cache[key] {
       // Check expiration
@@ -88,7 +96,8 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
           cacheEntry: extendedEntry,
           accessCount: updatedWrapper.accessCount,
           lastAccessTime: updatedWrapper.lastAccessTime,
-          tags: updatedWrapper.tags
+          tags: updatedWrapper.tags,
+          storageSize: updatedWrapper.storageSize
         )
         cache[key] = finalWrapper
         hitCount += 1
@@ -103,6 +112,16 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     return nil
   }
 
+  public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
+    guard let entry = cache[key]?.cacheEntry else {
+      missCount += 1
+      return nil
+    }
+
+    hitCount += 1
+    return entry
+  }
+
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
     await set(key, entry: entry, tags: [])
   }
@@ -110,17 +129,14 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   /// Enhanced set method with tag support
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry, tags: [CacheTagName]) async
   {
-    // Enforce size limits before adding
-    await enforceSize()
-
-    // Create wrapper with tags
     let tagSet = Set(tags)
     let wrapper = MemoryCacheEntry(
       cacheEntry: entry,
-      tags: tagSet
+      tags: tagSet,
+      storageSize: entry.response.cacheStorageSize
     )
 
-    // Update cache and tag index
+    await remove(key)
     cache[key] = wrapper
 
     // Update tag index
@@ -130,6 +146,8 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
       }
       tagIndex[tag]?.insert(key)
     }
+
+    await enforceSize()
   }
 
   public func remove(_ key: CacheKey) async {
@@ -224,7 +242,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   private func enforceMaxEntries(_ max: CacheEntryLimit) async {
-    while cache.count >= max.rawValue {
+    while cache.count > max.rawValue {
       guard let keyToEvict = await selectKeyForEviction() else { break }
       await remove(keyToEvict)
       evictionCount += 1
@@ -232,9 +250,6 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   private func enforceMaxMemory(_ maxBytes: StorageSizeBytes) async {
-    let currentSize = estimateMemoryUsage()
-    if currentSize <= maxBytes { return }
-
     while estimateMemoryUsage() > maxBytes {
       guard let keyToEvict = await selectKeyForEviction() else { break }
       await remove(keyToEvict)
@@ -247,8 +262,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   private func estimateMemoryUsage() -> StorageSizeBytes {
-    // Rough estimation of memory usage
-    StorageSizeBytes(Int64(cache.count * 1024))  // Assume ~1KB per entry average
+    cache.values.reduce(0) { $0 + $1.storageSize }
   }
 
   // MARK: - TTL Management

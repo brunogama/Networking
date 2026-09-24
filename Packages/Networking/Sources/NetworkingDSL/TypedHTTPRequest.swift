@@ -129,6 +129,8 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   /// Request timeout interval.
   public let timeout: NetworkingCore.RequestTimeout
 
+  package let timeoutOverride: NetworkingCore.RequestTimeout?
+
   /// Creates a new typed HTTP request.
   ///
   /// - Parameters:
@@ -140,12 +142,13 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
     path: RequestPathPattern,
     headers: HTTPHeaders = [:],
     body: HTTPBody? = nil,
-    timeout: NetworkingCore.RequestTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+    timeout: NetworkingCore.RequestTimeout? = nil
   ) {
     self.path = path
     self.headers = headers
     self.body = body
-    self.timeout = timeout
+    self.timeout = timeout ?? NetworkingCore.RequestTimeout(rawValue: 30.0)
+    self.timeoutOverride = timeout
   }
 
   /// The resolved URL combining the environment's base URL and the path.
@@ -172,7 +175,7 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
       url: url,
       headers: headers,
       body: body,
-      timeout: timeout
+      timeout: timeoutOverride
     )
   }
 
@@ -185,15 +188,13 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
   public func addingHeader(_ name: HTTPHeaderName, _ value: HTTPHeaderValue) -> Self {
     var newHeaders = headers
     newHeaders[name] = value
-    return Self(path: path, headers: newHeaders, body: body, timeout: timeout)
+    return Self(path: path, headers: newHeaders, body: body, timeout: timeoutOverride)
   }
 
-  /// Creates a new request with the specified body.
-  ///
-  /// - Parameter data: The body data
-  /// - Returns: A new typed request with the body set
-  public func withBody(_ data: HTTPBody) -> Self {
-    Self(path: path, headers: headers, body: data, timeout: timeout)
+  /// Adds a body for methods outside the typed body-safe set.
+  /// Use only when a server explicitly supports this behavior.
+  public func withUncheckedBody(_ data: HTTPBody) -> Self {
+    Self(path: path, headers: headers, body: data, timeout: timeoutOverride)
   }
 
   /// Creates a new request with the specified timeout.
@@ -208,11 +209,15 @@ public struct TypedHTTPRequest<Method: HTTPMethodType, Environment: HTTPEnvironm
 // MARK: - Body-Allowed Method Extension
 
 extension TypedHTTPRequest where Method: BodyAllowedMethod {
+  /// Creates a new request with the specified body.
+  public func withBody(_ data: HTTPBody) -> Self {
+    withUncheckedBody(data)
+  }
+
   /// Adds an encodable body to the request.
   ///
   /// This method is only available for HTTP methods that semantically support request bodies
-  /// (POST, PUT, PATCH). Attempting to call this on GET, DELETE, or HEAD requests will result
-  /// in a compile-time error.
+  /// (POST, PUT, PATCH). Calling this on GET, DELETE, or HEAD requests produces a compile error.
   ///
   /// The value is automatically encoded to JSON, and the `Content-Type: application/json` header
   /// is set. If you need custom encoding or a different content type, use ``withBody(_:)`` directly.
@@ -245,7 +250,7 @@ extension TypedHTTPRequest where Method: BodyAllowedMethod {
     let data = try encoder.encode(value)
     var newHeaders = headers
     newHeaders["Content-Type"] = "application/json"
-    return Self(path: path, headers: newHeaders, body: HTTPBody(data), timeout: timeout)
+    return Self(path: path, headers: newHeaders, body: HTTPBody(data), timeout: timeoutOverride)
   }
 }
 

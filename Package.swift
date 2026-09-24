@@ -108,7 +108,7 @@ let package = Package(
     // MacroTemplateKit - Type-safe templating for macro code generation
     .package(
       url: "https://github.com/brunogama/MacroTemplateKit.git",
-      from: "0.0.1"
+      exact: "0.0.7"
     ),
     // Swift Syntax for macro implementations
     .package(

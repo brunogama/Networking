@@ -1,3 +1,4 @@
+// swiftlint:disable file_length function_body_length type_body_length
 import MacroTesting
 import XCTest
 @testable import NetworkingMacrosPlugin
@@ -9,7 +10,6 @@ import XCTest
 final class MacroIntegrationTests: XCTestCase {
   override func invokeTest() {
     withMacroTesting(
-      record: .missing,
       macros: [
         APIMacro.self,
         GETMacro.self,
@@ -61,16 +61,30 @@ final class MacroIntegrationTests: XCTestCase {
       """
       func getUsers(@Headers headers: [String: String]) async throws -> [User]
 
-      func getUsers(headers: [String) async throws -> [User] {
-          let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
+      func getUsers(@Headers headers: [String: String]) async throws -> [User] {
+        let path = "/users"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
       }
       """
     }
   }
 
+  // swiftlint:disable line_length
   func testInterceptorOrderPreserved() {
     assertMacro {
       """
@@ -85,27 +99,104 @@ final class MacroIntegrationTests: XCTestCase {
       """
       protocol UserAPI {
         func getUsers() async throws -> [User]
+      }
 
+      struct UserAPIImplementation: UserAPI, Sendable {
+        private let client: any HTTPClient
+        private let baseURL: BaseURLText = BaseURLText(rawValue: "https://api.example.com")
+        private let defaultHeaders: HTTPHeaders = [:]
+        private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: 30.0)
+        private let interceptors: InterceptorChain
+        init(client: any HTTPClient = NetworkClient()) {
+          self.client = client
+          let configuredInterceptors: [any Sendable] = [AuthInterceptor(), LoggingInterceptor(), RetryInterceptor()]
+          self.interceptors = InterceptorChain(requestInterceptors: configuredInterceptors.compactMap {
+              $0 as? any RequestInterceptor
+            }, responseInterceptors: configuredInterceptors.compactMap {
+              $0 as? any ResponseInterceptor
+            })
+        }
         func getUsers() async throws -> [User] {
           let path = "/users"
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
-        }
-
-        public struct UserAPIImplementation: UserAPI {
-          private let client: NetworkClient
-          private let baseURL: String = "https://api.example.com"
-          private let interceptors: InterceptorChain
-          public init(client: NetworkClient = .shared) {
-            self.client = client
-            self.interceptors = InterceptorChain(requestInterceptors [AuthInterceptor(), LoggingInterceptor(), RetryInterceptor()], responseInterceptors [AuthInterceptor(), LoggingInterceptor(), RetryInterceptor()])
+          guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+            throw URLError(.badURL)
+          }
+          let request = HTTPRequest(
+            method: .get,
+            url: url,
+            headers: defaultHeaders,
+            timeout: defaultTimeout
+          )
+          let preparedRequest = request
+          var context = InterceptorContext(path: RequestPathPattern(rawValue: path), method: .get)
+          while true {
+            var interceptedRequest = preparedRequest
+            let requestResult = try await interceptors.executeRequestInterceptors(
+              request: &interceptedRequest,
+              context: context
+            )
+            switch requestResult {
+            case .proceed:
+              break
+            case .shortCircuit(let interceptedResponse):
+              guard let responseBody = interceptedResponse.body else {
+                throw DecodingError.dataCorrupted(
+                  DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+                )
+              }
+              return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
+            case .retry:
+              throw InterceptorError.invalidResult(reason: "Request interceptor requested a retry")
+            }
+            let response: HTTPResponse
+            let httpError: HTTPError?
+            do {
+              response = try await client.execute(interceptedRequest)
+              httpError = nil
+            } catch let error as HTTPError {
+              guard case .http = error.category, let failedResponse = error.response else {
+                throw error
+              }
+              response = failedResponse
+              httpError = error
+            }
+            let responseResult = try await interceptors.executeResponseInterceptors(
+              response: response,
+              context: context
+            )
+            let finalResponse: HTTPResponse
+            switch responseResult {
+            case .proceed:
+              if let httpError {
+                throw httpError
+              }
+              finalResponse = response
+            case .shortCircuit(let interceptedResponse):
+              finalResponse = interceptedResponse
+            case .retry(let delay):
+              guard context.attemptCount.rawValue < 10 else {
+                throw InterceptorError.maxRetriesExceeded(maxAttempts: 10)
+              }
+              if let delay {
+                try await Task.sleep(for: .seconds(delay.rawValue))
+              }
+              context = context.incrementingAttempt()
+              continue
+            }
+            guard let responseBody = finalResponse.body else {
+              throw DecodingError.dataCorrupted(
+                DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+              )
+            }
+            return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
           }
         }
       }
       """
     }
   }
+
+  // swiftlint:enable line_length
 
   // MARK: - Error Propagation
 
@@ -142,10 +233,23 @@ final class MacroIntegrationTests: XCTestCase {
       func getUsers() async throws -> [User]
 
       func getUsers() async throws -> [User] {
-          let path = ""
-          var request = HTTPRequest(method nil .GET, path path, baseURL baseURL)
-          let response = client.execute(request)
-          return JSONDecoder().decode([User].self, from response.data)
+        let path = ""
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        let request = HTTPRequest(
+          method: .get,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode([User].self, from: responseBody.rawValue)
       }
       """
     }
@@ -167,3 +271,4 @@ final class MacroIntegrationTests: XCTestCase {
     }
   }
 }
+// swiftlint:enable file_length function_body_length type_body_length

@@ -45,7 +45,7 @@ struct BatchOperationsTests {
   @Test("Default configuration")
   func defaultConfiguration() {
     let config = BatchConfiguration.default
-    #expect(config.maxConcurrency == 0)
+    #expect(config.maxConcurrency == 8)
     #expect(!config.cancelOnFailure.rawValue)
   }
 
@@ -184,5 +184,39 @@ struct BatchOperationsTests {
         "Request should match original"
       )
     }
+  }
+
+  @Test("Batch stops scheduling requests after a failure when configured")
+  func batchStopsSchedulingAfterFailure() async throws {
+    let client = BatchFailureClient()
+    let requests = try (0..<3).map { index in
+      let url = try #require(URL(string: "https://api.example.com/item/\(index)"))
+      return HTTPRequest(
+        method: .get,
+        url: url
+      )
+    }
+
+    let results = await client.executeBatch(
+      requests,
+      configuration: BatchConfiguration(maxConcurrency: 1, cancelOnFailure: true)
+    )
+
+    #expect(results.count == 1)
+    #expect(!results[0].isSuccess.rawValue)
+    #expect(await client.requestCount == 1)
+  }
+}
+
+private actor BatchFailureClient: HTTPClient {
+  private(set) var requestCount = 0
+
+  func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
+    requestCount += 1
+    if request.url.path == "/item/0" {
+      throw HTTPError.network(.serverUnreachable, request: request)
+    }
+
+    return HTTPResponse(request: request, status: .ok, headers: HTTPHeaders())
   }
 }

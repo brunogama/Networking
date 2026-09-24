@@ -20,7 +20,7 @@ extension CachingMiddleware {
       url: request.url,
       headers: headers,
       body: request.body,
-      timeout: request.timeout
+      timeout: request.timeoutOverride
     )
   }
 
@@ -70,7 +70,7 @@ extension CachingMiddleware {
 
       for pattern in patterns {
         group.addTask {
-          await semaphore.wait()
+          guard await semaphore.wait() else { return }
           await self.executePreloadPattern(pattern)
           await semaphore.signal()
         }

@@ -53,6 +53,9 @@ public struct HTTPError: Error, Sendable, LocalizedError, CustomDebugStringConve
   /// Underlying system error
   public let underlyingError: (any Error)?
 
+  /// Additional context supplied by the caller.
+  public let message: HTTPErrorDetail?
+
   // MARK: - Initialization
 
   public init(
@@ -66,10 +69,14 @@ public struct HTTPError: Error, Sendable, LocalizedError, CustomDebugStringConve
     self.request = request
     self.response = response
     self.underlyingError = underlyingError
+    self.message = message
   }
   // MARK: - LocalizedError
 
   public var errorDescription: String? {
+    if let message {
+      return message.rawValue
+    }
     switch category {
     case .network(let networkError):
       return "Network error: \(networkError)"

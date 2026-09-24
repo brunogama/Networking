@@ -145,7 +145,7 @@ public struct ErrorRecoveryStrategies: Sendable {
         url: request.url,
         headers: updatedHeaders,
         body: request.body,
-        timeout: request.timeout
+        timeout: request.timeoutOverride
       )
 
       // Retry with the new token

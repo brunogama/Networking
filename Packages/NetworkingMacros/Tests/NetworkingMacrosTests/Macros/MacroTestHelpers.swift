@@ -1,3 +1,4 @@
+// swiftlint:disable cyclomatic_complexity function_parameter_count
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
@@ -31,7 +32,7 @@ enum MacroTestHelpers {
     _ source: String,
     expandedSource expected: String,
     macros: [String: Macro.Type],
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) throws {
     SwiftSyntaxMacrosTestSupport.assertMacroExpansion(
@@ -65,7 +66,7 @@ enum MacroTestHelpers {
     _ source: String,
     diagnostics expected: [DiagnosticSpec],
     macros: [String: Macro.Type],
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) {
     SwiftSyntaxMacrosTestSupport.assertMacroExpansion(
@@ -278,3 +279,4 @@ enum MacroTestHelpers {
       """
   }
 }
+// swiftlint:enable cyclomatic_complexity function_parameter_count

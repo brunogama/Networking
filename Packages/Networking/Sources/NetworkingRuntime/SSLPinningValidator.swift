@@ -15,7 +15,8 @@ enum SSLPinningValidationDecision: Equatable {
 }
 
 /// SSL Pinning Validator that handles certificate and public key validation.
-public final class SSLPinningValidator: NSObject, URLSessionDelegate {
+/// URLSession may call this delegate from multiple threads; its configuration is immutable.
+public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked Sendable {
   let securityConfiguration: SecurityConfiguration
 
   public init(securityConfiguration: SecurityConfiguration) {

@@ -27,14 +27,26 @@ final class PATCHMacroTests: XCTestCase {
       @Body(.parameter("patch"))
       func patchUser(id: String, patch: UserPatch) async throws -> User
 
-      func patchUser(id: String patch: UserPatch) async throws -> User {
-          let path = "/users/\(id)"
-          var request = HTTPRequest(method nil .PATCH, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(patch))
+      func patchUser(id: String, patch: UserPatch) async throws -> User {
+        let path = "/users/\(id)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .patch,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(patch)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(User.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(User.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -52,14 +64,26 @@ final class PATCHMacroTests: XCTestCase {
       @Body(.parameter("update"))
       func patchTask(projectId: String, taskId: String, update: TaskPatch) async throws -> Task
 
-      func patchTask(projectId: String taskId: String update: TaskPatch) async throws -> Task {
-          let path = "/projects/\(projectId)/tasks/\(taskId)"
-          var request = HTTPRequest(method nil .PATCH, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(update))
+      func patchTask(projectId: String, taskId: String, update: TaskPatch) async throws -> Task {
+        let path = "/projects/\(projectId)/tasks/\(taskId)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .patch,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(update)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(Task.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Task.self, from: responseBody.rawValue)
       }
       """#
     }
@@ -77,14 +101,26 @@ final class PATCHMacroTests: XCTestCase {
       @Body(.parameter("value"))
       func updateSetting(key: String, value: SettingValue) async throws -> Setting
 
-      func updateSetting(key: String value: SettingValue) async throws -> Setting {
-          let path = "/settings/\(key)"
-          var request = HTTPRequest(method nil .PATCH, path path, baseURL baseURL)
-
-        request.setBody(try JSONEncoder().encode(value))
+      func updateSetting(key: String, value: SettingValue) async throws -> Setting {
+        let path = "/settings/\(key)"
+        guard let url = HTTPRequestURL(BaseURLText(rawValue: baseURL.rawValue + path)) else {
+          throw URLError(.badURL)
+        }
+        var request = HTTPRequest(
+          method: .patch,
+          url: url,
+          headers: defaultHeaders,
+          timeout: defaultTimeout
+        )
+        request.setBody(HTTPBody(try JSONEncoder().encode(value)))
         request.addHeader(name: "Content-Type", value: "application/json")
-          let response = client.execute(request)
-          return JSONDecoder().decode(Setting.self, from response.data)
+        let response = try await client.execute(request)
+        guard let responseBody = response.body else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(codingPath: [], debugDescription: "Response body is empty")
+          )
+        }
+        return try JSONDecoder().decode(Setting.self, from: responseBody.rawValue)
       }
       """#
     }

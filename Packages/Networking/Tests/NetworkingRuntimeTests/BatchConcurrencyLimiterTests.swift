@@ -4,186 +4,191 @@ import NetworkingRuntimeDSL
 import NetworkingTesting
 import Testing
 
-/// Tests for BatchConcurrencyLimiter actor-based semaphore.
 @Suite("BatchConcurrencyLimiter Tests")
 struct BatchConcurrencyLimiterTests {
-    /// Test that limiter with maxConcurrency=3 only allows 3 concurrent acquire() calls.
-    @Test
-    func limiter_withMaxConcurrency3_allowsOnlyThreeConcurrent() async throws {
-        let limiter = BatchConcurrencyLimiter(maxConcurrency: 3)
+  @Test("A cancelled waiter stops waiting without consuming a permit")
+  func cancelledWaiterStopsWaiting() async throws {
+    let limiter = BatchConcurrencyLimiter(maxConcurrency: 1)
+    let completion = CompletionState()
+    await limiter.acquire()
 
-        // Track how many tasks acquire concurrently
-        actor ConcurrencyTracker {
-            var currentCount = 0
-            var maxObserved = 0
-
-            func increment() {
-                currentCount += 1
-                maxObserved = max(maxObserved, currentCount)
-            }
-
-            func decrement() {
-                currentCount -= 1
-            }
-
-            func getMaxObserved() -> Int {
-                maxObserved
-            }
-        }
-
-        let tracker = ConcurrencyTracker()
-
-        // Spawn 10 tasks trying to acquire
-        await withTaskGroup(of: Void.self) { group in
-            for _ in 0 ..< 10 {
-                group.addTask {
-                    await limiter.acquire()
-                    await tracker.increment()
-
-                    // Simulate work
-                    try? await Task.sleep(for: .milliseconds(50))
-
-                    await tracker.decrement()
-                    await limiter.release()
-                }
-            }
-
-            await group.waitForAll()
-        }
-
-        let maxConcurrent = await tracker.getMaxObserved()
-
-        // Should never exceed maxConcurrency of 3
-        #expect(maxConcurrent <= 3)
-        // Should have allowed at least 3 concurrent (if system permits)
-        #expect(maxConcurrent >= 1)
+    let waiter = Task {
+      let acquired = await limiter.acquire()
+      await completion.finish(entered: acquired)
     }
 
-    /// Test that limiter with maxConcurrency=0 (unlimited) allows all tasks concurrently.
-    @Test
-    func limiter_withUnlimited_allowsAllConcurrent() async throws {
-        let limiter = BatchConcurrencyLimiter(maxConcurrency: 0)
+    try await Task.sleep(for: .milliseconds(20))
+    waiter.cancel()
+    try await Task.sleep(for: .milliseconds(20))
 
-        // Track concurrent acquisitions
-        actor ConcurrencyTracker {
-            var currentCount = 0
-            var maxObserved = 0
+    #expect(await completion.isFinished)
+    #expect(!(await completion.entered))
 
-            func increment() {
-                currentCount += 1
-                maxObserved = max(maxObserved, currentCount)
-            }
+    await limiter.release()
+    await waiter.value
+  }
 
-            func decrement() {
-                currentCount -= 1
-            }
+  @Test
+  func limiter_withMaxConcurrency3_allowsOnlyThreeConcurrent() async throws {
+    let limiter = BatchConcurrencyLimiter(maxConcurrency: 3)
 
-            func getMaxObserved() -> Int {
-                maxObserved
-            }
-        }
+    actor ConcurrencyTracker {
+      var currentCount = 0
+      var maxObserved = 0
 
-        let tracker = ConcurrencyTracker()
+      func increment() {
+        currentCount += 1
+        maxObserved = max(maxObserved, currentCount)
+      }
 
-        // Spawn 10 tasks
-        await withTaskGroup(of: Void.self) { group in
-            for _ in 0 ..< 10 {
-                group.addTask {
-                    await limiter.acquire()
-                    await tracker.increment()
+      func decrement() {
+        currentCount -= 1
+      }
 
-                    // Short work duration to keep all tasks alive
-                    try? await Task.sleep(for: .milliseconds(10))
-
-                    await tracker.decrement()
-                    await limiter.release()
-                }
-            }
-
-            await group.waitForAll()
-        }
-
-        let maxConcurrent = await tracker.getMaxObserved()
-
-        // With unlimited concurrency, should see most or all tasks running concurrently
-        // Exact value depends on system scheduling, but should be >5 for 10 tasks
-        #expect(maxConcurrent >= 5)
+      func getMaxObserved() -> Int {
+        maxObserved
+      }
     }
 
-    /// Test that limiter with maxConcurrency=1 executes tasks serially (one at a time).
-    @Test
-    func limiter_withSerial_executesOneAtATime() async throws {
-        let limiter = BatchConcurrencyLimiter(maxConcurrency: 1)
+    let tracker = ConcurrencyTracker()
 
-        // Track concurrent acquisitions
-        actor ConcurrencyTracker {
-            var currentCount = 0
-            var maxObserved = 0
+    await withTaskGroup(of: Void.self) { group in
+      for _ in 0..<10 {
+        group.addTask {
+          await limiter.acquire()
+          await tracker.increment()
 
-            func increment() {
-                currentCount += 1
-                maxObserved = max(maxObserved, currentCount)
-            }
+          try? await Task.sleep(for: .milliseconds(50))
 
-            func decrement() {
-                currentCount -= 1
-            }
-
-            func getMaxObserved() -> Int {
-                maxObserved
-            }
+          await tracker.decrement()
+          await limiter.release()
         }
+      }
 
-        let tracker = ConcurrencyTracker()
-
-        // Spawn 5 tasks
-        await withTaskGroup(of: Void.self) { group in
-            for _ in 0 ..< 5 {
-                group.addTask {
-                    await limiter.acquire()
-                    await tracker.increment()
-
-                    // Simulate work
-                    try? await Task.sleep(for: .milliseconds(20))
-
-                    await tracker.decrement()
-                    await limiter.release()
-                }
-            }
-
-            await group.waitForAll()
-        }
-
-        let maxConcurrent = await tracker.getMaxObserved()
-
-        // Should only ever allow 1 concurrent task
-        #expect(maxConcurrent == 1)
+      await group.waitForAll()
     }
 
-    /// Test that acquire/release round-trip works correctly.
-    @Test
-    func limiter_acquireRelease_roundTrip() async throws {
-        let limiter = BatchConcurrencyLimiter(maxConcurrency: 2)
+    let maxConcurrent = await tracker.getMaxObserved()
 
-        // Acquire first slot
-        await limiter.acquire()
+    #expect(maxConcurrent <= 3)
+    #expect(maxConcurrent >= 1)
+  }
 
-        // Acquire second slot
-        await limiter.acquire()
+  @Test
+  func limiter_withUnlimited_allowsAllConcurrent() async throws {
+    let limiter = BatchConcurrencyLimiter(maxConcurrency: 0)
 
-        // Both slots filled - third acquire would suspend (can't test easily without deadlock risk)
+    actor ConcurrencyTracker {
+      var currentCount = 0
+      var maxObserved = 0
 
-        // Release first slot
-        await limiter.release()
+      func increment() {
+        currentCount += 1
+        maxObserved = max(maxObserved, currentCount)
+      }
 
-        // Release second slot
-        await limiter.release()
+      func decrement() {
+        currentCount -= 1
+      }
 
-        // Now all slots free - should be able to acquire again
-        await limiter.acquire()
-        await limiter.release()
-
-        // Test passes if no suspension/deadlock occurred
-        #expect(Bool(true))
+      func getMaxObserved() -> Int {
+        maxObserved
+      }
     }
+
+    let tracker = ConcurrencyTracker()
+
+    await withTaskGroup(of: Void.self) { group in
+      for _ in 0..<10 {
+        group.addTask {
+          await limiter.acquire()
+          await tracker.increment()
+
+          try? await Task.sleep(for: .milliseconds(10))
+
+          await tracker.decrement()
+          await limiter.release()
+        }
+      }
+
+      await group.waitForAll()
+    }
+
+    let maxConcurrent = await tracker.getMaxObserved()
+
+    #expect(maxConcurrent >= 5)
+  }
+
+  @Test
+  func limiter_withSerial_executesOneAtATime() async throws {
+    let limiter = BatchConcurrencyLimiter(maxConcurrency: 1)
+
+    actor ConcurrencyTracker {
+      var currentCount = 0
+      var maxObserved = 0
+
+      func increment() {
+        currentCount += 1
+        maxObserved = max(maxObserved, currentCount)
+      }
+
+      func decrement() {
+        currentCount -= 1
+      }
+
+      func getMaxObserved() -> Int {
+        maxObserved
+      }
+    }
+
+    let tracker = ConcurrencyTracker()
+
+    await withTaskGroup(of: Void.self) { group in
+      for _ in 0..<5 {
+        group.addTask {
+          await limiter.acquire()
+          await tracker.increment()
+
+          try? await Task.sleep(for: .milliseconds(20))
+
+          await tracker.decrement()
+          await limiter.release()
+        }
+      }
+
+      await group.waitForAll()
+    }
+
+    let maxConcurrent = await tracker.getMaxObserved()
+
+    #expect(maxConcurrent == 1)
+  }
+
+  @Test
+  func limiter_acquireRelease_roundTrip() async throws {
+    let limiter = BatchConcurrencyLimiter(maxConcurrency: 2)
+
+    await limiter.acquire()
+
+    await limiter.acquire()
+
+    await limiter.release()
+
+    await limiter.release()
+
+    await limiter.acquire()
+    await limiter.release()
+
+    #expect(Bool(true))
+  }
+}
+
+private actor CompletionState {
+  private(set) var isFinished = false
+  private(set) var entered = false
+
+  func finish(entered: Bool) {
+    isFinished = true
+    self.entered = entered
+  }
 }
