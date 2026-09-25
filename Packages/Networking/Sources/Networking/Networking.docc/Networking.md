@@ -6,11 +6,11 @@ An HTTP client for Swift 6 applications, built on `URLSession`.
 
 ## Overview
 
-The `Networking` product reexports the core, runtime, request builder,
-middleware, observability, and server-sent event modules. Import `Networking`
-for the complete runtime API, or depend on individual products when a target
-needs fewer modules. API client macros are in the separate `NetworkingMacros`
-product.
+The `Networking` product reexports the core, runtime, request builder, runtime
+DSL, observability, server-sent event, and compatibility interceptor modules.
+Import `Networking` for the complete runtime API, or depend on individual
+products when a target needs fewer modules. API client macros are in the
+separate `NetworkingMacros` product.
 
 `NetworkClient` accepts an `HTTPRequest`, runs request middleware, checks for a
 cached response, and calls `URLSession` when needed. Response middleware handles
