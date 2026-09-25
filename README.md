@@ -1,9 +1,9 @@
 # Networking
 
 Networking is a Swift 6 HTTP client built on `URLSession`. The `Networking` library
-reexports the core, runtime, request builder, observability, server-sent event,
-and compatibility interceptor modules. You can import those modules separately
-when a target needs fewer dependencies.
+reexports the core, runtime, request builder, runtime DSL, observability,
+server-sent event, and compatibility interceptor modules. You can import those
+modules separately when a target needs fewer dependencies.
 
 The repository has two Swift packages. `Packages/Networking` contains the runtime
 libraries. `Packages/NetworkingMacros` contains the optional API client macros.
@@ -72,4 +72,4 @@ covers the repository layout and contribution checks.
 
 ## License
 
-This project is available under the MIT license.
+This project is available under the [MIT license](LICENSE).
