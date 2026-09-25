@@ -2,9 +2,13 @@
 
 Configure NetworkClient instances using the declarative DSL.
 
+---
+
 ## Overview
 
-Networking provides a powerful, declarative API for configuring HTTP clients. The configuration system uses Swift's result builder pattern to create readable, maintainable client setups.
+The client configuration builder collects the session, middleware, default headers, and timeout before creating a `NetworkClient`.
+
+---
 
 ## Basic Configuration
 
@@ -52,6 +56,8 @@ Set default request timeouts:
 ```swift
 DefaultTimeout(60.0) // 60 seconds
 ```
+
+---
 
 ## Authentication Configuration
 
@@ -153,6 +159,8 @@ let client = NetworkClient {
 }
 ```
 
+---
+
 ## Retry Configuration
 
 ### Basic Retry Setup
@@ -216,6 +224,8 @@ BackoffStrategy(.custom { attempt in
     return TimeInterval(attempt * 2) + Double.random(in: 0...1)
 })
 ```
+
+---
 
 ## Caching Configuration
 
@@ -287,6 +297,8 @@ Storage(.hybrid(
 ))
 ```
 
+---
+
 ## Session Configuration
 
 ### URLSession Customization
@@ -320,6 +332,8 @@ let client = NetworkClient {
 }
 ```
 
+---
+
 ## Security Configuration
 
 ### SSL Pinning
@@ -351,6 +365,8 @@ let client = NetworkClient {
     }
 }
 ```
+
+---
 
 ## Middleware Configuration
 
@@ -390,9 +406,11 @@ let client = NetworkClient(
 )
 ```
 
+---
+
 ## Complete Configuration Example
 
-Here's a comprehensive client configuration example:
+This example combines several client settings:
 
 ```swift
 let client = NetworkClient {
@@ -458,9 +476,10 @@ let client = NetworkClient {
 }
 ```
 
+---
+
 ## Related Topics
 
 - <doc:Authentication>: Detailed authentication configuration
-- <doc:Caching-System>: Advanced caching strategies  
 - <doc:Security-Features>: Security configuration options
-- <doc:Middleware-System>: Creating custom middleware
+- <doc:Middleware-Guide>: Creating custom middleware

@@ -2,9 +2,13 @@
 
 Creating and configuring middleware for request/response processing.
 
+---
+
 ## Overview
 
-Networking's middleware system provides a powerful way to intercept and modify HTTP requests and responses. Middleware enables cross-cutting concerns like authentication, logging, caching, retry logic, and custom transformations.
+Request middleware can change a request before execution. Response middleware processes the result, and error middleware handles failures. The package uses these protocols for authentication, logging, caching, and retries.
+
+---
 
 ## Middleware Types
 
@@ -13,6 +17,8 @@ The framework provides three types of middleware:
 - **Request Middleware**: Modifies requests before execution
 - **Response Middleware**: Processes responses after execution  
 - **Error Middleware**: Handles errors and provides recovery strategies
+
+---
 
 ## Request Middleware
 
@@ -106,6 +112,8 @@ struct RequestValidationMiddleware: HTTPRequestMiddleware {
     }
 }
 ```
+
+---
 
 ## Response Middleware
 
@@ -218,6 +226,8 @@ struct MetricsCollectionMiddleware: HTTPResponseMiddleware {
 }
 ```
 
+---
+
 ## Error Middleware
 
 ### HTTPErrorMiddleware Protocol
@@ -322,6 +332,8 @@ struct FallbackResponseMiddleware: HTTPErrorMiddleware {
 }
 ```
 
+---
+
 ## Combining Multiple Middleware
 
 ### Middleware Pipeline
@@ -353,6 +365,8 @@ let client = NetworkClient(
     ]
 )
 ```
+
+---
 
 ## Built-in Middleware
 
@@ -419,6 +433,8 @@ let cachingMiddleware = CachingMiddleware(
     )
 )
 ```
+
+---
 
 ## Custom Middleware Patterns
 
@@ -516,6 +532,8 @@ actor StatefulMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware {
 }
 ```
 
+---
+
 ## Middleware Best Practices
 
 ### 1. Keep Middleware Focused
@@ -578,6 +596,8 @@ struct RateLimitingMiddleware: HTTPRequestMiddleware {
 }
 ```
 
+---
+
 ## Testing Middleware
 
 ### Unit Testing
@@ -621,9 +641,10 @@ func testAuthenticationFlow() async throws {
 }
 ```
 
+---
+
 ## Related Topics
 
 - <doc:Client-Configuration>: Configuring middleware through the DSL
 - <doc:Authentication>: Built-in authentication middleware
-- <doc:Caching-System>: Response caching middleware
 - <doc:Error-Handling>: Error recovery strategies
