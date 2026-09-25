@@ -48,10 +48,14 @@ function. See <doc:GettingStarted> for installation.
 - <doc:RequestComponents>
 - <doc:ConditionalRequests>
 - <doc:MiddlewareOverview>
+- <doc:MIDDLEWARE_DOCUMENTATION>
+- <doc:ADVANCED_USAGE>
+- <doc:SWIFT_6_FEATURES>
 - <doc:TESTING_GUIDE>
 - <doc:ARCHITECTURE_GUIDE>
 - <doc:MIGRATION_GUIDE>
 - <doc:API_REFERENCE>
+- <doc:FLUENT_DSL_DOCUMENTATION>
 
 ---
 
