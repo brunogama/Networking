@@ -24,6 +24,7 @@ public final class NetworkClient: HTTPFileTransferClient {
     canPerformNativeFileTransfer && responseMiddlewares.isEmpty
   }
 
+  /// Creates a client with a URL session and optional middleware.
   public init(
     session: URLSession = .shared,
     requestMiddlewares: [any HTTPRequestMiddleware] = [],

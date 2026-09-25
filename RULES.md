@@ -15,7 +15,7 @@ This file is the definitive source of truth for AI agents working on the ModernN
 ## 2. Workspace Awareness
 
 - The root [Package.swift](Package.swift) declares products and targets for package consumers.
-- The buildable packages are:
+- The standalone packages used for development checks are:
   - `Packages/Networking`
   - `Packages/NetworkingMacros`
 - Do not treat `swift test` at the repository root as meaningful validation.
