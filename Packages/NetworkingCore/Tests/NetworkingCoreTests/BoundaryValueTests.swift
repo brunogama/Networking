@@ -30,7 +30,7 @@ struct BoundaryValueTests {
     #expect((fraction + 0.25).rawValue == 0.75)
     #expect(duration.rawValue == 2)
     #expect(enabled.rawValue)
-    #expect(count < 3)
+    #expect(count < BoundaryInt(rawValue: 3))
   }
 
   @Test("Foundation values preserve data and identity")

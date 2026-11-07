@@ -11,9 +11,6 @@ extension Tagged where RawValue == String {
     rawValue.caseInsensitiveCompare(other.rawValue)
   }
 
-  package func contains<S: StringProtocol>(_ other: S) -> Bool { rawValue.contains(other) }
-  package func lowercased() -> String { rawValue.lowercased() }
-  package func uppercased() -> String { rawValue.uppercased() }
 }
 
 extension Tagged where RawValue == Data {
@@ -28,7 +25,6 @@ extension Tagged where RawValue == Data {
   /// Whether the data contains no bytes.
   public var isEmpty: BoundaryDataEmptyFlag<Tag> { BoundaryDataEmptyFlag(rawValue.isEmpty) }
 
-  package func write(to url: URL) throws { try rawValue.write(to: url) }
 }
 
 extension Tagged where RawValue == URL {
@@ -40,19 +36,10 @@ extension Tagged where RawValue == URL {
     self.init(rawValue: url)
   }
 
-  package var absoluteString: String { rawValue.absoluteString }
-  package var host: String? { rawValue.host }
-  package var path: String { rawValue.path }
-  package var scheme: String? { rawValue.scheme }
-
-  package func appendingPathComponent(_ component: String) -> Self {
-    Self(rawValue.appendingPathComponent(component))
-  }
 }
 
 extension Tagged where RawValue == UUID {
   /// Creates a fresh identity in this domain.
   public init() { self.init(rawValue: UUID()) }
 
-  package var uuidString: String { rawValue.uuidString }
 }
