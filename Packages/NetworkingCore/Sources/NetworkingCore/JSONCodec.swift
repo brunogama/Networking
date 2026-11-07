@@ -8,7 +8,6 @@ public final class JSONCodec: Sendable {
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
 
-  /// Creates reusable coders with a snapshot of the supplied settings.
   public init(configuration: Configuration = Configuration()) {
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = configuration.dateEncoding
@@ -28,12 +27,10 @@ public final class JSONCodec: Sendable {
     self.decoder = decoder
   }
 
-  /// Encodes a value, preserving errors from its encoding implementation.
   public func encode<Value: Encodable>(_ value: Value) throws -> Data {
     try encoder.encode(value)
   }
 
-  /// Decodes a value, preserving errors from its decoding implementation.
   public func decode<Value: Decodable>(_ type: Value.Type, from data: Data) throws -> Value {
     try decoder.decode(type, from: data)
   }

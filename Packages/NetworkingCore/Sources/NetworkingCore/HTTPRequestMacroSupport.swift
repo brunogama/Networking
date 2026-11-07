@@ -1,8 +1,7 @@
 import Foundation
 
 extension HTTPRequest {
-  /// Appends an escaped query value while preserving the request's identity.
-  /// - Throws: A configuration error when Foundation cannot represent the resulting URL.
+
   public mutating func addQueryParameter<Value>(
     name: QueryParameterName,
     value: Value
@@ -28,7 +27,6 @@ extension HTTPRequest {
     )
   }
 
-  /// Replaces the body while preserving the request's identity.
   public mutating func setBody(_ data: HTTPBody) {
     self = HTTPRequest(
       method: method,
@@ -40,12 +38,10 @@ extension HTTPRequest {
     )
   }
 
-  /// Replaces a header case-insensitively while preserving the request's identity.
   public mutating func addHeader(name: HTTPHeaderName, value: HTTPHeaderValue) {
     setHeaders([name: value])
   }
 
-  /// Merges headers case-insensitively while preserving the request's identity.
   public mutating func setHeaders(_ values: HTTPHeaders) {
     var merged = headers
     for (name, value) in values { merged[name] = value }
