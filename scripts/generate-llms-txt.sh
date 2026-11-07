@@ -2,152 +2,149 @@
 # Generate llms.txt from Swift symbol graphs
 # Usage: ./scripts/generate-llms-txt.sh
 
-set -e
+set -euo pipefail
 
 OUTPUT_FILE="${1:-llms.txt}"
-BUILD_DIR=".build/symbol-graphs"
+mkdir -p "$PWD/.build"
+BUILD_DIR=$(mktemp -d "$PWD/.build/llms-symbol-graphs.XXXXXX")
+TEMP_OUTPUT=$(mktemp "${OUTPUT_FILE}.tmp.XXXXXX")
+trap 'rm -f "$TEMP_OUTPUT"; rm -rf "$BUILD_DIR"' EXIT
 
 # Define packages in dependency order
 packages=(
-  "MacroTemplateKit"
   "NetworkingMacros"
   "Networking"
 )
 
 echo "Generating symbol graphs for all packages..."
-mkdir -p "$BUILD_DIR"
-
 for pkg in "${packages[@]}"; do
   echo "  Building $pkg..."
-  # Build in package directory, then copy symbol graphs to root build dir
-  (cd "Packages/$pkg" && \
-   swift build \
-     -Xswiftc -emit-symbol-graph \
-     -Xswiftc -emit-symbol-graph-dir -Xswiftc .build/symbol-graphs 2>/dev/null || true)
-
-  # Copy package-specific symbol graphs to workspace build dir
-  if [ -d "Packages/$pkg/.build/symbol-graphs" ]; then
-    mkdir -p "$BUILD_DIR/$pkg"
-    cp "Packages/$pkg/.build/symbol-graphs/$pkg.symbols.json" "$BUILD_DIR/$pkg/" 2>/dev/null || true
-  fi
+  mkdir -p "$BUILD_DIR/$pkg"
+  swift build --package-path "Packages/$pkg" \
+    -Xswiftc -emit-symbol-graph \
+    -Xswiftc -emit-symbol-graph-dir -Xswiftc "$BUILD_DIR/$pkg"
+  test -s "$BUILD_DIR/$pkg/$pkg.symbols.json" || {
+    echo "Missing symbol graph for $pkg" >&2
+    exit 1
+  }
 done
 
 # Start llms.txt output
-cat > "$OUTPUT_FILE" << 'HEADER'
-# ModernNetworking - Swift HTTP Client Framework
+cat > "$TEMP_OUTPUT" << 'HEADER'
+# Networking - Swift HTTP Client
 
-A production-grade Swift networking library featuring async/await, interceptors, macros, and multi-transport support.
+A Swift 6 URLSession library with request values, actor-owned middleware state,
+scoped cancellation, optional caching, diagnostics, and HTTP client macros.
+
+---
 
 ## Overview
 
-ModernNetworking MVP contains 3 Swift packages:
+The repository contains two Swift packages:
 
 | Package | Purpose |
 |---------|---------|
-| MacroTemplateKit | SwiftSyntax template DSL for macro code generation |
 | NetworkingMacros | Swift compiler plugin for HTTP client macros |
 | Networking | Core async/await HTTP client with middleware |
+
+---
 
 ## Quick Start
 
 ```swift
+import Foundation
 import Networking
 
-// Simple GET request
 let client = NetworkClient()
-let response = try await client.execute(HTTPRequest(url: URL(string: "https://api.example.com/users")!))
+guard let url = URL(string: "https://api.example.com/users") else {
+    throw URLError(.badURL)
+}
+let response = try await client.execute(HTTPRequest(method: .get, url: url))
+```
 
-// Using @API macro
-@API
+With the optional macro package and an application-defined `User: Decodable`:
+
+```swift
+import Networking
+import NetworkingMacros
+
+@API(baseURL: .absolute("https://api.example.com"))
 protocol UsersAPI {
-    @GET("/users")
+    @GET(.path("/users"))
     func getUsers() async throws -> [User]
-
-    @POST("/users")
-    func createUser(@Body user: User) async throws -> User
 }
 ```
+
+---
 
 ## Public API
 
 HEADER
 
-# Extract symbols for each package
-for pkg in "${packages[@]}"; do
-  SYMBOL_FILE="$BUILD_DIR/$pkg/$pkg.symbols.json"
+# Extract every public product, including modules re-exported by Networking.
+modules=(NetworkingMacros NetworkingCore NetworkingRuntime NetworkingObservability
+  NetworkingObservabilityOTLP NetworkingTesting NetworkingSSE Networking)
+for module in "${modules[@]}"; do
+  package="Networking"
+  if [[ "$module" == "NetworkingMacros" ]]; then package="NetworkingMacros"; fi
+  SYMBOL_FILE="$BUILD_DIR/$package/$module.symbols.json"
+  test -s "$SYMBOL_FILE" || {
+    echo "Missing symbol graph for $module" >&2
+    exit 1
+  }
 
-  if [ ! -f "$SYMBOL_FILE" ]; then
-    echo "  Warning: No symbol graph for $pkg"
-    continue
+  printf '\n### %s\n\n' "$module" >> "$TEMP_OUTPUT"
+
+  source_module="$module"
+  if [[ "$module" == "NetworkingMacros" ]]; then
+    source_module="NetworkingMacrosDeclarations"
   fi
+  source_prefix="file://$PWD/Packages/$package/Sources/$source_module/"
 
-  echo "" >> "$OUTPUT_FILE"
-  echo "### $pkg" >> "$OUTPUT_FILE"
-  echo "" >> "$OUTPUT_FILE"
-
-  # Extract structs
-  structs=$(jq -r '[.symbols[]? | select(.accessLevel == "public" or .accessLevel == "open") | select(.kind.identifier == "swift.struct") | .names.title] | unique | .[]' "$SYMBOL_FILE" 2>/dev/null || true)
-  if [ -n "$structs" ]; then
-    echo "**Structs:**" >> "$OUTPUT_FILE"
-    echo "$structs" | while read -r name; do
-      [ -n "$name" ] && echo "- \`$name\`" >> "$OUTPUT_FILE"
-    done
-    echo "" >> "$OUTPUT_FILE"
-  fi
-
-  # Extract protocols
-  protocols=$(jq -r '[.symbols[]? | select(.accessLevel == "public" or .accessLevel == "open") | select(.kind.identifier == "swift.protocol") | .names.title] | unique | .[]' "$SYMBOL_FILE" 2>/dev/null || true)
-  if [ -n "$protocols" ]; then
-    echo "**Protocols:**" >> "$OUTPUT_FILE"
-    echo "$protocols" | while read -r name; do
-      [ -n "$name" ] && echo "- \`$name\`" >> "$OUTPUT_FILE"
-    done
-    echo "" >> "$OUTPUT_FILE"
-  fi
-
-  # Extract enums
-  enums=$(jq -r '[.symbols[]? | select(.accessLevel == "public" or .accessLevel == "open") | select(.kind.identifier == "swift.enum") | .names.title] | unique | .[]' "$SYMBOL_FILE" 2>/dev/null || true)
-  if [ -n "$enums" ]; then
-    echo "**Enums:**" >> "$OUTPUT_FILE"
-    echo "$enums" | while read -r name; do
-      [ -n "$name" ] && echo "- \`$name\`" >> "$OUTPUT_FILE"
-    done
-    echo "" >> "$OUTPUT_FILE"
-  fi
-
-  # Extract classes
-  classes=$(jq -r '[.symbols[]? | select(.accessLevel == "public" or .accessLevel == "open") | select(.kind.identifier == "swift.class") | .names.title] | unique | .[]' "$SYMBOL_FILE" 2>/dev/null || true)
-  if [ -n "$classes" ]; then
-    echo "**Classes:**" >> "$OUTPUT_FILE"
-    echo "$classes" | while read -r name; do
-      [ -n "$name" ] && echo "- \`$name\`" >> "$OUTPUT_FILE"
-    done
-    echo "" >> "$OUTPUT_FILE"
-  fi
-
-  # Extract type aliases
-  typealiases=$(jq -r '[.symbols[]? | select(.accessLevel == "public" or .accessLevel == "open") | select(.kind.identifier == "swift.typealias") | .names.title] | unique | .[]' "$SYMBOL_FILE" 2>/dev/null || true)
-  if [ -n "$typealiases" ]; then
-    echo "**Type Aliases:**" >> "$OUTPUT_FILE"
-    echo "$typealiases" | while read -r name; do
-      [ -n "$name" ] && echo "- \`$name\`" >> "$OUTPUT_FILE"
-    done
-    echo "" >> "$OUTPUT_FILE"
-  fi
+  for kind in struct protocol enum class typealias macro; do
+    case "$kind" in
+      struct) heading="Structs" ;;
+      protocol) heading="Protocols" ;;
+      enum) heading="Enums" ;;
+      class) heading="Classes and actors" ;;
+      typealias) heading="Type aliases" ;;
+      macro) heading="Macros" ;;
+    esac
+    symbols=$(jq -r --arg kind "swift.$kind" --arg prefix "$source_prefix" '
+      [.symbols[]?
+        | select(.accessLevel == "public" or .accessLevel == "open")
+        | select((.location.uri // "") | startswith($prefix))
+        | select(.kind.identifier == $kind
+          or ($kind == "swift.class" and .kind.identifier == "swift.actor"))
+        | .names.title] | unique | .[]' "$SYMBOL_FILE")
+    if [[ -n "$symbols" ]]; then
+      printf '**%s:**\n\n' "$heading" >> "$TEMP_OUTPUT"
+      while IFS= read -r name; do
+        printf -- '- `%s`\n' "$name" >> "$TEMP_OUTPUT"
+      done <<< "$symbols"
+      printf '\n' >> "$TEMP_OUTPUT"
+    fi
+  done
 done
 
 # Add footer
-cat >> "$OUTPUT_FILE" << 'FOOTER'
+cat >> "$TEMP_OUTPUT" << 'FOOTER'
+
+---
 
 ## Documentation
 
 - GitHub: https://github.com/brunogama/Networking
 - API Reference: https://brunogama.github.io/Networking/documentation/networking
 
+---
+
 ## Requirements
 
 - Swift 6.0+
 - iOS 16+, macOS 13+, tvOS 16+, watchOS 9+
+
+---
 
 ## License
 
@@ -158,6 +155,7 @@ MIT License - see LICENSE file for details.
 FOOTER
 
 # Count symbols
-total=$(grep -c "^- \`" "$OUTPUT_FILE" || echo "0")
+total=$(awk '/^- `/{count++} END {print count+0}' "$TEMP_OUTPUT")
+mv "$TEMP_OUTPUT" "$OUTPUT_FILE"
 echo ""
 echo "Generated $OUTPUT_FILE with $total public symbols"

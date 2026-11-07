@@ -1,225 +1,142 @@
 # Networking
 
-A Swift 6 networking framework designed for modern iOS, macOS, tvOS, and watchOS applications. Built with async/await, structured concurrency, and comprehensive security features.
+A Swift 6 HTTP library built on URLSession. Requests are values; middleware owns
+its state; scoped request tickets provide cancellation and a single result.
 
-## Features
+---
 
-### Core Networking
-- Swift 6 compliant with full async/await URLSession integration
-- Fluent DSL for declarative request/response building
-- Result builder patterns for readable configuration
-- Comprehensive middleware architecture
-- File transfer operations with progress tracking
-- Circuit breaker pattern for system resilience
+## Supported platforms
 
-### Security (OWASP Top 10 Compliance)
-- Header injection prevention with CRLF detection
-- Certificate pinning with validation and backup pins
-- Secure token storage via iOS Keychain Services
-- Input validation and output encoding
-- Security headers enforcement (CSP, HSTS, X-Frame-Options)
-- SHA-256 based checksums (MD5/SHA1 deprecated)
+iOS 16, macOS 13, tvOS 16, and watchOS 9 or later. The package requires Swift 6.
+The native traffic inspector is available on iOS and macOS.
 
-### Code Generation
-- Macro-based API client generation
-- Automatic request/response mapping
-- Type-safe parameter binding
-- Protocol-driven development
+Add the repository as a Swift package and select the `Networking` product.
+The optional macro package lives at `Packages/NetworkingMacros`; its remote
+distribution is not independently published.
 
-## Installation
+---
 
-### Swift Package Manager
+## Requests and shared configuration
 
 ```swift
-dependencies: [
-    .package(url: "https://github.com/brunogama/Networking.git", from: "1.0.0")
-]
+import Foundation
+import Networking
+
+guard let url = URL(string: "https://api.example.com/users") else {
+  throw URLError(.badURL)
+}
+let diagnostics = NetworkDiagnostics()
+let client = NetworkClient(
+  middleware: HTTPMiddleware(),
+  configuration: .init(timeout: 15, diagnostics: diagnostics)
+)
+let request = HTTPRequest(method: .get, url: url)
+let response = try await client.execute(request)
 ```
 
-## Quick Start
+`NetworkClient.Configuration` also accepts response size limits. Its `baseURL`
+property resolves relative URLs using Foundation URL resolution, and
+`defaultHeaders` supplies values that request-specific headers can override.
 
-### Basic Client Configuration
+Create a `JSONCodec` once at the application's composition root and reuse it
+for encoding and decoding. Configuration is applied before the codec is shared;
+the mutable Foundation coders are not exposed.
+
+```swift
+var coding = JSONCodec.Configuration()
+coding.dateEncoding = .iso8601
+coding.dateDecoding = .iso8601
+let codec = JSONCodec(configuration: coding)
+let body = try codec.encode(["message": "hello"])
+```
+
+Reuse an injected `KeychainService` and `KeychainTokenProvider` for authentication.
+Credential values are read from Keychain rather than cached between reads.
+
+---
+
+## Cancellation and diagnostics
+
+```swift
+let response = try await client.withRequest(request) { ticket in
+  try await ticket.response()
+}
+```
+
+The noncopyable ticket is consumed by `response()` or `cancel()`. Its shareable
+`cancellation` handle can cancel an operation while the response is awaited.
+Leaving the scope cancels and joins unfinished child tasks.
+
+Present `NetworkInspector(diagnostics: diagnostics)` in a debug view. The recorder
+captures URLSession attempts, redirects, connection reuse and timings, and OSLog
+events. Secret headers and query values are redacted; body capture is opt-in.
+
+See [request lifecycle](docs/request-lifecycle.md) for ownership and privacy limits.
+
+---
+
+## Optional capabilities
+
+- `HTTPMiddleware` supplies ordered request, response, and error stages.
+- `AuthenticationMiddleware` injects credentials and handles refresh.
+- `RetryMiddleware` retries eligible failures with capped exponential delays.
+- `CachingMiddleware` supports opt-in memory, disk, or hybrid storage and revalidation.
+- `executeBatch` runs an array of requests using bounded child tasks.
+- File transfer and server-sent event APIs retain real URLSession transport support.
+- `TracingMiddleware` and the separate `NetworkingObservabilityOTLP` product provide
+  optional tracing and explicit awaited telemetry export.
+
+Use a separate transport client for retry, authentication recovery, and prefetch
+middleware. Avoid injecting the outer client back into its own middleware.
+
+---
+
+## Generated clients
 
 ```swift
 import Networking
+import NetworkingMacros
 
-let client = NetworkClient {
-    BaseURL("https://api.example.com")
-    EnableLogging()
-    EnableRetry()
-    DefaultHeader("User-Agent", "MyApp/1.0")
-    BearerAuth("your-token")
-}
-```
-
-### Making Requests
-
-```swift
-// GET request
-let response = try await client.execute {
-    GET("/users/123")
-    Timeout(15.0)
-}
-
-let user: User = try response.decode(User.self)
-
-// POST request
-let createResponse = try await client.execute {
-    POST("/users")
-    JSONBody(newUser)
-    ContentType(.json)
-}
-```
-
-### Generated API Client
-
-```swift
-@API(baseURL: "https://api.example.com")
+@API(baseURL: .absolute("https://api.example.com"))
 protocol UserAPI {
-    @GET("/users/{id}")
-    func getUser(@Path id: String) async throws -> User
-    
-    @POST("/users")
-    func createUser(@Body user: User) async throws -> User
-    
-    @PUT("/users/{id}")
-    func updateUser(@Path id: String, @Body user: User) async throws -> User
-    
-    @DELETE("/users/{id}")
-    func deleteUser(@Path id: String) async throws -> Void
+  @GET(.path("/users/{id}"))
+  func user(id: String) async throws -> User
 }
 
-let userAPI = UserAPIImplementation()
-let user = try await userAPI.getUser(id: "123")
+let api: any UserAPI = UserAPIFactory.make(client: client, codec: codec)
 ```
 
-## Architecture
+The application supplies the `User` model. Supported annotations are `@API`,
+HTTP methods, `@Body`, `@Headers`, `@DefaultHeaders`, and `@Timeout`.
+Generated clients retain the injected codec and client.
 
-### Middleware System
+---
 
-The framework includes comprehensive middleware for:
+## Breaking migration
 
-- **Authentication**: Automatic token refresh and management
-- **Retry Logic**: Exponential backoff with jitter
-- **Caching**: Multi-level with TTL and storage policies
-- **Logging**: Request/response logging with privacy controls
-- **Metrics**: Performance tracking and monitoring
-- **Security**: Header validation and sanitization
+Request/configuration builders, response chaining, compatibility interceptors,
+BDD infrastructure, simulated transfer controls, and the old analytics/error
+advice layers have been removed. Their replacement is ordinary request values,
+middleware arrays, Swift Testing, and native diagnostics.
 
-### Request Building
+See [the migration guide](docs/api-simplification.md). This redesign does not add
+an HTTP memoizer or custom header/body encryption protocol. TLS already protects
+headers and bodies in transit; application payload encryption needs a protocol
+agreed with the server.
 
-```swift
-let request = HTTPRequest {
-    GET("/api/data")
-    BearerAuth(token)
-    JSONBody(payload)
-    Header("Custom-Header", "value")
-    QueryParam("filter", "active")
-    Timeout(30.0)
-}
-```
+---
 
-### Response Processing
-
-```swift
-let response = try await client.execute(request)
-    .validateStatusCode()
-    .transform { data in
-        return try JSONDecoder().decode(Model.self, from: data)
-    }
-    .retry(maxAttempts: 3)
-```
-
-## Advanced Features
-
-### File Operations
-
-```swift
-// Upload with progress tracking
-let uploadTask = client.uploadFile(
-    url: "/upload",
-    fileURL: localFileURL,
-    progressHandler: { progress in
-        print("Upload progress: \(progress.fractionCompleted)")
-    }
-)
-
-// Download with resume support
-let downloadTask = client.downloadFile(
-    url: "/download/file.zip",
-    destination: destinationURL
-)
-```
-
-### Circuit Breaker
-
-```swift
-let client = NetworkClient {
-    BaseURL("https://api.example.com")
-    CircuitBreaker(
-        failureThreshold: 5,
-        recoveryTimeout: 60.0,
-        successThreshold: 3
-    )
-}
-```
-
-### Caching
-
-```swift
-let client = NetworkClient {
-    BaseURL("https://api.example.com")
-    EnableCaching(
-        policy: .returnCacheDataElseLoad,
-        storage: .memory(maxSize: 100_000_000)
-    )
-}
-```
-
-## Platform Support
-
-- iOS 16.0+
-- macOS 13.0+
-- tvOS 16.0+
-- watchOS 9.0+
-
-## Requirements
-
-- Swift 6.0+
-- Xcode 16.0+
-
-## Documentation
-
-Comprehensive documentation is available through DocC:
-
-- [Getting Started Guide](Documentation/GETTING_STARTED.md)
-- [API Reference](Documentation/API_REFERENCE.md)
-- [Architecture Guide](Documentation/ARCHITECTURE_GUIDE.md)
-- [Security Features](Documentation/SWIFT_6_FEATURES.md)
-- [Testing Guide](Documentation/TESTING_GUIDE.md)
-- [Migration Guide](Documentation/MIGRATION_GUIDE.md)
-- [Advanced Usage](Documentation/ADVANCED_USAGE.md)
-
-## Testing
-
-The framework includes comprehensive test coverage:
+## Development
 
 ```bash
-swift test
+swift build --package-path Packages/Networking
+swift test --package-path Packages/Networking --filter RequestTicketTests
+swift test --package-path Packages/NetworkingMacros
+swift test --package-path Fixtures/NetworkingConsumer
+swift test --package-path Fixtures/ExtensionConsumer
 ```
 
-For detailed testing documentation, see [Testing Guide](Documentation/TESTING_GUIDE.md).
+Run the relevant focused tests and the repository's explicit-file `swift-style`
+gate after changes. See `AGENTS.md` for validation and ownership rules.
 
-## Contributing
-
-This project follows Swift API Design Guidelines and maintains Swift 6 strict concurrency compliance. See [CHANGELOG.md](CHANGELOG.md) for version history.
-
-## License
-
-This project is available under the MIT license.
-
-## Version
-
-- Framework Version: 1.0.0
-- Swift Version: 6.0
-- Platform Support: iOS 16+, macOS 13+, tvOS 16+, watchOS 9+
+The library is available under the MIT license.
