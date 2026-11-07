@@ -5,7 +5,12 @@ import NetworkingCore
 import FoundationNetworking
 #endif
 
-extension NetworkClient {
+extension NetworkClient: HTTPFileTransferClient {
+  // File-backed downloads contain metadata only; body middleware requires the buffered pipeline.
+  package var canPerformNativeFileTransfer: Bool {
+    middleware.error.isEmpty && middleware.response.isEmpty
+  }
+
   package func upload(
     _ request: HTTPRequest,
     fromFile fileURL: URL,

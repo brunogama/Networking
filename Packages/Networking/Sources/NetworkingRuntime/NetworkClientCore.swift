@@ -8,18 +8,13 @@ import FoundationNetworking
 /// Executes HTTP requests with URLSession, ordered middleware, and optional traffic diagnostics.
 ///
 /// Immutable configuration permits concurrent calls; mutable middleware owns its synchronization.
-public final class NetworkClient: HTTPFileTransferClient {
+public final class NetworkClient: HTTPClient {
   let session: URLSession
   let middleware: HTTPMiddleware
   let configuration: Configuration
   let codec: JSONCodec
 
   var responseMiddlewares: [any HTTPResponseMiddleware] { middleware.response }
-  // File-backed downloads contain metadata only; body middleware requires the buffered pipeline.
-  package var canPerformNativeFileTransfer: Bool {
-    middleware.error.isEmpty && middleware.response.isEmpty
-  }
-
   public init(
     session: URLSession = .shared,
     middleware: HTTPMiddleware,
