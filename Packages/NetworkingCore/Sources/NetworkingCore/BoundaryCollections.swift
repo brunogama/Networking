@@ -6,7 +6,6 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral,
 {
   private var storage: [HTTPHeaderName: HTTPHeaderValue]
 
-  /// Creates headers from wrapped names and values.
   public init(_ storage: [HTTPHeaderName: HTTPHeaderValue] = [:]) {
     self.storage = [:]
     for (name, value) in storage {
@@ -14,9 +13,6 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral,
     }
   }
 
-  /// Creates headers from their raw string representation.
-  ///
-  /// Case-insensitive duplicate names collapse; the retained value is unspecified.
   public init(rawValue: [String: String]) {
     self.init(rawValue)
   }
@@ -31,7 +27,6 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral,
     )
   }
 
-  /// Creates headers from a dictionary literal.
   public init(
     dictionaryLiteral elements: (HTTPHeaderName, HTTPHeaderValue)...
   ) {
@@ -41,39 +36,32 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral,
     }
   }
 
-  /// Whether the collection has no headers.
   public var isEmpty: HTTPHeaderCollectionEmptyFlag {
     HTTPHeaderCollectionEmptyFlag(storage.isEmpty)
   }
 
-  /// The number of headers in the collection.
   public var count: HTTPHeaderCollectionCount {
     HTTPHeaderCollectionCount(storage.count)
   }
 
-  /// The raw string representation for interoperability at a boundary.
   public var rawValue: [String: String] {
     Dictionary(
       uniqueKeysWithValues: storage.map { ($0.key.rawValue, $0.value.rawValue) }
     )
   }
 
-  /// The stored header names.
   public var keys: Dictionary<HTTPHeaderName, HTTPHeaderValue>.Keys {
     storage.keys
   }
 
-  /// A textual description of the raw headers.
   public var description: String {
     rawValue.description
   }
 
-  /// Compares headers using case-insensitive names and exact values.
   public static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.count == rhs.count && lhs.storage.allSatisfy { rhs[$0.key] == $0.value }
   }
 
-  /// Gets or sets a header by its case-insensitive name.
   public subscript(_ name: HTTPHeaderName) -> HTTPHeaderValue? {
     get { matchingKey(for: name).flatMap { storage[$0] } }
     set {
@@ -90,31 +78,24 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral,
     }
   }
 
-  /// Returns an iterator over the stored header entries.
   public func makeIterator()
     -> Dictionary<HTTPHeaderName, HTTPHeaderValue>.Iterator
   {
     storage.makeIterator()
   }
 
-  /// Transforms each header entry.
   public func map<T>(
     _ transform: ((key: HTTPHeaderName, value: HTTPHeaderValue)) throws -> T
   ) rethrows -> [T] {
     try storage.map(transform)
   }
 
-  /// Returns the entries that satisfy the predicate.
   public func filter(
     _ isIncluded: ((key: HTTPHeaderName, value: HTTPHeaderValue)) throws -> Bool
   ) rethrows -> Self {
     Self(try Dictionary(uniqueKeysWithValues: storage.filter(isIncluded)))
   }
 
-  /// Returns the semantic result of merging another collection.
-  ///
-  /// When `combine` is associative, grouping any sequence of merges differently produces
-  /// semantically equal headers. Header-name casing is ignored by that equality.
   public func merging(
     _ other: Self,
     uniquingKeysWith combine: (
@@ -138,13 +119,11 @@ public struct HTTPHeaders: Sendable, Equatable, ExpressibleByDictionaryLiteral,
     }
   }
 
-  /// Decodes headers from their raw string representation.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.singleValueContainer()
     self.init(try container.decode([String: String].self))
   }
 
-  /// Encodes headers using their raw string representation.
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.singleValueContainer()
     try container.encode(rawValue)

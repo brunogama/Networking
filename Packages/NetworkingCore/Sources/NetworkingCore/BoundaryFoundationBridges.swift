@@ -7,19 +7,19 @@ package extension String {
 }
 
 public extension HTTPTextEncoding {
-  /// UTF-8 text encoding.
+
   static let utf8 = Self(rawValue: "utf-8")
-  /// UTF-16 text encoding.
+
   static let utf16 = Self(rawValue: "utf-16")
-  /// Big-endian UTF-16 text encoding.
+
   static let utf16BigEndian = Self(rawValue: "utf-16be")
-  /// Little-endian UTF-16 text encoding.
+
   static let utf16LittleEndian = Self(rawValue: "utf-16le")
-  /// UTF-32 text encoding.
+
   static let utf32 = Self(rawValue: "utf-32")
-  /// US-ASCII text encoding.
+
   static let ascii = Self(rawValue: "us-ascii")
-  /// ISO-8859-1 text encoding.
+
   static let isoLatin1 = Self(rawValue: "iso-8859-1")
 }
 
