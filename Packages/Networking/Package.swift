@@ -3,48 +3,35 @@
 
 import PackageDescription
 
-// swiftlint:disable file_length
-
-let strictConcurrencySettings: [SwiftSetting] = [
-  .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
-]
-
 let libraryProducts = [
-  "Networking", "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
-  "NetworkingInterceptorsCompat", "NetworkingObservability", "NetworkingObservabilityOTLP",
-  "NetworkingTesting", "NetworkingBDD", "NetworkingSSE",
+  "Networking", "NetworkingRuntime", "NetworkingObservability",
+  "NetworkingObservabilityOTLP", "NetworkingTesting", "NetworkingSSE",
 ].map { Product.library(name: $0, targets: [$0]) }
 
 let openTelemetryHTTPExporter: Target.Dependency = .product(
   name: "OpenTelemetryProtocolExporterHTTP",
   package: "opentelemetry-swift"
 )
-let openTelemetrySDK: Target.Dependency = .product(
-  name: "OpenTelemetrySdk",
-  package: "opentelemetry-swift"
-)
-let swiftCheck: Target.Dependency = .product(name: "SwiftCheck", package: "SwiftCheck")
+let premiseCore: Target.Dependency = .product(name: "PremiseCore", package: "Premise")
+let premiseTesting: Target.Dependency = .product(name: "PremiseTesting", package: "Premise")
+let premiseStrategies: Target.Dependency = .product(name: "PremiseStrategies", package: "Premise")
+let networkingCore: Target.Dependency = .product(name: "NetworkingCore", package: "NetworkingCore")
 let networkingDependencies: [Target.Dependency] = [
-  "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
-  "NetworkingInterceptorsCompat", "NetworkingObservability", "NetworkingSSE",
+  networkingCore, "NetworkingRuntime", "NetworkingObservability", "NetworkingSSE",
 ]
 let runtimeTestDependencies: [Target.Dependency] = [
-  "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL", "NetworkingTesting", swiftCheck,
-]
-let interceptorsCompatTestDependencies: [Target.Dependency] = [
-  "NetworkingInterceptorsCompat", "NetworkingRuntime", "NetworkingDSL", "NetworkingTesting",
-  swiftCheck,
+  networkingCore, "NetworkingRuntime", "NetworkingTesting", premiseCore, premiseTesting,
+  premiseStrategies,
 ]
 let observabilityTestDependencies: [Target.Dependency] = [
-  "NetworkingObservability", "NetworkingObservabilityOTLP", "NetworkingRuntime", "NetworkingDSL",
-  "NetworkingTesting",
+  networkingCore, "NetworkingObservability", "NetworkingObservabilityOTLP", "NetworkingRuntime",
+  "NetworkingTesting", premiseCore, premiseTesting, premiseStrategies,
 ]
 let testingTestDependencies: [Target.Dependency] = [
-  "NetworkingTesting", "NetworkingRuntime", "NetworkingObservability", "NetworkingDSL",
-  "NetworkingRuntimeDSL",
+  networkingCore, "NetworkingTesting", "NetworkingRuntime", "NetworkingObservability",
 ]
 let sseTestDependencies: [Target.Dependency] = [
-  "NetworkingSSE"
+  networkingCore, "NetworkingSSE", "NetworkingRuntime",
 ]
 
 func libraryTarget(
@@ -57,8 +44,7 @@ func libraryTarget(
     name: name,
     dependencies: dependencies,
     path: path,
-    exclude: exclude,
-    swiftSettings: strictConcurrencySettings
+    exclude: exclude
   )
 }
 
@@ -81,13 +67,13 @@ let package = Package(
   ],
   products: libraryProducts,
   dependencies: [
+    .package(path: "../NetworkingCore"),
     // OpenTelemetry for observability
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift.git",
       from: "1.10.1"
     ),
-    // Test dependencies
-    .package(url: "https://github.com/typelift/SwiftCheck.git", from: "0.12.0"),
+    .package(url: "https://github.com/brunogama/Premise.git", from: "1.0.2"),
   ],
   targets: [
     libraryTarget(
@@ -99,99 +85,46 @@ let package = Package(
       ]
     ),
     libraryTarget(
-      "NetworkingCore",
-      path: "Sources/NetworkingCore"
-    ),
-    libraryTarget(
       "NetworkingRuntime",
-      dependencies: ["NetworkingCore"],
+      dependencies: [networkingCore],
       path: "Sources/NetworkingRuntime"
     ),
     libraryTarget(
-      "NetworkingDSL",
-      dependencies: ["NetworkingCore"],
-      path: "Sources/NetworkingDSL"
-    ),
-    libraryTarget(
-      "NetworkingRuntimeDSL",
-      dependencies: [
-        "NetworkingDSL",
-        "NetworkingRuntime",
-      ],
-      path: "Sources/NetworkingRuntimeDSL"
-    ),
-    libraryTarget(
-      "NetworkingInterceptorsCompat",
-      dependencies: ["NetworkingRuntime"],
-      path: "Sources/NetworkingInterceptorsCompat"
-    ),
-    libraryTarget(
       "NetworkingObservability",
-      dependencies: ["NetworkingRuntime"],
+      dependencies: [networkingCore, "NetworkingRuntime"],
       path: "Sources/NetworkingObservability"
     ),
     libraryTarget(
       "NetworkingObservabilityOTLP",
       dependencies: [
+        networkingCore,
         "NetworkingObservability",
         openTelemetryHTTPExporter,
-        openTelemetrySDK,
       ],
       path: "Sources/NetworkingObservabilityOTLP"
     ),
     libraryTarget(
       "NetworkingTesting",
       dependencies: [
+        networkingCore,
         "NetworkingRuntime",
-        "NetworkingInterceptorsCompat",
         "NetworkingObservability",
       ],
       path: "Sources/NetworkingTesting",
       exclude: ["README.md"]
     ),
     libraryTarget(
-      "NetworkingBDD",
-      dependencies: [
-        "NetworkingRuntime",
-        "NetworkingTesting",
-      ],
-      path: "Sources/NetworkingBDD"
-    ),
-    libraryTarget(
       "NetworkingSSE",
       dependencies: [
-        "NetworkingCore",
+        networkingCore,
         "NetworkingRuntime",
       ],
       path: "Sources/NetworkingSSE"
     ),
     testTarget(
-      "NetworkingCoreTests",
-      dependencies: [
-        "NetworkingCore",
-        "NetworkingTesting",
-      ],
-      path: "Tests/NetworkingCoreTests"
-    ),
-    testTarget(
       "NetworkingRuntimeTests",
       dependencies: runtimeTestDependencies,
       path: "Tests/NetworkingRuntimeTests"
-    ),
-    testTarget(
-      "NetworkingDSLTests",
-      dependencies: [
-        "NetworkingDSL",
-        "NetworkingRuntime",
-        "NetworkingRuntimeDSL",
-        "NetworkingTesting",
-      ],
-      path: "Tests/NetworkingDSLTests"
-    ),
-    testTarget(
-      "NetworkingInterceptorsCompatTests",
-      dependencies: interceptorsCompatTestDependencies,
-      path: "Tests/NetworkingInterceptorsCompatTests"
     ),
     testTarget(
       "NetworkingObservabilityTests",
@@ -204,15 +137,6 @@ let package = Package(
       path: "Tests/NetworkingTestingTests"
     ),
     testTarget(
-      "NetworkingBDDTests",
-      dependencies: [
-        "NetworkingBDD",
-        "NetworkingRuntime",
-        "NetworkingTesting",
-      ],
-      path: "Tests/NetworkingBDDTests"
-    ),
-    testTarget(
       "NetworkingSSETests",
       dependencies: sseTestDependencies,
       path: "Tests/NetworkingSSETests"
@@ -222,12 +146,10 @@ let package = Package(
       dependencies: [
         "Networking",
         "NetworkingTesting",
-        swiftCheck,
       ],
       path: "Tests/NetworkingTests",
       exclude: [".swiftlint.yml", "BDD/INTEGRATION_TEST_AUDIT.md"]
     ),
-  ]
+  ],
+  swiftLanguageModes: [.v6]
 )
-
-// swiftlint:enable file_length

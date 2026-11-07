@@ -4,14 +4,20 @@ import CryptoKit
 
 // MARK: - Supporting Types
 
-/// Cache performance metrics
+/// Cache performance metrics.
 public struct CacheMetrics: Sendable {
+  /// Number of retained entries.
   public let size: CacheEntryCount
+  /// Number of successful fresh-entry lookups.
   public let hitCount: CacheHitCount
+  /// Number of lookups without a usable entry.
   public let missCount: CacheMissCount
+  /// Number of entries removed to satisfy storage limits.
   public let evictionCount: CacheEvictionCount
+  /// Fraction of recorded lookups that hit the cache.
   public let hitRatio: CacheHitRatioMetric
 
+  /// Captures one snapshot of storage counters.
   public init(
     size: CacheEntryCount,
     hitCount: CacheHitCount,
@@ -27,39 +33,13 @@ public struct CacheMetrics: Sendable {
   }
 }
 
-/// Serializable version of HTTPResponse for disk storage.
-struct SerializableHTTPResponse: Codable {
-  let statusCode: Int
-  let headers: [String: String]
-  let body: Data?
-  let requestURL: String
-
-  init(from response: HTTPResponse) {
-    self.statusCode = response.status.rawValue.rawValue
-    self.headers = response.headers.rawValue
-    self.body = response.body?.rawValue
-    self.requestURL = response.request.url.absoluteString
-  }
-
-  func toHTTPResponse() -> HTTPResponse? {
-    guard let url = URL(string: requestURL) else {
-      return nil
+extension HTTPResponse {
+  var cacheStorageSize: StorageSizeBytes {
+    let headerBytes = headers.reduce(into: 0) { size, header in
+      size += header.key.rawValue.utf8.count + header.value.rawValue.utf8.count
     }
-
-    let request = HTTPRequest(
-      method: .get,
-      url: HTTPRequestURL(url),
-      headers: [:],
-      body: nil,
-      timeout: 30.0
-    )
-
-    return HTTPResponse(
-      request: request,
-      status: HTTPStatus(rawValue: statusCode),
-      headers: HTTPHeaders(headers),
-      body: body.map { HTTPBody($0) }
-    )
+    let bodyBytes = body?.rawValue.count ?? 0
+    return StorageSizeBytes(Int64(headerBytes + bodyBytes))
   }
 }
 

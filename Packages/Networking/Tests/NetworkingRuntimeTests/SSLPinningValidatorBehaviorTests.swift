@@ -143,8 +143,8 @@ final class SSLPinningValidatorBehaviorTests: XCTestCase {
     let sessionConfiguration = SessionConfiguration()
     let securityConfiguration = SecurityConfiguration(
       tlsConfiguration: TLSConfiguration(
-        minimumTLSVersion: .v1_2,
-        maximumTLSVersion: .v1_3
+        minimumTLSVersion: .tls12,
+        maximumTLSVersion: .tls13
       )
     )
 

@@ -8,17 +8,13 @@ import FoundationNetworking
 #if canImport(Security)
 import Security
 
-enum SSLPinningValidationDecision: Equatable {
-  case useCredential
-  case performDefaultHandling
-  case rejectProtectionSpace
-}
-
 /// SSL Pinning Validator that handles certificate and public key validation.
+///
 /// URLSession may call this delegate from multiple threads; its configuration is immutable.
 public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked Sendable {
   let securityConfiguration: SecurityConfiguration
 
+  /// Retains immutable pinning and TLS policies for concurrent delegate callbacks.
   public init(securityConfiguration: SecurityConfiguration) {
     self.securityConfiguration = securityConfiguration
     super.init()
@@ -26,6 +22,7 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked
 
   // MARK: - URLSessionDelegate
 
+  /// Evaluates every applicable pinning policy before accepting a server credential.
   public func urlSession(
     _ session: URLSession,
     didReceive challenge: URLAuthenticationChallenge,
@@ -56,22 +53,26 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked
     serverTrust: SecTrust,
     host: String
   ) -> SSLPinningValidationDecision {
-    if let certificateConfiguration = certificatePinningConfiguration(for: host) {
-      return validationDecisionForCertificatePinning(
+    let certificateDecision = certificatePinningConfiguration(for: host).map { configuration in
+      validationDecisionForCertificatePinning(
         serverTrust: serverTrust,
         host: host,
-        configuration: certificateConfiguration
+        configuration: configuration
       )
     }
 
-    if let publicKeyConfiguration = publicKeyPinningConfiguration(for: host) {
-      return validationDecisionForPublicKeyPinning(
+    let publicKeyDecision = publicKeyPinningConfiguration(for: host).map { configuration in
+      validationDecisionForPublicKeyPinning(
         serverTrust: serverTrust,
         host: host,
-        configuration: publicKeyConfiguration
+        configuration: configuration
       )
     }
 
+    let decisions = [certificateDecision, publicKeyDecision].compactMap { $0 }
+    if decisions.contains(.rejectProtectionSpace) { return .rejectProtectionSpace }
+    if decisions.contains(.performDefaultHandling) { return .performDefaultHandling }
+    if !decisions.isEmpty { return .useCredential }
     return validateTLSConfiguration(serverTrust: serverTrust, host: host)
       ? .performDefaultHandling : .rejectProtectionSpace
   }
@@ -128,7 +129,9 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked
     for host: String
   ) -> CertificatePinningConfiguration? {
     guard let configuration = securityConfiguration.certificatePinning,
-      configuration.domains.contains(PinnedDomain(host))
+      configuration.domains.contains(where: {
+        $0.rawValue.caseInsensitiveCompare(host) == .orderedSame
+      })
     else {
       return nil
     }
@@ -140,7 +143,9 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked
     for host: String
   ) -> PublicKeyPinningConfiguration? {
     guard let configuration = securityConfiguration.publicKeyPinning,
-      configuration.domains.contains(PinnedDomain(host))
+      configuration.domains.contains(where: {
+        $0.rawValue.caseInsensitiveCompare(host) == .orderedSame
+      })
     else {
       return nil
     }

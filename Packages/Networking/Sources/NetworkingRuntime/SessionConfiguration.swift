@@ -9,16 +9,26 @@ import FoundationNetworking
 import Network
 #endif
 
+/// URLSession transport settings applied before optional TLS and pinning policies.
 public struct SessionConfiguration: Sendable {
+  /// Request timeout in seconds.
   public let timeout: SessionRequestTimeout
+  /// Whether requests may use cellular data.
   public let allowsCellularAccess: SessionAllowsCellularAccess
+  /// Whether requests may use expensive networks.
   public let allowsExpensiveNetworkAccess: SessionAllowsExpensiveNetworkAccess
+  /// Whether requests may use constrained networks.
   public let allowsConstrainedNetworkAccess: SessionAllowsConstrainedNetworkAccess
+  /// Whether a request waits for connectivity when supported by the platform.
   public let waitsForConnectivity: SessionWaitsForConnectivity
+  /// Maximum simultaneous connections to one host.
   public let httpMaximumConnectionsPerHost: HostConnectionLimit
+  /// Foundation cache policy used by the session.
   public let requestCachePolicy: URLRequest.CachePolicy
+  /// Explicit URL protocol handlers, or nil for platform defaults.
   public let protocolClasses: [AnyClass]?
 
+  /// Captures transport settings used when creating a URLSession.
   public init(
     timeout: SessionRequestTimeout = SessionRequestTimeout(rawValue: 60.0),
     allowsCellularAccess: SessionAllowsCellularAccess =
@@ -43,11 +53,13 @@ public struct SessionConfiguration: Sendable {
     self.protocolClasses = protocolClasses
   }
 
+  /// Creates a session using the configured transport policy and platform trust.
   public func createURLSession() -> URLSession {
     let configuration = configuredURLSessionConfiguration()
     return URLSession(configuration: configuration)
   }
 
+  /// Creates a session with optional TLS requirements and a certificate validation delegate.
   public func createURLSession(
     securityConfiguration: SecurityConfiguration? = nil
   ) -> URLSession {
@@ -105,9 +117,9 @@ public struct SessionConfiguration: Sendable {
     for version: TLSConfiguration.TLSVersion
   ) -> tls_protocol_version_t {
     switch version {
-    case .v1_2:
+    case .tls12:
       return .TLSv12
-    case .v1_3:
+    case .tls13:
       return .TLSv13
     }
   }

@@ -10,7 +10,7 @@ import FoundationNetworking
 
 @Suite("NetworkClient configuration behavior")
 struct ClientConfigRegressionTests {
-  @Test("DefaultTimeout reaches URLSession when the request has no override")
+  @Test("The configured timeout reaches URLSession when the request has no override")
   func defaultTimeoutIsApplied() async throws {
     let contextID = MockContextIdentifier()
     let url = HTTPRequestURL(try #require(URL(string: "https://example.com/default-timeout")))
@@ -27,10 +27,11 @@ struct ClientConfigRegressionTests {
     )
     defer { session.invalidateAndCancel() }
 
-    let client = try NetworkClient {
-      CustomSession(session)
-      DefaultTimeout(9)
-    }
+    let client = NetworkClient(
+      session: session,
+      middleware: HTTPMiddleware(),
+      configuration: .init(timeout: 9)
+    )
     _ = try await client.execute(HTTPRequest(method: .get, url: url))
 
     let request = try #require(
@@ -65,7 +66,7 @@ struct ClientConfigRegressionTests {
     #expect(request.timeoutInterval == 7)
   }
 
-  @Test("EnableRetry uses the configured session")
+  @Test("Retry middleware uses the configured session")
   func retryUsesConfiguredSession() async throws {
     let contextID = MockContextIdentifier()
     let url = HTTPRequestURL(try #require(URL(string: "https://example.com/legacy-retry")))
@@ -85,16 +86,11 @@ struct ClientConfigRegressionTests {
     )
     defer { session.invalidateAndCancel() }
 
-    let client = try NetworkClient {
-      CustomSession(session)
-      EnableRetry(
-        RetryMiddleware.Configuration(
-          maxAttempts: 1,
-          baseDelay: 0,
-          jitterStrategy: .none
-        )
-      )
-    }
+    let retry = RetryMiddleware(
+      configuration: try .init(maxAttempts: 1, initialDelay: .zero),
+      client: NetworkClient(session: session)
+    )
+    let client = NetworkClient(session: session, middleware: HTTPMiddleware(error: [retry]))
 
     let response = try await client.execute(HTTPRequest(method: .get, url: url))
     let count = await MockURLProtocol.getRequestCount(for: url, contextID: contextID)
@@ -132,36 +128,9 @@ struct ClientConfigRegressionTests {
     do {
       _ = try await client.execute(HTTPRequest(method: .get, url: url))
       Issue.record("Expected a transport error")
-    } catch let error as HTTPError {
+    } catch {
       #expect(error.category == expectedCategory)
     }
   }
 
-  @Test("CustomSession and EnableSecurity fail configuration instead of dropping the session")
-  func securityCannotReplaceCustomSession() throws {
-    let session = URLSession(configuration: .ephemeral)
-    defer { session.invalidateAndCancel() }
-
-    #expect(throws: HTTPError.self) {
-      try NetworkClient {
-        CustomSession(session)
-        EnableSecurity(SecurityConfiguration())
-      }
-    }
-  }
-
-  @Test("CustomSession and Session settings fail configuration instead of replacing each other")
-  func sessionSettingsCannotReplaceCustomSession() throws {
-    let session = URLSession(configuration: .ephemeral)
-    defer { session.invalidateAndCancel() }
-
-    #expect(throws: HTTPError.self) {
-      try NetworkClient {
-        CustomSession(session)
-        Session {
-          SessionTimeout(9)
-        }
-      }
-    }
-  }
 }

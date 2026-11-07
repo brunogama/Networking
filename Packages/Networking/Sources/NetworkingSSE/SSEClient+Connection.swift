@@ -1,11 +1,12 @@
 import Foundation
 import NetworkingCore
+import NetworkingRuntime
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 
-struct SSEOpenedConnection {
+struct SSEOpenedConnection: ~Copyable {
   let request: HTTPRequest
   let response: HTTPResponse
   let rawResponse: HTTPURLResponse
@@ -19,51 +20,71 @@ extension SSEClient {
     state: inout SSEConnectionState,
     continuation: SSEContinuation
   ) async throws {
-    let connection = try await openConnection(
-      for: request,
-      configuration: configuration,
-      state: state
-    )
-
-    try yieldEvent(.open, to: continuation)
-    try await streamEvents(
-      from: connection,
-      state: &state,
-      continuation: continuation
-    )
+    let prepared = try await applyRequestMiddlewares(request)
+    let exchange = HTTPExchange<ExchangePrepared>(diagnostics: diagnostics).start(prepared)
+    do {
+      let connection = try await openConnection(
+        for: prepared,
+        configuration: configuration,
+        state: state,
+        traceID: exchange.id
+      )
+      defer { connection.bytes.task.cancel() }
+      try yieldEvent(.open, to: continuation)
+      try await streamEvents(
+        from: connection,
+        maximumResponseBytes: configuration.maximumResponseBytes,
+        state: &state,
+        continuation: continuation
+      )
+      exchange.finish(connection.response)
+    } catch {
+      exchange.fail(error)
+      throw error
+    }
   }
 
   private func openConnection(
     for request: HTTPRequest,
     configuration: SSEConfiguration,
-    state: SSEConnectionState
+    state: borrowing SSEConnectionState,
+    traceID: HTTPTraceID?
   ) async throws -> SSEOpenedConnection {
-    let processedRequest = try await applyRequestMiddlewares(request)
     let urlRequest = try buildURLRequest(
-      from: processedRequest,
+      from: request,
       configuration: configuration,
       state: state
     )
     let (bytes, response) = try await fetchResponse(
       for: urlRequest,
-      request: processedRequest
+      request: request,
+      traceID: traceID
     )
     let connection = try makeOpenedConnection(
       bytes: bytes,
       response: response,
-      request: processedRequest
+      request: request
     )
 
-    try validateInitialResponse(connection.response, rawResponse: connection.rawResponse)
+    do {
+      try validateInitialResponse(connection.response, rawResponse: connection.rawResponse)
+    } catch {
+      connection.bytes.task.cancel()
+      throw error
+    }
     return connection
   }
 
   private func fetchResponse(
     for urlRequest: URLRequest,
-    request: HTTPRequest
+    request: HTTPRequest,
+    traceID: HTTPTraceID?
   ) async throws -> (URLSession.AsyncBytes, URLResponse) {
     do {
-      return try await session.bytes(for: urlRequest)
+      return try await session.bytes(
+        for: urlRequest,
+        delegate: HTTPTaskDelegate(diagnostics: diagnostics, traceID: traceID)
+      )
     } catch is CancellationError {
       throw CancellationError()
     } catch let error as URLError {
@@ -91,11 +112,7 @@ extension SSEClient {
       )
     }
 
-    let metadata = HTTPResponse(
-      request: request,
-      httpURLResponse: rawResponse,
-      body: nil
-    )
+    let metadata = responseMetadata(for: request, from: rawResponse)
 
     return SSEOpenedConnection(
       request: request,
@@ -106,16 +123,15 @@ extension SSEClient {
   }
 
   private func streamEvents(
-    from connection: SSEOpenedConnection,
+    from connection: borrowing SSEOpenedConnection,
+    maximumResponseBytes: Int?,
     state: inout SSEConnectionState,
     continuation: SSEContinuation
   ) async throws {
-    var parser = SSEParser()
-
     do {
       try await streamBytes(
         from: connection.bytes,
-        parser: &parser,
+        maximumResponseBytes: maximumResponseBytes,
         state: &state,
         continuation: continuation
       )
@@ -168,4 +184,22 @@ extension SSEClient {
   }
 
 
+}
+
+private func responseMetadata(
+  for request: HTTPRequest,
+  from response: HTTPURLResponse
+) -> HTTPResponse {
+  let headers: [String: String] = Dictionary(
+    uniqueKeysWithValues: response.allHeaderFields.compactMap { key, value in
+      guard let name = key as? String, let headerValue = value as? String else { return nil }
+      return (name, headerValue)
+    }
+  )
+  return HTTPResponse(
+    request: request,
+    status: HTTPStatus(rawValue: HTTPStatusCode(response.statusCode)),
+    headers: HTTPHeaders(rawValue: headers),
+    url: response.url.map { HTTPResponseURL(rawValue: $0) }
+  )
 }

@@ -4,121 +4,85 @@ import NetworkingCore
 extension CachingMiddleware {
   func addConditionalHeaders(to request: HTTPRequest, entry: CacheEntry) -> HTTPRequest {
     var headers = request.headers
-
-    // Add If-None-Match header if we have an ETag
-    if let etag = entry.etag {
-      headers["If-None-Match"] = etag
-    }
-
-    // Add If-Modified-Since header if we have a Last-Modified date
-    if let lastModified = entry.lastModified {
-      headers["If-Modified-Since"] = lastModified
-    }
-
+    if let etag = entry.etag { headers["If-None-Match"] = etag }
+    if let modified = entry.lastModified { headers["If-Modified-Since"] = modified }
     return HTTPRequest(
       method: request.method,
       url: request.url,
       headers: headers,
       body: request.body,
-      timeout: request.timeoutOverride
+      timeout: request.timeoutOverride,
+      id: request.id
     )
   }
 
-  /// Executes a preload pattern
-  func executePreloadPattern(_ pattern: CachePreloadPattern) async {
-    let requests = pattern.generateRequests()
-    _ = await warmCache(requests: requests, concurrency: pattern.concurrency)
-  }
-
-  /// Generates related requests based on current request
-  func generateRelatedRequests(
-    from request: HTTPRequest,
-    depth: CachePrefetchDepth
-  ) -> [HTTPRequest] {
-    var relatedRequests: [HTTPRequest] = []
-
-    let urlString = request.url.absoluteString
-    let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)
-
-    if let listRequest = relatedListRequest(
-      for: request,
-      urlString: urlString,
-      components: components
-    ) {
-      relatedRequests.append(listRequest)
+  func revalidatedResponse(
+    _ incoming: HTTPResponse,
+    for request: HTTPRequest,
+    key: CacheKey
+  )
+    async -> HTTPResponse
+  {
+    guard incoming.status.rawValue == 304,
+      let entry = await storage.getForRevalidation(key)
+    else { return incoming }
+    var headers = entry.response.headers.rawValue
+    for (name, value) in incoming.headers {
+      headers = headers.filter { $0.key.caseInsensitiveCompare(name.rawValue) != .orderedSame }
+      headers[name.rawValue] = value.rawValue
     }
-
-    relatedRequests.append(
-      contentsOf: relatedDetailRequests(for: request, urlString: urlString, depth: depth)
+    return HTTPResponse(
+      request: request,
+      status: entry.response.status,
+      headers: HTTPHeaders(rawValue: headers),
+      body: entry.response.body
     )
-
-    return relatedRequests
   }
 
-  func preloadSequentially(_ patterns: [CachePreloadPattern]) async {
-    for pattern in patterns {
-      await executePreloadPattern(pattern)
-    }
+  /// Fetches explicitly requested content in the caller's task; concurrent callers remain independent.
+  ///
+  /// Cancellation or an intervening invalidation prevents this operation from publishing an entry.
+  public func prefetchSingle(request: HTTPRequest) async -> WarmCacheResult {
+    let observed = generation
+    let key = cacheKey(for: request)
+    do {
+      try Task.checkCancellation()
+      if await cachedResponse(for: request) != nil { return .alreadyCached(key: key) }
+      let response = try await client.execute(request)
+      try Task.checkCancellation()
+      guard observed == generation else { throw CancellationError() }
+      let result = try await storeResponse(response, for: request, generation: observed)
+      try Task.checkCancellation()
+      guard observed == generation else { throw CancellationError() }
+      return .success(key: key, response: result)
+    } catch { return .failure(request: request, error: error) }
   }
 
-  func preloadConcurrently(
-    _ patterns: [CachePreloadPattern],
-    maxConcurrency: CachePreloadConcurrency
-  ) async {
-    await withTaskGroup(of: Void.self) { group in
-      let semaphore = AsyncSemaphore(value: maxConcurrency)
-
-      for pattern in patterns {
-        group.addTask {
-          guard await semaphore.wait() else { return }
-          await self.executePreloadPattern(pattern)
-          await semaphore.signal()
+  /// Prefetches only the supplied requests with bounded structured concurrency.
+  ///
+  /// Results retain input order; cancellation propagates to child requests and all children are joined.
+  public func warmCache(
+    requests: [HTTPRequest],
+    concurrency: CachePreloadConcurrency = 4
+  )
+    async -> [WarmCacheResult]
+  {
+    let limit = min(max(1, concurrency.rawValue), requests.count)
+    return await withTaskGroup(of: (Int, WarmCacheResult).self) { group in
+      for index in 0..<limit {
+        group.addTask { (index, await self.prefetchSingle(request: requests[index])) }
+      }
+      var next = limit
+      var results = [WarmCacheResult?](repeating: nil, count: requests.count)
+      for await (index, result) in group {
+        results[index] = result
+        if next < requests.count {
+          let scheduled = next
+          next += 1
+          group.addTask { (scheduled, await self.prefetchSingle(request: requests[scheduled])) }
         }
       }
-    }
-  }
-
-  func preloadPrioritized(_ patterns: [CachePreloadPattern]) async {
-    let sortedPatterns = patterns.sorted { lhs, rhs in
-      lhs.priority > rhs.priority
-    }
-
-    for pattern in sortedPatterns {
-      await executePreloadPattern(pattern)
-    }
-  }
-
-  func relatedListRequest(
-    for request: HTTPRequest,
-    urlString: String,
-    components: URLComponents?
-  ) -> HTTPRequest? {
-    guard urlString.contains("/users/"), request.method == .get else {
-      return nil
-    }
-
-    guard let baseURL = components?.url?.deletingLastPathComponent() else {
-      return nil
-    }
-
-    return HTTPRequest(method: .get, url: baseURL)
-  }
-
-  func relatedDetailRequests(
-    for request: HTTPRequest,
-    urlString: String,
-    depth: CachePrefetchDepth
-  ) -> [HTTPRequest] {
-    guard urlString.hasSuffix("/users"), request.method == .get, depth > 1 else {
-      return []
-    }
-
-    return ["1", "2", "3"].compactMap { id in
-      guard let detailURL = URL(string: "\(urlString)/\(id)") else {
-        return nil
-      }
-
-      return HTTPRequest(method: .get, url: detailURL)
+      return results.compactMap { $0 }
     }
   }
 }

@@ -1,6 +1,3 @@
-import Foundation
-import NetworkingCore
-
 /// A global actor for serializing access to shared networking state.
 ///
 /// `NetworkActor` provides a dedicated execution context for networking operations

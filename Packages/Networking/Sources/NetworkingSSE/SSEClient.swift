@@ -8,39 +8,38 @@ import FoundationNetworking
 
 typealias SSEContinuation = AsyncThrowingStream<SSEConnectionEvent, any Error>.Continuation
 
-struct SSEConnectionState {
-  var lastEventID: SSELastEventID?
-  var serverRetryHint: SSEReconnectDelay?
-  var reconnectAttempts: SSEReconnectAttempt = 0
-
-  init(configuration: SSEConfiguration) {
-    lastEventID = configuration.lastEventID
-  }
-}
-
+/// Streams server-sent events with cancellation, bounded buffering, and optional diagnostics.
 public final class SSEClient: Sendable {
   let session: URLSession
   let requestMiddlewares: [any HTTPRequestMiddleware]
+  let diagnostics: NetworkDiagnostics?
 
+  /// Creates a streaming client whose connection task ends when the stream is terminated.
   public init(
     session: URLSession = .shared,
-    requestMiddlewares: [any HTTPRequestMiddleware] = []
+    requestMiddlewares: [any HTTPRequestMiddleware] = [],
+    diagnostics: NetworkDiagnostics? = nil
   ) {
     self.session = session
     self.requestMiddlewares = requestMiddlewares
+    self.diagnostics = diagnostics
   }
 
+  /// Creates a streaming client with the configured session and TLS policies.
   public convenience init(
     sessionConfiguration: SessionConfiguration = .init(),
     securityConfiguration: SecurityConfiguration? = nil,
-    requestMiddlewares: [any HTTPRequestMiddleware] = []
+    requestMiddlewares: [any HTTPRequestMiddleware] = [],
+    diagnostics: NetworkDiagnostics? = nil
   ) {
     self.init(
       session: sessionConfiguration.createURLSession(securityConfiguration: securityConfiguration),
-      requestMiddlewares: requestMiddlewares
+      requestMiddlewares: requestMiddlewares,
+      diagnostics: diagnostics
     )
   }
 
+  /// Opens a stream that cancels its connection task when iteration terminates.
   public func connect(
     _ request: HTTPRequest,
     configuration: SSEConfiguration = .init()
@@ -49,6 +48,9 @@ public final class SSEClient: Sendable {
       continuation in
       let connectionTask = Task {
         do {
+          if let limit = configuration.maximumResponseBytes, limit < 0 {
+            throw SSEStreamError.invalidConfiguration
+          }
           try await runConnectionLoop(
             for: request,
             configuration: configuration,

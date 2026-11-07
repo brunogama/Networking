@@ -2,7 +2,15 @@ import Foundation
 import Network
 
 extension SSETestServer {
-  func serve(_ connection: NWConnection) async {
+  static func serve(_ connection: NWConnection, state: SSETestServerState) async {
+    await withTaskCancellationHandler {
+      await respond(on: connection, state: state)
+    } onCancel: {
+      connection.cancel()
+    }
+  }
+
+  private static func respond(on connection: NWConnection, state: SSETestServerState) async {
     defer { connection.cancel() }
 
     do {
@@ -20,7 +28,7 @@ extension SSETestServer {
     }
   }
 
-  func receiveRequest(from connection: NWConnection) async throws -> Data {
+  private static func receiveRequest(from connection: NWConnection) async throws -> Data {
     let delimiter = Data("\r\n\r\n".utf8)
     var requestData = Data()
 
@@ -36,7 +44,7 @@ extension SSETestServer {
     return requestData
   }
 
-  func receiveChunk(from connection: NWConnection) async throws -> Data {
+  private static func receiveChunk(from connection: NWConnection) async throws -> Data {
     try await withCheckedThrowingContinuation { continuation in
       connection.receive(
         minimumIncompleteLength: 1,
@@ -62,7 +70,7 @@ extension SSETestServer {
     }
   }
 
-  func parseRequest(from data: Data) throws -> SSECapturedRequest {
+  private static func parseRequest(from data: Data) throws -> SSECapturedRequest {
     guard let text = String(data: data, encoding: .utf8) else {
       throw SSETestServerError.invalidRequest
     }
@@ -86,7 +94,7 @@ extension SSETestServer {
     )
   }
 
-  func sendResponse(
+  private static func sendResponse(
     _ script: SSETestResponseScript,
     on connection: NWConnection
   ) async throws {
@@ -101,7 +109,7 @@ extension SSETestServer {
     }
   }
 
-  func makeResponseHead(for script: SSETestResponseScript) -> Data {
+  private static func makeResponseHead(for script: SSETestResponseScript) -> Data {
     let statusLine =
       "HTTP/1.1 \(script.statusCode) "
       + HTTPURLResponse.localizedString(forStatusCode: script.statusCode).capitalized
@@ -112,7 +120,7 @@ extension SSETestServer {
     return Data(response.utf8)
   }
 
-  func send(
+  private static func send(
     _ data: Data,
     on connection: NWConnection
   ) async throws {
@@ -131,7 +139,7 @@ extension SSETestServer {
     }
   }
 
-  func contains(
+  private static func contains(
     _ delimiter: Data,
     in data: Data
   ) -> Bool {
@@ -139,7 +147,7 @@ extension SSETestServer {
     data.range(of: delimiter) != nil
   }
 
-  func parseHeaders(from lines: [String]) -> [String: String] {
+  private static func parseHeaders(from lines: [String]) -> [String: String] {
     lines.dropFirst().reduce(into: [String: String]()) { headers, line in
       let pieces = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
       guard pieces.count == 2 else {

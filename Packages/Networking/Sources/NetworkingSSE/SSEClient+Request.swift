@@ -19,9 +19,9 @@ extension SSEClient {
   func buildURLRequest(
     from request: HTTPRequest,
     configuration: SSEConfiguration,
-    state: SSEConnectionState
+    state: borrowing SSEConnectionState
   ) throws -> URLRequest {
-    try validateRequestMethod(request)
+    try validateRequestMethod(request, configuration: configuration)
 
     var urlRequest = makeBaseRequest(from: request)
     applyHeaders(
@@ -33,21 +33,29 @@ extension SSEClient {
     return urlRequest
   }
 
-  private func validateRequestMethod(_ request: HTTPRequest) throws {
-    guard request.method == .get else {
-      throw HTTPError(
-        category: .configuration("SSE transport requires a GET request"),
-        request: request
-      )
+  private func validateRequestMethod(
+    _ request: HTTPRequest,
+    configuration: SSEConfiguration
+  ) throws {
+    if request.method == .get { return }
+    if request.method == .post, configuration.allowPostRequests {
+      guard case .disabled = configuration.reconnectMode else {
+        throw SSEStreamError.invalidConfiguration
+      }
+      return
     }
+    throw HTTPError(
+      category: .configuration("SSE transport requires GET or explicitly approved POST"),
+      request: request
+    )
   }
 
   private func makeBaseRequest(from request: HTTPRequest) -> URLRequest {
-    var urlRequest = URLRequest(url: request.urlValue)
-    urlRequest.httpMethod = request.method.methodValue
-    urlRequest.timeoutInterval = request.timeoutInterval
+    var urlRequest = URLRequest(url: request.url.rawValue)
+    urlRequest.httpMethod = request.method.rawValue.rawValue
+    urlRequest.timeoutInterval = request.timeout.rawValue
     urlRequest.cachePolicy = session.configuration.requestCachePolicy
-    urlRequest.httpBody = request.bodyValue
+    urlRequest.httpBody = request.body?.rawValue
     return urlRequest
   }
 
@@ -82,7 +90,7 @@ extension SSEClient {
     _ lastEventID: SSELastEventID?,
     to request: inout URLRequest
   ) {
-    guard let lastEventID, !lastEventID.isEmpty else {
+    guard let lastEventID, !lastEventID.isEmpty.rawValue else {
       return
     }
 

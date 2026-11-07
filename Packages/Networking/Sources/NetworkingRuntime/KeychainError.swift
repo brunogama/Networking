@@ -20,6 +20,7 @@ public enum KeychainError: Error, LocalizedError {
     Int(errSecAuthFailed): .authenticationFailed,
   ]
 
+  /// A localized description of the keychain failure without stored credential data.
   public var errorDescription: String? {
     switch self {
     case .operationFailed(let status):
