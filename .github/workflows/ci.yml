@@ -70,6 +70,12 @@ jobs:
         working-directory: Packages/Networking
         run: swift test -j 1
 
+      - name: Test root package consumer
+        run: swift test --package-path Fixtures/NetworkingConsumer -j 1
+
+      - name: Test macro extension consumer
+        run: swift test --package-path Fixtures/ExtensionConsumer -j 1
+
       - name: Summary
         run: |
           echo "## Build Results" >> $GITHUB_STEP_SUMMARY
