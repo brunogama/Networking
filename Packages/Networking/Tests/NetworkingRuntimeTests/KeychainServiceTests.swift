@@ -7,8 +7,6 @@ import Security
 #endif
 
 @testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
 import NetworkingTesting
 
 // Comprehensive tests for KeychainService secure credential storage
@@ -46,42 +44,10 @@ final class KeychainServiceTests: XCTestCase {  // swiftlint:disable:this type_b
     try await super.tearDown()
   }
 
-  // swiftlint:disable:next cyclomatic_complexity
   private func skipWhenDefaultKeychainIsUnavailable() throws {
-    #if os(macOS) && canImport(Security)
-    var defaultKeychain: SecKeychain?
-    let copyStatus = SecKeychainCopyDefault(&defaultKeychain)
-
-    switch copyStatus {
-    case errSecSuccess:
-      break
-
-    case errSecNoDefaultKeychain, errSecNoSuchKeychain:
-      throw XCTSkip(
-        "Skipping KeychainServiceTests because the default macOS keychain is unavailable."
-      )
-
-    default:
-      return
-    }
-
-    guard let defaultKeychain else {
-      throw XCTSkip(
-        "Skipping KeychainServiceTests because the default macOS keychain is unavailable."
-      )
-    }
-
-    var keychainStatus: SecKeychainStatus = 0
-    let statusResult = SecKeychainGetStatus(defaultKeychain, &keychainStatus)
-
-    guard statusResult == errSecSuccess else {
-      return
-    }
-
-    let isUnlocked = keychainStatus & SecKeychainStatus(kSecUnlockStateStatus) != 0
-
-    guard isUnlocked else {
-      throw XCTSkip("Skipping KeychainServiceTests because the default macOS keychain is locked.")
+    #if canImport(Security)
+    if keychainIsUnavailable() {
+      throw XCTSkip("KeychainServiceTests require an available, unlocked keychain.")
     }
     #endif
   }
@@ -463,6 +429,23 @@ final class KeychainServiceTests: XCTestCase {  // swiftlint:disable:this type_b
 
     let retrieved = try await sut.retrieveString(forKey: "refresh_token")
     XCTAssertEqual(retrieved?.rawValue, "test_refresh_token")
+  }
+
+  func testTokenProviderRefreshesAndStoresAccessToken() async throws {
+    let provider = KeychainTokenProvider(
+      keychainService: sut,
+      refreshHandler: { refreshToken in
+        XCTAssertEqual(refreshToken, "test_refresh_token")
+        return "updated_access_token"
+      }
+    )
+    try await provider.storeRefreshToken("test_refresh_token")
+
+    let refreshedToken = try await provider.refreshToken()
+    let storedToken = try await provider.getCurrentToken()
+
+    XCTAssertEqual(refreshedToken, "updated_access_token")
+    XCTAssertEqual(storedToken, "updated_access_token")
   }
 
   func testTokenProviderClearTokens() async throws {

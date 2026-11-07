@@ -7,32 +7,6 @@ import OSLog
 /// Middleware that logs HTTP requests and responses using OSLog.
 public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, HTTPErrorMiddleware
 {
-  // MARK: - Configuration
-
-  public struct Configuration: Sendable {
-    public let subsystem: LoggingSubsystemName
-    public let category: LoggingCategoryName
-    public let logLevel: OSLogType
-    public let logHeaders: CollectHeadersFlag
-    public let logBody: CollectBodyInfoFlag
-    public let maxBodyLength: LogBodyLengthLimit
-
-    public init(
-      subsystem: LoggingSubsystemName = "Networking",
-      category: LoggingCategoryName = "HTTPClient",
-      logLevel: OSLogType = .debug,
-      logHeaders: CollectHeadersFlag = true,
-      logBody: CollectBodyInfoFlag = false,
-      maxBodyLength: LogBodyLengthLimit = 1024
-    ) {
-      self.subsystem = subsystem
-      self.category = category
-      self.logLevel = logLevel
-      self.logHeaders = logHeaders
-      self.logBody = logBody
-      self.maxBodyLength = maxBodyLength
-    }
-  }
 
   // MARK: - Properties
 
@@ -41,6 +15,7 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
 
   // MARK: - Initialization
 
+  /// Creates logging middleware with explicit content capture settings.
   public init(configuration: Configuration = Configuration()) {
     self.configuration = configuration
     self.logger = Logger(
@@ -50,13 +25,14 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
   }
   // MARK: - HTTPRequestMiddleware
 
+  /// Logs the outgoing request and returns it unchanged.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
     logger.log(
       level: configuration.logLevel,
-      "→ \(request.method.rawValue) \(request.url.absoluteString)"
+      "→ \(request.method.rawValue) \(request.url.rawValue.absoluteString)"
     )
 
-    if configuration.logHeaders.rawValue && !request.headers.isEmpty {
+    if configuration.logHeaders.rawValue && !request.headers.isEmpty.rawValue {
       logger.log(
         level: configuration.logLevel,
         "  Headers: \(request.headers.description)"
@@ -79,16 +55,17 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
 
   // MARK: - HTTPResponseMiddleware
 
+  /// Logs the completed response and returns it unchanged.
   public func processResponse(
     _ response: HTTPResponse,
     for request: HTTPRequest
   ) async throws -> HTTPResponse {
     logger.log(
       level: configuration.logLevel,
-      "← \(response.status.rawValue) \(request.method.rawValue) \(request.url.absoluteString)"
+      "← \(response.status.rawValue) \(request.method.rawValue) \(request.url.rawValue.absoluteString)"
     )
 
-    if configuration.logHeaders.rawValue && !response.headers.isEmpty {
+    if configuration.logHeaders.rawValue && !response.headers.isEmpty.rawValue {
       logger.log(
         level: configuration.logLevel,
         "  Headers: \(response.headers.description)"
@@ -110,13 +87,14 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
   }
   // MARK: - HTTPErrorMiddleware
 
+  /// Logs and rethrows the original HTTP error.
   public func handleError(
     _ error: HTTPError,
     for request: HTTPRequest
   ) async throws -> HTTPResponse {
     logger.log(
       level: .error,
-      "✗ \(request.method.rawValue) \(request.url.absoluteString) - \(error.localizedDescription)"
+      "✗ \(request.method.rawValue) \(request.url.rawValue.absoluteString) - \(error.localizedDescription)"
     )
 
     if let underlyingError = error.underlyingError {

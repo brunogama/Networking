@@ -2,8 +2,6 @@
 import Foundation
 @testable import NetworkingRuntime
 import NetworkingCore
-import NetworkingDSL
-import NetworkingRuntimeDSL
 import NetworkingTesting
 import XCTest
 
@@ -234,7 +232,10 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
     } catch let error as HTTPError {
       switch error.category {
       case .custom("Security", let message):
-        XCTAssertTrue(message.contains("too long"), "Expected 'too long' in message: '\(message)'")
+        XCTAssertTrue(
+          message.rawValue.contains("too long"),
+          "Expected 'too long' in message: '\(message)'"
+        )
 
       default:
         XCTFail("Expected security error about length, got: \(error)")
@@ -312,7 +313,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
     } catch let error as HTTPError {
       switch error.category {
       case .custom("Security", let message):
-        XCTAssertTrue(message.contains("Too many headers"))
+        XCTAssertTrue(message.rawValue.contains("Too many headers"))
 
       default:
         XCTFail("Expected security error about header count, got: \(error)")
@@ -327,7 +328,8 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
       customValidator: { name, value in
         // Reject headers containing "secret"
         HeaderValidationDecision(
-          !name.lowercased().contains("secret") && !value.lowercased().contains("secret")
+          !name.rawValue.lowercased().contains("secret")
+            && !value.rawValue.lowercased().contains("secret")
         )
       }
     )
@@ -395,7 +397,7 @@ final class HeaderSecurityMiddlewareTests: XCTestCase {
 // MARK: - Helper Extensions
 
 extension HeaderSecurityMiddlewareTests {
-  /// Creates a test request with specified headers
+  // Creates a test request with specified headers
   private func createTestRequest(headers: [String: String]) -> HTTPRequest {
     HTTPRequest(
       method: .get,
@@ -404,7 +406,7 @@ extension HeaderSecurityMiddlewareTests {
     )
   }
 
-  /// Verifies that a security error was thrown
+  // Verifies that a security error was thrown
   private func verifySecurityError(_ error: Error, expectedMessage: String? = nil) {
     guard let httpError = error as? HTTPError else {
       XCTFail("Expected HTTPError, got: \(error)")
@@ -415,7 +417,7 @@ extension HeaderSecurityMiddlewareTests {
     case .custom("Security", let message):
       if let expectedMessage = expectedMessage {
         XCTAssertTrue(
-          message.contains(expectedMessage),
+          message.rawValue.contains(expectedMessage),
           "Expected message '\(expectedMessage)' in error: \(message)"
         )
       }

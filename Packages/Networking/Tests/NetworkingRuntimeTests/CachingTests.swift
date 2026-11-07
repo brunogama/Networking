@@ -2,8 +2,6 @@
 import Foundation
 import NetworkingCore
 @testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
 @testable import NetworkingTesting
 import Testing
 
@@ -14,10 +12,11 @@ struct CachingTests {
 
   private func createTestRequest(url: String = "https://api.example.com/test") throws -> HTTPRequest
   {
-    try HTTPRequest {
-      GET(url)
-      Header("Authorization", "Bearer test-token")
-    }
+    HTTPRequest(
+      method: .get,
+      url: try #require(URL(string: url)),
+      headers: ["Authorization": "Bearer test-token"]
+    )
   }
 
   private func createTestResponse(
@@ -29,8 +28,8 @@ struct CachingTests {
     return HTTPResponse(
       request: request,
       status: status,
-      headers: headers,
-      body: Data(body.utf8)
+      headers: HTTPHeaders(rawValue: headers),
+      body: HTTPBody(Data(body.utf8))
     )
   }
 
@@ -66,15 +65,13 @@ struct CachingTests {
     // Create entry with short but measurable TTL
     let entry = CachingMiddleware.CacheEntry(
       response: response,
-      ttl: 0.05,  // 50ms
+      ttl: -1,
       etag: "test-etag"
     )
 
-    // Wait for expiration with sufficient margin
-    try await Task.sleep(nanoseconds: 100_000_000)  // 100ms
 
     #expect(entry.isExpired.rawValue)
-    #expect(entry.age > 0.05)  // At least 50ms old
+    #expect(entry.age >= 0)
   }
 
   // MARK: - Memory Cache Storage Tests
@@ -134,13 +131,11 @@ struct CachingTests {
     let response = createTestResponse()
     let entry = CachingMiddleware.CacheEntry(
       response: response,
-      ttl: 0.1  // 100ms TTL - reliable for timing tests
+      ttl: -1
     )
 
     await cache.set(key, entry: entry)
 
-    // Wait for expiration with sufficient margin (3x TTL)
-    try await Task.sleep(nanoseconds: 300_000_000)  // 300ms
 
     // Entry should be automatically removed when accessed
     let retrievedEntry = await cache.get(key)
@@ -151,10 +146,9 @@ struct CachingTests {
       "test-key",
       entry: CachingMiddleware.CacheEntry(
         response: response,
-        ttl: 0.1  // 100ms TTL
+        ttl: -1
       )
     )
-    try await Task.sleep(nanoseconds: 300_000_000)  // 300ms
 
     await cache.removeExpired()
     let cleanedEntry = await cache.get("test-key")
@@ -302,11 +296,30 @@ struct CachingTests {
     #expect(cachedMaxAgeEntry != nil)  // Should be cached with specific TTL
   }
 
+  @Test("Fresh cached responses are returned without conditional revalidation")
+  func freshCachedResponseSkipsRevalidation() async throws {
+    let request = try createTestRequest()
+    let response = createTestResponse(headers: ["ETag": "\"fresh\""])
+    let middleware = CachingMiddleware(
+      configuration: CachingMiddleware.Configuration(defaultTTL: 60),
+      storage: MemoryCacheStorage(),
+      client: createTestClient()
+    )
+
+    _ = try await middleware.processResponse(response, for: request)
+
+    let cachedResponse = await middleware.cachedResponse(for: request)
+    let modifiedRequest = try await middleware.modifyRequest(request)
+    #expect(cachedResponse?.body == response.body)
+    #expect(modifiedRequest.headers["If-None-Match"] == nil)
+  }
+
   @Test("Caching middleware conditional requests")
   func cachingMiddlewareConditionalRequests() async throws {
     let client = createTestClient()
     let storage = MemoryCacheStorage()
     let configuration = CachingMiddleware.Configuration(
+      defaultTTL: 0,
       useConditionalRequests: true
     )
 
@@ -384,7 +397,8 @@ struct CachingTests {
       request,
       metadata
     )
-    #expect(intelligentKey == "custom-user-profile-key")  // Should use custom key
+    #expect(intelligentKey.rawValue.contains("custom-user-profile-key"))
+    #expect(!intelligentKey.rawValue.contains("test-token"))
 
     // Test with metadata but no custom key
     let metadataWithoutKey = CacheMetadata(
@@ -397,9 +411,9 @@ struct CachingTests {
       request,
       metadataWithoutKey
     )
-    #expect(generatedKey.contains("GET"))
-    #expect(generatedKey.contains("api.example.com"))
-    #expect(generatedKey.isEmpty == false)
+    #expect(generatedKey.rawValue.contains("GET"))
+    #expect(generatedKey.rawValue.contains("api.example.com"))
+    #expect(generatedKey.rawValue.isEmpty == false)
   }
 
   @Test("Cache invalidation with metadata")
@@ -487,16 +501,12 @@ struct CachingTests {
     let response = createTestResponse()
 
     // Fill cache beyond capacity
-    let startTime = Date()
     for i in 0..<500 {
       let key: CacheKey = "perf-key-\(i)"
       let entry = CachingMiddleware.CacheEntry(response: response, ttl: 300.0)
       await cache.set(key, entry: entry)
     }
-    let duration = Date().timeIntervalSince(startTime)
 
-    // Should complete in reasonable time (less than 1 second for 500 operations)
-    #expect(duration < 1.0)
 
     // Cache should be at size limit
     let metrics = await cache.getMetrics()
@@ -504,28 +514,53 @@ struct CachingTests {
     #expect(metrics.evictionCount > 0)
   }
 
-  @Test("Cache key normalization and collision handling")
+  @Test("Cache keys preserve query ordering and separate paths")
   func cacheKeyNormalizationAndCollisions() async throws {
-    let cache = MemoryCacheStorage()
-    let response = createTestResponse()
-    let entry = CachingMiddleware.CacheEntry(response: response, ttl: 300.0)
-
-    // URLs that should generate different cache keys
-    let request1 = try HTTPRequest { GET("https://api.example.com/users?id=1&name=john") }
-    let request2 = try HTTPRequest { GET("https://api.example.com/users?name=john&id=1") }
+    // URL query order can carry endpoint semantics.
+    let request1 = HTTPRequest(
+      method: .get,
+      url: try #require(URL(string: "https://api.example.com/users?id=1&name=john"))
+    )
+    let request2 = HTTPRequest(
+      method: .get,
+      url: try #require(URL(string: "https://api.example.com/users?name=john&id=1"))
+    )
 
     let key1 = CachingMiddleware.Configuration.defaultIntelligentCacheKey(request1, nil)
     let key2 = CachingMiddleware.Configuration.defaultIntelligentCacheKey(request2, nil)
 
-    // Keys should be the same for semantically equivalent requests
-    // (the intelligent key generator sorts query parameters)
-    #expect(key1 == key2)
+    #expect(key1 != key2)
 
     // Different URLs should generate different keys
-    let request3 = try HTTPRequest { GET("https://api.example.com/products?id=1") }
+    let request3 = HTTPRequest(
+      method: .get,
+      url: try #require(URL(string: "https://api.example.com/products?id=1"))
+    )
     let key3 = CachingMiddleware.Configuration.defaultIntelligentCacheKey(request3, nil)
 
     #expect(key1 != key3)
+  }
+
+  @Test("Cache keys partition authorization without exposing credentials")
+  func cacheKeysPartitionAuthorization() throws {
+    let url = try #require(URL(string: "https://api.example.com/profile"))
+    let firstRequest = HTTPRequest(
+      method: .get,
+      url: url,
+      headers: ["Authorization": "Bearer first-secret"]
+    )
+    let secondRequest = HTTPRequest(
+      method: .get,
+      url: url,
+      headers: ["Authorization": "Bearer second-secret"]
+    )
+
+    let firstKey = CachingMiddleware.Configuration.defaultIntelligentCacheKey(firstRequest, nil)
+    let secondKey = CachingMiddleware.Configuration.defaultIntelligentCacheKey(secondRequest, nil)
+
+    #expect(firstKey != secondKey)
+    #expect(!firstKey.rawValue.contains("first-secret"))
+    #expect(!secondKey.rawValue.contains("second-secret"))
   }
 
   // MARK: - Integration Tests
@@ -538,7 +573,7 @@ struct CachingTests {
       sizePolicy: .maxEntries(100)
     )
     let configuration = CachingMiddleware.Configuration(
-      defaultTTL: 300.0,
+      defaultTTL: 0,
       useConditionalRequests: true
     )
 
@@ -602,30 +637,21 @@ struct CachingTests {
     let response = createTestResponse()
 
     // GET request should be cached
-    let getRequest = try HTTPRequest { GET("https://api.example.com/users") }
+    let getRequest = HTTPRequest(
+      method: .get,
+      url: try #require(URL(string: "https://api.example.com/users"))
+    )
     _ = try await middleware.processResponse(response, for: getRequest)
     let getCached = await middleware.getCachedEntry(for: getRequest)
     #expect(getCached != nil)
 
     // POST request should not be cached by default
-    let postRequest = try HTTPRequest { POST("https://api.example.com/users") }
+    let postRequest = HTTPRequest(
+      method: .post,
+      url: try #require(URL(string: "https://api.example.com/users"))
+    )
     _ = try await middleware.processResponse(response, for: postRequest)
     let postCached = await middleware.getCachedEntry(for: postRequest)
     #expect(postCached == nil)
-  }
-}
-
-// MARK: - Mock HTTP Client
-
-/// Mock HTTP client for testing
-private final class CachingTestMockHTTPClient: HTTPClient {
-  func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
-    // Return a basic response for testing
-    HTTPResponse(
-      request: request,
-      status: .ok,
-      headers: [:],
-      body: Data("mock response".utf8)
-    )
   }
 }

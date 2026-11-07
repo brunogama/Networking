@@ -1,7 +1,5 @@
 import Foundation
 @testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
 import NetworkingTesting
 import Testing
 
@@ -16,7 +14,7 @@ struct BatchOperationsTests {
       request: request,
       status: .ok,
       headers: [:],
-      body: Data()
+      body: HTTPBody(Data())
     )
 
     let result = BatchResult(index: 0, request: request, result: .success(response))
@@ -45,7 +43,7 @@ struct BatchOperationsTests {
   @Test("Default configuration")
   func defaultConfiguration() {
     let config = BatchConfiguration.default
-    #expect(config.maxConcurrency == 0)
+    #expect(config.maxConcurrency == 8)
     #expect(!config.cancelOnFailure.rawValue)
   }
 
@@ -69,15 +67,15 @@ struct BatchOperationsTests {
     let mockClient = MockNetworkClient()
 
     // Setup stubs
-    mockClient.stubGET(path: "/users/1", response: Data(#"{"id": 1}"#.utf8))
-    mockClient.stubGET(path: "/users/2", response: Data(#"{"id": 2}"#.utf8))
-    mockClient.stubGET(path: "/users/3", response: Data(#"{"id": 3}"#.utf8))
+    await mockClient.stubGET(path: "/users/1", response: HTTPBody(Data(#"{"id": 1}"#.utf8)))
+    await mockClient.stubGET(path: "/users/2", response: HTTPBody(Data(#"{"id": 2}"#.utf8)))
+    await mockClient.stubGET(path: "/users/3", response: HTTPBody(Data(#"{"id": 3}"#.utf8)))
 
-    let results = await mockClient.batch {
-      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/users/1")!)
-      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/users/2")!)
-      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/users/3")!)
-    }
+    let results = await mockClient.executeBatch([
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/users/1")!),
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/users/2")!),
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/users/3")!),
+    ])
 
     #expect(results.count == 3)
     #expect(results[0].index == 0)
@@ -90,13 +88,13 @@ struct BatchOperationsTests {
   func batchPreservesOrder() async throws {
     let mockClient = MockNetworkClient()
 
-    mockClient.stubGET(path: "/a", response: Data("a".utf8))
-    mockClient.stubGET(path: "/b", response: Data("b".utf8))
+    await mockClient.stubGET(path: "/a", response: HTTPBody(Data("a".utf8)))
+    await mockClient.stubGET(path: "/b", response: HTTPBody(Data("b".utf8)))
 
-    let results = await mockClient.batch {
-      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/a")!)
-      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/b")!)
-    }
+    let results = await mockClient.executeBatch([
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/a")!),
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/b")!),
+    ])
 
     #expect(results[0].index == 0)
     #expect(results[1].index == 1)
@@ -108,14 +106,17 @@ struct BatchOperationsTests {
   func batchIsolatesErrors() async throws {
     let mockClient = MockNetworkClient()
 
-    mockClient.stubGET(path: "/ok", response: Data("ok".utf8))
-    mockClient.expectGET("/fail")
-      .andReturnError(URLError(.notConnectedToInternet))
+    await mockClient.stubGET(path: "/ok", response: HTTPBody(Data("ok".utf8)))
+    await mockClient.expect(
+      matching: .method(.get),
+      .path("/fail"),
+      response: .failure(URLError(.notConnectedToInternet))
+    )
 
-    let results = await mockClient.batch {
-      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/ok")!)
-      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/fail")!)
-    }
+    let results = await mockClient.executeBatch([
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/ok")!),
+      HTTPRequest(method: .get, url: URL(string: "https://api.example.com/fail")!),
+    ])
 
     #expect(results.count == 2)
     #expect(results[0].isSuccess.rawValue)
@@ -135,7 +136,7 @@ struct BatchOperationsTests {
   @Test("executeBatch with array API")
   func executeBatchArray() async throws {
     let mockClient = MockNetworkClient()
-    mockClient.stubGET(path: "/test", response: Data())
+    await mockClient.stubGET(path: "/test", response: HTTPBody(Data()))
 
     let requests = [
       HTTPRequest(method: .get, url: URL(string: "https://api.example.com/test")!)
@@ -148,13 +149,8 @@ struct BatchOperationsTests {
 
   // MARK: - Concurrency Limiting Tests
 
-  /// Test that executeBatch with maxConcurrency=5 throttles parallel requests.
-  ///
-  /// Note: This test validates the concurrency limiter is wired correctly
-  /// by verifying all requests complete and order is preserved. Timing-based
-  /// verification is avoided due to MockNetworkClient not supporting delays.
-  @Test("executeBatch with maxConcurrency limits parallelism")
-  func executeBatch_withMaxConcurrency5_limitsParallelism() async throws {
+  @Test("executeBatch completes all requests with a concurrency limit")
+  func completesBatchWithConcurrencyLimit() async throws {
     let mockClient = MockNetworkClient()
 
     // Create 20 test requests
@@ -164,7 +160,7 @@ struct BatchOperationsTests {
 
     // Stub all requests to return success
     for index in 1...20 {
-      mockClient.stubGET(path: "/item/\(index)", response: Data())
+      await mockClient.stubGET(path: "/item/\(index)", response: HTTPBody(Data()))
     }
 
     let results = await mockClient.executeBatch(
@@ -178,11 +174,32 @@ struct BatchOperationsTests {
 
     // Verify order preservation (BATCH-04 requirement)
     for (index, result) in results.enumerated() {
-      #expect(result.index == index, "Result index should match submission order")
+      #expect(result.index.rawValue == index, "Result index should match submission order")
       #expect(
-        result.request.url.path.contains("/item/\(index + 1)"),
+        result.request.url.rawValue.path.contains("/item/\(index + 1)"),
         "Request should match original"
       )
     }
+  }
+
+  @Test("Batch stops scheduling requests after a failure when configured")
+  func batchStopsSchedulingAfterFailure() async throws {
+    let client = BatchFailureClient()
+    let requests = try (0..<3).map { index in
+      let url = try #require(URL(string: "https://api.example.com/item/\(index)"))
+      return HTTPRequest(
+        method: .get,
+        url: url
+      )
+    }
+
+    let results = await client.executeBatch(
+      requests,
+      configuration: BatchConfiguration(maxConcurrency: 1, cancelOnFailure: true)
+    )
+
+    #expect(results.count == 1)
+    #expect(!results[0].isSuccess.rawValue)
+    #expect(await client.requestCount == 1)
   }
 }

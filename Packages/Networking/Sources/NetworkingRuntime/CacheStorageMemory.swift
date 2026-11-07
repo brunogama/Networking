@@ -5,39 +5,8 @@ import NetworkingCore
 
 // MARK: - Enhanced Memory Cache Storage
 
-// swiftlint:disable type_body_length
 /// Advanced in-memory cache storage with sophisticated eviction policies
-public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
-  // MARK: - Cache Entry Wrapper
-
-  /// Internal wrapper for cache entries with access metadata
-  private struct MemoryCacheEntry: Sendable {
-    let cacheEntry: CachingMiddleware.CacheEntry
-    let accessCount: Int
-    let lastAccessTime: Date
-    let tags: Set<CacheTagName>
-
-    init(
-      cacheEntry: CachingMiddleware.CacheEntry,
-      accessCount: Int = 0,
-      lastAccessTime: Date = Date(),
-      tags: Set<CacheTagName> = []
-    ) {
-      self.cacheEntry = cacheEntry
-      self.accessCount = accessCount
-      self.lastAccessTime = lastAccessTime
-      self.tags = tags
-    }
-
-    func incrementAccess() -> MemoryCacheEntry {
-      MemoryCacheEntry(
-        cacheEntry: cacheEntry,
-        accessCount: accessCount + 1,
-        lastAccessTime: Date(),
-        tags: tags
-      )
-    }
-  }
+public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
 
   // MARK: - Properties
 
@@ -46,7 +15,6 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   private let policy: CachePolicy
   private let sizePolicy: CacheSizePolicy
   private let expirationStrategy: ExpirationStrategy
-  private let queue = DispatchQueue(label: "AdvancedMemoryCacheStorage", qos: .utility)
 
   // MARK: - Metrics
 
@@ -56,6 +24,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
 
   // MARK: - Initialization
 
+  /// Creates a store with explicit eviction, capacity, and expiration policies.
   public init(
     policy: CachePolicy = .lru,
     sizePolicy: CacheSizePolicy = .maxEntries(1000),
@@ -68,6 +37,12 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
 
   // MARK: - CacheStorage Implementation
 
+  /// Lists retained keys.
+  public func keys() async -> [CacheKey] {
+    Array(cache.keys)
+  }
+
+  /// Returns a fresh entry.
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     if let wrapper = cache[key] {
       // Check expiration
@@ -88,7 +63,8 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
           cacheEntry: extendedEntry,
           accessCount: updatedWrapper.accessCount,
           lastAccessTime: updatedWrapper.lastAccessTime,
-          tags: updatedWrapper.tags
+          tags: updatedWrapper.tags,
+          storageSize: updatedWrapper.storageSize
         )
         cache[key] = finalWrapper
         hitCount += 1
@@ -103,24 +79,33 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     return nil
   }
 
-  public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
-    await set(key, entry: entry, tags: [])
+  /// Returns an entry including stale validators.
+  public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
+    guard let entry = cache[key]?.cacheEntry else {
+      missCount += 1
+      return nil
+    }
+
+    hitCount += 1
+    return entry
   }
 
-  /// Enhanced set method with tag support
+  /// Stores a tagged entry.
+  public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
+    await set(key, entry: entry, tags: entry.tags)
+  }
+
+  /// Enhanced set method with tag support.
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry, tags: [CacheTagName]) async
   {
-    // Enforce size limits before adding
-    await enforceSize()
-
-    // Create wrapper with tags
     let tagSet = Set(tags)
     let wrapper = MemoryCacheEntry(
       cacheEntry: entry,
-      tags: tagSet
+      tags: tagSet,
+      storageSize: entry.response.cacheStorageSize
     )
 
-    // Update cache and tag index
+    await remove(key)
     cache[key] = wrapper
 
     // Update tag index
@@ -130,8 +115,11 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
       }
       tagIndex[tag]?.insert(key)
     }
+
+    await enforceSize()
   }
 
+  /// Removes one key.
   public func remove(_ key: CacheKey) async {
     if let wrapper = cache.removeValue(forKey: key) {
       // Clean up tag index
@@ -144,11 +132,13 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
   }
 
+  /// Clears all entries.
   public func removeAll() async {
     cache.removeAll()
     tagIndex.removeAll()
   }
 
+  /// Removes stale entries.
   public func removeExpired() async {
     let expiredKeys = cache.compactMap { key, wrapper in
       wrapper.cacheEntry.isExpired.rawValue ? key : nil
@@ -159,6 +149,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
   }
 
+  /// Removes entries matching any supplied tag.
   public func removeByTags(_ tags: [CacheTagName]) async {
     var keysToRemove = Set<CacheKey>()
 
@@ -173,23 +164,13 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
   }
 
+  /// Removes whole keys matching a wildcard pattern.
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
-    let regex: NSRegularExpression?
-    do {
-      let regexPattern =
-        pattern.rawValue
-        .replacingOccurrences(of: "*", with: ".*")
-        .replacingOccurrences(of: "?", with: ".")
-      regex = try NSRegularExpression(pattern: regexPattern, options: [])
-    } catch {
-      return
-    }
-
-    guard let regex = regex else { return }
+    let regex = cachePatternRegex(pattern)
 
     let keysToRemove = cache.keys.filter { key in
       let range = NSRange(location: 0, length: key.rawValue.utf16.count)
-      return regex.firstMatch(in: key.rawValue, options: [], range: range) != nil
+      return regex?.firstMatch(in: key.rawValue, options: [], range: range) != nil
     }
 
     for key in keysToRemove {
@@ -197,6 +178,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
   }
 
+  /// Removes the supplied keys.
   public func removeByKeys(_ keys: [CacheKey]) async {
     for key in keys {
       await remove(key)
@@ -224,7 +206,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   private func enforceMaxEntries(_ max: CacheEntryLimit) async {
-    while cache.count >= max.rawValue {
+    while cache.count > max.rawValue {
       guard let keyToEvict = await selectKeyForEviction() else { break }
       await remove(keyToEvict)
       evictionCount += 1
@@ -232,9 +214,6 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   private func enforceMaxMemory(_ maxBytes: StorageSizeBytes) async {
-    let currentSize = estimateMemoryUsage()
-    if currentSize <= maxBytes { return }
-
     while estimateMemoryUsage() > maxBytes {
       guard let keyToEvict = await selectKeyForEviction() else { break }
       await remove(keyToEvict)
@@ -247,8 +226,7 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   private func estimateMemoryUsage() -> StorageSizeBytes {
-    // Rough estimation of memory usage
-    StorageSizeBytes(Int64(cache.count * 1024))  // Assume ~1KB per entry average
+    cache.values.reduce(0) { $0 + $1.storageSize }
   }
 
   // MARK: - TTL Management
@@ -259,17 +237,19 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     let extensionTime = originalTTL * expirationStrategy.extensionFactor.rawValue
     let newTTL = min(originalTTL + extensionTime, expirationStrategy.maxTTL.rawValue)
 
-    return CachingMiddleware.CacheEntry(
+    var extended = CachingMiddleware.CacheEntry(
       response: entry.response,
       ttl: CacheMaxAge(newTTL - currentAge.rawValue),
       etag: entry.etag,
       lastModified: entry.lastModified
     )
+    extended.tags = entry.tags
+    return extended
   }
 
   // MARK: - Metrics and Debugging
 
-  /// Returns cache performance metrics
+  /// Returns cache performance metrics.
   public func getMetrics() async -> CacheMetrics {
     CacheMetrics(
       size: CacheEntryCount(cache.count),
@@ -282,12 +262,11 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     )
   }
 
-  /// Returns estimated memory usage in bytes
+  /// Returns estimated memory usage in bytes.
   public var estimatedMemoryUsage: StorageSizeBytes {
     get async { estimateMemoryUsage() }
   }
 }
-// swiftlint:enable type_body_length
 
 private extension AdvancedMemoryCacheStorage {
   private typealias MemoryCacheComparator = (

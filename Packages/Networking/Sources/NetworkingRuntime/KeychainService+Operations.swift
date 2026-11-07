@@ -14,15 +14,22 @@ extension KeychainService {
     try store(KeychainDataValue(data), forKey: key)
   }
 
-  /// Stores data securely in the keychain.
+  /// Updates existing data in place or inserts a missing item without deleting its prior value.
   public func store(_ data: KeychainDataValue, forKey key: KeychainItemKey) throws {
-    try? delete(key)
-
-    var query = itemQuery(forKey: key)
-    query[kSecValueData] = data.rawValue
-    query[kSecAttrAccessible] = configuration.accessibility.rawValue
-
-    let status = SecItemAdd(query as CFDictionary, nil)
+    credentialRevision = UUID()
+    let query = itemQuery(forKey: key)
+    let attributes: [CFString: Any] = [
+      kSecValueData: data.rawValue,
+      kSecAttrAccessible: configuration.accessibility.rawValue,
+    ]
+    var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+    if status == errSecItemNotFound {
+      let item = query.merging(attributes) { _, newValue in newValue }
+      status = SecItemAdd(item as CFDictionary, nil)
+      if status == errSecDuplicateItem {
+        status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+      }
+    }
     guard status == errSecSuccess else {
       throw statusError(status)
     }
@@ -62,7 +69,7 @@ extension KeychainService {
     }
   }
 
-  /// Updates an existing keychain item.
+  /// Updates an existing keychain item or inserts it when absent.
   public func update(_ value: KeychainStringValue, forKey key: KeychainItemKey) throws {
     guard let data = value.rawValue.data(using: .utf8) else {
       throw KeychainError.invalidData
@@ -71,27 +78,14 @@ extension KeychainService {
     try update(KeychainDataValue(data), forKey: key)
   }
 
-  /// Updates an existing keychain item.
+  /// Updates an existing keychain item or inserts it when absent.
   public func update(_ data: KeychainDataValue, forKey key: KeychainItemKey) throws {
-    let status = SecItemUpdate(
-      itemQuery(forKey: key) as CFDictionary,
-      [kSecValueData: data.rawValue] as CFDictionary
-    )
-
-    switch status {
-    case errSecSuccess:
-      return
-
-    case errSecItemNotFound:
-      try store(data, forKey: key)
-
-    default:
-      throw statusError(status)
-    }
+    try store(data, forKey: key)
   }
 
   /// Deletes an item from the keychain.
   public func delete(_ key: KeychainItemKey) throws {
+    credentialRevision = UUID()
     let status = SecItemDelete(itemQuery(forKey: key) as CFDictionary)
 
     switch status {
@@ -131,6 +125,7 @@ extension KeychainService {
 
   /// Deletes all items for this service from the keychain.
   public func deleteAll() throws {
+    credentialRevision = UUID()
     let status = SecItemDelete(serviceQuery() as CFDictionary)
 
     switch status {
