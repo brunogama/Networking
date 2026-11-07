@@ -1,7 +1,5 @@
-import MacroTemplateKit
 import SwiftSyntax
 import SwiftSyntaxMacros
-import SwiftDiagnostics
 
 /// Macro implementation for @POST HTTP method.
 ///
@@ -14,8 +12,9 @@ import SwiftDiagnostics
 /// func createUser(user: User) async throws -> User
 /// ```
 public struct POSTMacro: PeerMacro, HTTPMacroExpansion {
-  public static let config = HTTPMethodConfig.post
+  static let config = HTTPMethodConfig.post
 
+  /// Expands an endpoint using the shared HTTP request implementation.
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,

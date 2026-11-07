@@ -1,111 +1,61 @@
-import MacroTemplateKit
-import Foundation
-import SwiftDiagnostics
 import SwiftSyntax
-import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-/// Macro implementation for @Timeout.
-///
-/// Configures default timeout for all HTTP requests in an API client.
-///
-/// Example:
-/// ```swift
-/// @API(baseURL: "https://api.example.com")
-/// @Timeout(30.0)
-/// protocol UserAPI {
-///   @GET("/users")
-///   func getUsers() async throws -> [User]
-/// }
-/// ```
-///
-/// The @Timeout macro works in conjunction with @API to inject timeout configuration
-/// into the generated implementation struct.
+/// Validates the default request timeout consumed by `@API`.
 public struct TimeoutMacro: MemberMacro {
+  /// Requires a positive Duration literal on a protocol.
   public static func expansion(
     of node: AttributeSyntax,
     providingMembersOf declaration: some DeclGroupSyntax,
     in context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
-    // Validate this is applied to a protocol
     guard declaration.is(ProtocolDeclSyntax.self) else {
       MacroHelpers.emitError(
         "@Timeout can only be applied to protocols",
+        id: .timeoutRequiresProtocol,
         node: node,
         context: context
       )
       return []
     }
-
-    // Extract timeout value from macro arguments
-    guard let timeout = extractTimeout(from: node, context: context) else {
-      return []
-    }
-
-    // Validate timeout is positive
-    guard timeout > 0 else {
+    guard let timeout = seconds(from: node), timeout.isFinite, timeout > 0 else {
       MacroHelpers.emitError(
-        "@Timeout requires a positive timeout value",
+        "@Timeout requires a positive Duration literal in seconds, milliseconds, "
+          + "microseconds, or nanoseconds",
+        id: .invalidTimeout,
         node: node,
         context: context
       )
       return []
     }
-
-    // Note: The actual timeout application is handled by APIMacro and HTTP method macros
-    // This macro just validates the syntax and makes the information available
-    // to other macros via the attribute syntax
-    // Template algebra infrastructure available via MacroTemplateKit for future enhancement
-
     return []
   }
 
-  // MARK: - Timeout Extraction
-
-  /// Extracts timeout value from macro arguments.
-  private static func extractTimeout(
-    from node: AttributeSyntax,
-    context: some MacroExpansionContext
-  ) -> Double? {
-    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
-      let firstArg = arguments.first,
-      let timeout = BoundaryExpressionParser.double(from: firstArg.expression)
-    else {
-      MacroHelpers.emitError(
-        "@Timeout requires a timeout value in seconds",
-        node: node,
-        context: context
-      )
-      return nil
+  static func extractDefaultTimeout(from declaration: some WithAttributesSyntax) -> Double? {
+    for case .attribute(let attribute) in declaration.attributes
+    where attribute.attributeName.trimmedDescription == "Timeout" {
+      return seconds(from: attribute)
     }
-    return timeout
-  }
-
-  // MARK: - Helper Methods
-
-  /// Extracts default timeout from protocol attributes.
-  ///
-  /// This is used by APIMacro and HTTP method macros to find the default timeout
-  /// configuration on the protocol.
-  public static func extractDefaultTimeout(
-    from declaration: some WithAttributesSyntax
-  ) -> Double? {
-    for attribute in declaration.attributes {
-      guard case .attribute(let attr) = attribute else { continue }
-      let attrName = attr.attributeName.description
-        .trimmingCharacters(in: CharacterSet.whitespaces)
-
-      if attrName == "Timeout" {
-        // Extract timeout from this attribute
-        if let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
-          let firstArg = arguments.first,
-          let timeout = BoundaryExpressionParser.double(from: firstArg.expression)
-        {
-          return timeout
-        }
-      }
-    }
-
     return nil
   }
+
+  private static func seconds(from attribute: AttributeSyntax) -> Double? {
+    guard case .argumentList(let arguments) = attribute.arguments,
+      let expression = arguments.first?.expression,
+      let call = expression.as(FunctionCallExprSyntax.self),
+      let unit = call.calledExpression.as(MemberAccessExprSyntax.self),
+      call.arguments.count == 1,
+      let value = call.arguments.first?.expression,
+      let magnitude = BoundaryExpressionParser.double(from: value),
+      let multiplier = unitMultipliers[unit.declName.baseName.text]
+    else { return nil }
+    return magnitude * multiplier
+  }
+
+  private static let unitMultipliers: [String: Double] = [
+    "seconds": 1,
+    "milliseconds": 0.001,
+    "microseconds": 0.000_001,
+    "nanoseconds": 0.000_000_001,
+  ]
 }

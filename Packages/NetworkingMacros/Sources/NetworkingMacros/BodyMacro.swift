@@ -6,7 +6,24 @@ import SwiftSyntaxMacros
 /// The @Body macro is a "marker macro" that validates the body parameter exists
 /// but doesn't generate any peer code. HTTP method macros (POST, PUT, PATCH) detect
 /// this attribute and use it to generate body encoding code.
-public struct BodyMacro: PeerMacro {
+public struct BodyMacro: AccessorMacro, PeerMacro {
+  /// Synthesizes the accessor for a request-model body property.
+  public static func expansion(
+    of _: AttributeSyntax,
+    providingAccessorsOf declaration: some DeclSyntaxProtocol,
+    in _: some MacroExpansionContext
+  ) throws -> [AccessorDeclSyntax] {
+    guard let variable = declaration.as(VariableDeclSyntax.self),
+      let binding = variable.bindings.first,
+      let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier
+    else {
+      return []
+    }
+
+    return [RequestModelSyntaxFactory.getter(from: .payload, property: name)]
+  }
+
+  /// Validates the annotation consumed by API generation.
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -36,7 +53,7 @@ public struct BodyMacro: PeerMacro {
     return []
   }
 
-  /// Extracts the parameter name from @Body("parameterName") attribute
+  // Extracts the parameter name from the Body attribute.
   private static func extractBodyParameterName(from node: AttributeSyntax) -> String? {
     guard case .argumentList(let arguments) = node.arguments,
       let firstArg = arguments.first,
@@ -86,38 +103,5 @@ extension MacroExpansionError {
 
   static func multipleBodyMacros(_ message: String) -> MacroExpansionError {
     .invalidPathTemplate(EndpointPath(message), suggestion: nil)
-  }
-}
-
-extension AttributeSyntax {
-  func macroArgument(labeled label: String) -> LabeledExprSyntax? {
-    guard let arguments = arguments?.as(LabeledExprListSyntax.self) else {
-      return nil
-    }
-
-    return arguments.first { argument in
-      argument.label?.text == label
-    }
-  }
-
-  func macroIntegerValue(labeled label: String) -> String? {
-    guard let argument = macroArgument(labeled: label),
-      let value = BoundaryExpressionParser.integer(from: argument.expression)
-    else { return nil }
-    return String(value)
-  }
-
-  func macroMemberValue(labeled label: String) -> String? {
-    guard let argument = macroArgument(labeled: label),
-      let memberAccess = argument.expression.as(MemberAccessExprSyntax.self)
-    else {
-      return nil
-    }
-    return memberAccess.declName.baseName.text
-  }
-
-  func macroStringValue(labeled label: String) -> String? {
-    guard let argument = macroArgument(labeled: label) else { return nil }
-    return BoundaryExpressionParser.string(from: argument.expression)
   }
 }
