@@ -154,7 +154,7 @@ public actor FileTransferOperations {
     )
 
     if let transferClient = httpClient as? any HTTPFileTransferClient,
-      transferClient.canPerformNativeDownload
+      transferClient.canPerformNativeFileTransfer
     {
       return try await performFileDownload(
         client: transferClient,
@@ -191,7 +191,7 @@ public actor FileTransferOperations {
     )
 
     if let transferClient = httpClient as? any HTTPFileTransferClient,
-      transferClient.canPerformNativeDownload
+      transferClient.canPerformNativeFileTransfer
     {
       return try await performDataDownload(
         client: transferClient,
@@ -207,7 +207,7 @@ public actor FileTransferOperations {
       destinationURL: nil
     )
     guard let data = transfer.response.body else {
-      throw FileTransferError.fileNotFound(path: FileSystemPath(sourceURL.absoluteString))
+      throw FileTransferError.fileNotFound(path: FileSystemPath(sourceURL.rawValue.absoluteString))
     }
 
     return (data: data, result: transfer.result)
@@ -230,7 +230,7 @@ public actor FileTransferOperations {
     }
 
     // Validate resume data
-    guard !resumeData.isEmpty else {
+    guard !resumeData.isEmpty.rawValue else {
       throw FileTransferError.resumeDataCorrupted
     }
 
@@ -284,13 +284,7 @@ public actor FileTransferOperations {
   }
 
   private func validateFileTransfer(metadata: FileMetadata) throws {
-    // Check file size
-    if metadata.size.rawValue > configuration.maxFileSize.rawValue {
-      throw FileTransferError.fileTooLarge(
-        size: metadata.size,
-        maxSize: configuration.maxFileSize
-      )
-    }
+    try validateTransferSize(metadata.size.rawValue)
 
     // Check MIME type
     if let supportedTypes = configuration.supportedMimeTypes,
@@ -355,31 +349,12 @@ public actor FileTransferOperations {
     return HTTPRequest(
       method: .post,
       url: HTTPRequestURL(destinationURL),
-      headers: HTTPHeaders(headers),
+      headers: HTTPHeaders(rawValue: headers),
       body: body,
       timeout: RequestTimeout(
         configuration.backgroundTransferConfiguration.timeoutIntervalForResource.rawValue
       )
     )
-  }
-
-  private enum TransferDirection: Sendable {
-    case upload
-    case download
-
-    var activePhase: TransferPhase {
-      switch self {
-      case .upload:
-        return .uploading
-      case .download:
-        return .downloading
-      }
-    }
-  }
-
-  private struct BufferedTransfer: Sendable {
-    let response: HTTPResponse
-    let result: FileTransferResult
   }
 
   private func performBufferedTransfer(
@@ -410,20 +385,20 @@ public actor FileTransferOperations {
 
     do {
       let response = try await httpClient.execute(request)
-      try write(response.body, to: destinationURL)
-
       let bytesTransferred: Int64
       switch direction {
       case .upload:
         bytesTransferred = Int64(request.body?.count.rawValue ?? 0)
       case .download:
         bytesTransferred = Int64(response.body?.count.rawValue ?? 0)
+        try validateTransferSize(bytesTransferred)
       }
-
+      try Task.checkCancellation()
       try validateChecksum(
         for: direction == .upload ? request.body : response.body,
         expectedChecksum: metadata?.checksum
       )
+      try write(response.body, to: destinationURL)
 
       let result = makeResult(
         transferId: transferId,
@@ -500,8 +475,10 @@ public actor FileTransferOperations {
     do {
       let download = try await client.download(request, progress: nativeProgress)
       defer { try? FileManager.default.removeItem(at: download.temporaryFileURL) }
+      let bytesTransferred = try fileSize(at: download.temporaryFileURL)
+      try validateTransferSize(bytesTransferred)
+      try Task.checkCancellation()
       try installDownloadedFile(from: download.temporaryFileURL, to: destinationURL)
-      let bytesTransferred = try fileSize(at: destinationURL)
       let result = makeResult(
         transferId: transferId,
         startTime: startTime,
@@ -538,6 +515,8 @@ public actor FileTransferOperations {
     do {
       let download = try await client.download(request, progress: nativeProgress)
       defer { try? FileManager.default.removeItem(at: download.temporaryFileURL) }
+      try validateTransferSize(fileSize(at: download.temporaryFileURL))
+      try Task.checkCancellation()
       let data = HTTPBody(try Data(contentsOf: download.temporaryFileURL))
       let bytesTransferred = Int64(data.count.rawValue)
       let result = makeResult(
@@ -572,9 +551,7 @@ public actor FileTransferOperations {
       let speed = duration > 0 ? Double(progress.transferredBytes) / duration : 0
       callback(
         TransferProgress(
-          totalBytes: (progress.totalBytes ?? expectedBytes).map {
-            TransferByteCount(rawValue: $0)
-          },
+          totalBytes: (progress.totalBytes ?? expectedBytes).map(TransferByteCount.init),
           transferredBytes: TransferByteCount(progress.transferredBytes),
           phase: direction.activePhase,
           bytesPerSecond: TransferSpeed(speed)
@@ -637,7 +614,7 @@ public actor FileTransferOperations {
     guard let data else {
       throw FileTransferError.fileNotFound(path: FileSystemPath(destinationURL.path))
     }
-    try data.write(to: destinationURL)
+    try data.rawValue.write(to: destinationURL)
   }
 
   private func installDownloadedFile(from temporaryURL: URL, to destinationURL: URL) throws {
@@ -658,7 +635,19 @@ public actor FileTransferOperations {
 
   private func fileSize(at fileURL: URL) throws -> Int64 {
     let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-    return (attributes[.size] as? NSNumber)?.int64Value ?? 0
+    guard let size = attributes[.size] as? NSNumber else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
+    return size.int64Value
+  }
+
+  private func validateTransferSize(_ bytes: Int64) throws {
+    guard bytes <= configuration.maxFileSize.rawValue else {
+      throw FileTransferError.fileTooLarge(
+        size: FileSize(bytes),
+        maxSize: configuration.maxFileSize
+      )
+    }
   }
 
   private func validateChecksum(

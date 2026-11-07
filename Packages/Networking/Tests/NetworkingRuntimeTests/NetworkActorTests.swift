@@ -1,7 +1,5 @@
 import Foundation
 @testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
 import NetworkingTesting
 import Testing
 
@@ -20,18 +18,6 @@ struct NetworkActorTests {
 
   @Test("NetworkActor-annotated class serializes access")
   func annotatedClassSerializesAccess() async {
-    @NetworkActor
-    class StateManager {
-      var value = 0
-
-      func increment() {
-        value += 1
-      }
-
-      func getValue() -> Int {
-        return value
-      }
-    }
 
     let manager = StateManager()
     await manager.increment()

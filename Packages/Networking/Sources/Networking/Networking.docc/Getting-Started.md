@@ -1,71 +1,94 @@
-# Getting started
+# Getting Started
 
-Add Networking to a Swift application and send one HTTP request.
+Construct requests directly and reuse the client and codec that serve your application.
 
 ---
 
 ## Add the package
 
-Add `https://github.com/brunogama/Networking.git` in Xcode's package dependency
-editor. Select the `Networking` product for your app target. The repository has
-no version tag yet, so select the `main` branch. The optional macro product is
-named `NetworkingMacros`.
-
-For a Swift package, add the repository dependency and the `Networking` product
-to your target.
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/brunogama/Networking.git", branch: "main")
-],
-targets: [
-    .executableTarget(
-        name: "Example",
-        dependencies: [
-            .product(name: "Networking", package: "Networking")
-        ]
-    )
-]
-```
+Add this repository through Swift Package Manager and select the `Networking`
+product. Import `NetworkingTesting` only from a test target that explicitly
+includes that product. Add `NetworkingObservabilityOTLP` separately when an
+OTLP collector is part of the application.
 
 ---
 
-## Send a request
+## Execute and decode
 
-Import `Networking` and pass an `HTTPRequest` to `NetworkClient`.
+The following code runs inside an asynchronous throwing operation. Create the
+client and codec once at the application's composition root, then inject them
+into features that make requests.
 
 ```swift
 import Foundation
 import Networking
 
-func loadUsers() async throws -> HTTPResponse {
-    guard let url = URL(string: "https://api.example.com/users") else {
-        throw URLError(.badURL)
-    }
-
-    let request = HTTPRequest(method: .get, url: url)
-    return try await NetworkClient().execute(request)
+struct User: Codable, Sendable {
+  let id: String
+  let name: String
 }
+
+var coding = JSONCodec.Configuration()
+coding.dateEncoding = .iso8601
+coding.dateDecoding = .iso8601
+let codec = JSONCodec(configuration: coding)
+
+let client = NetworkClient(
+  middleware: HTTPMiddleware(),
+  configuration: .init(timeout: 15, maximumResponseBytes: 2_097_152)
+)
+guard let url = URL(string: "https://api.example.com/users") else {
+  throw URLError(.badURL)
+}
+let request = HTTPRequest(
+  method: .get,
+  url: url,
+  headers: ["Accept": "application/json"]
+)
+let response = try await client.execute(request)
+guard let body = response.body else {
+  throw HTTPError(category: .decoding("Expected a response body"), request: request)
+}
+let users = try codec.decode([User].self, from: body.rawValue)
 ```
 
-Replace the example URL with an endpoint you control before calling the
-function. The returned `HTTPResponse` has a `status` and an optional `body`.
-`NetworkClient` throws `HTTPError` for transport failures and HTTP error
-statuses.
+`JSONCodec` applies configuration before it is shared and keeps its Foundation
+encoder and decoder private. Custom coding closures must support concurrent
+calls. Encoding and decoding preserve errors from the supplied Codable types.
+
+To send JSON, encode with the same codec and pass the resulting `Data` to the
+Foundation-valued `HTTPRequest` initializer together with a
+`Content-Type: application/json` header. Construct query strings with
+`URLComponents` and `URLQueryItem`.
 
 ---
 
-## Build this repository
+## Configure transport defaults
 
-Run checks against the package you changed. Use both sets when you change
-shared repository configuration.
+`NetworkClient.Configuration.baseURL` resolves relative request URLs using
+Foundation URL resolution. Its `defaultHeaders` supplies values that
+request-specific headers override. A request-specific timeout overrides the
+client default; otherwise the configured URLSession timeout applies when the
+client has no override.
 
-```bash
-swift build --package-path Packages/Networking -Xswiftc -warnings-as-errors
-swift test --package-path Packages/Networking
-swift build --package-path Packages/NetworkingMacros -Xswiftc -warnings-as-errors
-swift test --package-path Packages/NetworkingMacros
-```
+Inject a configured `URLSession` for session-level behavior such as connectivity
+waiting and connection limits. `maximumResponseBytes` limits each response body,
+including middleware-produced content; nil leaves that limit unrestricted.
+A response limit does not constitute a general process-memory limit.
 
-For configuration and middleware, continue with <doc:Client-Configuration> and
-<doc:Middleware-Guide>. <doc:Request-Building> describes the request builder.
+---
+
+## Handle domain errors
+
+`NetworkClient.execute(_:)` throws `HTTPError`. Its `category` distinguishes
+transport failures, HTTP failures, encoding/decoding, timeout, cancellation,
+configuration, and custom errors. HTTP 4xx and 5xx responses become failures
+unless middleware recovers them. The error may retain its request, response,
+and underlying failure, so avoid logging those objects without redaction.
+
+The broader `HTTPClient` protocol allows arbitrary errors from custom clients.
+Calls to `JSONCodec` can also throw Codable errors independently of transport.
+Translate those failures at the application boundary that understands them.
+
+Use <doc:Requests-and-Cancellation> for scoped ownership and
+<doc:Middleware-Guide> for optional retry, caching, and telemetry.

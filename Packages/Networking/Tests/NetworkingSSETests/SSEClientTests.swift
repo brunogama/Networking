@@ -4,22 +4,6 @@ import Testing
 
 @testable import NetworkingSSE
 
-private actor ObservedSSEEvents {
-  private var events: [SSEConnectionEvent] = []
-
-  func append(_ event: SSEConnectionEvent) {
-    events.append(event)
-  }
-
-  func contains(_ event: SSEConnectionEvent) -> Bool {
-    events.contains(event)
-  }
-
-  func snapshot() -> [SSEConnectionEvent] {
-    events
-  }
-}
-
 @Suite("SSEClient")
 struct SSEClientTests {
   @Test("Connect emits open, parsed events, and closed on graceful completion")
@@ -91,7 +75,7 @@ struct SSEClientTests {
       }
 
       #expect(type == "SSE")
-      #expect(message.contains("text/event-stream"))
+      #expect(message.rawValue.contains("text/event-stream"))
     } catch {
       Issue.record("Expected HTTPError, got \(type(of: error))")
     }
@@ -198,18 +182,14 @@ struct SSEClientTests {
       }
     }
 
-    for _ in 0..<50 {
-      if await observedEvents.contains(.open) {
-        break
-      }
-
-      try await Task.sleep(for: .milliseconds(10))
-    }
+    await observedEvents.waitUntilOpened()
 
     consumer.cancel()
     _ = await consumer.value
     let snapshot = await observedEvents.snapshot()
 
     #expect(snapshot.contains(SSEConnectionEvent.open))
+    server.stop()
+    await server.waitUntilStopped()
   }
 }

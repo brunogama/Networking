@@ -10,7 +10,7 @@ import FoundationNetworking
 
 @Suite("NetworkClient recovery integration")
 struct NetworkClientRecoveryIntegrationTests {
-  @Test("Authentication retries the request after base URL middleware resolves it")
+  @Test("Authentication retries the request after client configuration resolves its base URL")
   func refreshesAuthenticationForRelativeURL() async throws {
     let contextID = MockContextIdentifier()
     let baseURL = HTTPRequestURL(try #require(URL(string: "https://api.example.com")))
@@ -33,17 +33,21 @@ struct NetworkClientRecoveryIntegrationTests {
     )
     defer { session.invalidateAndCancel() }
     let tokenProvider = MockBearerTokenProvider()
-    tokenProvider.stubToken("old-token")
-    tokenProvider.stubRefreshToken("new-token")
+    await tokenProvider.stubToken("old-token")
+    await tokenProvider.stubRefreshToken("new-token")
 
-    let client = try NetworkClient {
-      CustomSession(session)
-      BaseURL(baseURL)
-      Authentication {
-        BearerToken(tokenProvider)
-        AuthRefreshStrategyComponent.automatic()
-      }
-    }
+    var configuration = NetworkClient.Configuration()
+    configuration.baseURL = baseURL.rawValue
+    let authentication = AuthenticationMiddleware(
+      configuration: .init(),
+      tokenProvider: tokenProvider,
+      client: NetworkClient(session: session)
+    )
+    let client = NetworkClient(
+      session: session,
+      middleware: HTTPMiddleware(request: [authentication], error: [authentication]),
+      configuration: configuration
+    )
 
     let response = try await client.execute(HTTPRequest(method: .get, url: relativeURL))
     let requests = await MockURLProtocol.getCapturedRequests(contextID: contextID)
@@ -61,6 +65,37 @@ struct NetworkClientRecoveryIntegrationTests {
     MockURLProtocol.clearAll(contextID: contextID)
     defer { MockURLProtocol.clearAll(contextID: contextID) }
 
+    stubRecoveryResponses(url: url, contextID: contextID)
+
+    let configuration = MockURLProtocol.createMockConfiguration(contextID: contextID)
+    let session = URLSession(configuration: configuration)
+    defer { session.invalidateAndCancel() }
+    let transport = NetworkClient(session: session)
+    let retry = RetryMiddleware(
+      configuration: try .init(maxAttempts: 1, initialDelay: .zero),
+      client: transport
+    )
+    let cache = CachingMiddleware(
+      configuration: .init(defaultTTL: 0),
+      storage: MemoryCacheStorage(),
+      client: transport
+    )
+    let client = NetworkClient(
+      session: session,
+      middleware: HTTPMiddleware(request: [cache], response: [cache], error: [retry])
+    )
+    let request = HTTPRequest(method: .get, url: url)
+
+    let recovered = try await client.execute(request)
+    let revalidated = try await client.execute(request)
+    let requests = await MockURLProtocol.getCapturedRequests(contextID: contextID)
+
+    #expect(recovered.status == .ok)
+    #expect(revalidated.status == .ok)
+    #expect(revalidated.body == HTTPBody(Data("recovered".utf8)))
+    #expect(requests.count == 3)
+  }
+  private func stubRecoveryResponses(url: HTTPRequestURL, contextID: MockContextIdentifier) {
     MockURLProtocol.stubSequential(
       url: url,
       responses: [
@@ -74,31 +109,5 @@ struct NetworkClientRecoveryIntegrationTests {
       ],
       contextID: contextID
     )
-
-    let configuration = MockURLProtocol.createMockConfiguration(contextID: contextID)
-    let session = URLSession(configuration: configuration)
-    defer { session.invalidateAndCancel() }
-    let client = try NetworkClient {
-      CustomSession(session)
-      Retry {
-        MaxAttempts(1)
-        BackoffStrategyComponent.fixed()
-        InitialDelay(0)
-      }
-      Caching {
-        Policy.standard()
-        Duration.ttl(0)
-      }
-    }
-    let request = HTTPRequest(method: .get, url: url)
-
-    let recovered = try await client.execute(request)
-    let revalidated = try await client.execute(request)
-    let requests = await MockURLProtocol.getCapturedRequests(contextID: contextID)
-
-    #expect(recovered.status == .ok)
-    #expect(revalidated.status == .ok)
-    #expect(revalidated.body == HTTPBody(Data("recovered".utf8)))
-    #expect(requests.count == 3)
   }
 }

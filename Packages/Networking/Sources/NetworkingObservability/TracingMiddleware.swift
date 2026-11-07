@@ -1,166 +1,82 @@
 import NetworkingCore
-import NetworkingRuntime
 
-/// Middleware that injects W3C Trace Context headers into outgoing requests
-/// and records spans for each request lifecycle.
+/// Propagates trace context and exports spans without collecting credentials or URL queries.
 ///
-/// ## Usage
-///
-/// ```swift
-/// let tracingMiddleware = TracingMiddleware()
-///
-/// let client = try NetworkClient(components: [
-///     BaseURL("https://api.example.com"),
-///     AddMiddleware(tracingMiddleware)
-/// ])
-/// ```
-///
-/// This will automatically add `traceparent` and `tracestate` headers to all
-/// outgoing requests and record timing information for each request.
-public final class TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware,
-  @unchecked Sendable
-{
-  private let exporter: (any TraceExporter)?
-  private let spanStorage = SpanStorage()
+/// Register on request, response, and error middleware chains for terminal cleanup.
+/// Export failures do not change the HTTP result; direct exporter calls expose those failures.
+public actor TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, HTTPErrorMiddleware {
+  private let exporter: any TraceExporter
+  private var activeSpans: [SpanIdentifier: TraceSpan] = [:]
 
-  /// Actor-based storage for active spans.
-  private actor SpanStorage {
-    var activeSpans: [HTTPRequestID: TraceSpan] = [:]
+  /// Creates instrumentation using an explicit export destination.
+  public init(exporter: any TraceExporter) { self.exporter = exporter }
 
-    func store(_ span: TraceSpan, for requestId: HTTPRequestID) {
-      activeSpans[requestId] = span
-    }
+  /// Active spans awaiting a response or error callback.
+  public var activeSpanCount: Int { activeSpans.count }
 
-    func retrieve(for requestId: HTTPRequestID) -> TraceSpan? {
-      activeSpans.removeValue(forKey: requestId)
-    }
-  }
-
-  /// Creates a tracing middleware.
-  public init(exporter: (any TraceExporter)? = nil) {
-    self.exporter = exporter
-  }
-
+  /// Creates a child span and preserves the request's logical identity and transport options.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
-    let context = TraceContext()
-    let span = makeSpan(for: request, context: context)
-
-    await applyRequestAttributes(to: span, request: request)
-    await spanStorage.store(span, for: request.id)
-
-    return injectTraceHeaders(into: request, context: context)
-  }
-
-  public func processResponse(
-    _ response: HTTPResponse,
-    for request: HTTPRequest
-  ) async throws -> HTTPResponse {
-    guard let span = await spanStorage.retrieve(for: request.id) else {
-      return response
+    let parent = request.headers[HTTPHeaderName("traceparent")].flatMap {
+      TraceContext.parse(traceparent: $0)
     }
-
-    await applyResponseAttributes(to: span, response: response)
-    await end(span: span, for: response)
-
-    if let exporter = exporter {
-      try? await exporter.export(span)
-    }
-
-    return response
-  }
-
-  private func makeSpan(for request: HTTPRequest, context: TraceContext) -> TraceSpan {
-    TraceSpan(
-      name: TraceSpanName("\(request.method.rawValue.rawValue) \(request.url.path)"),
-      context: context
+    let context = parent?.createChild() ?? TraceContext()
+    let attributes: [TraceAttributeKey: TraceAttributeValue] = [
+      TraceAttributeKey(HTTPSemanticAttributes.httpMethod):
+        TraceAttributeValue(request.method.rawValue.rawValue),
+      TraceAttributeKey(HTTPSemanticAttributes.httpHost):
+        TraceAttributeValue(request.url.rawValue.host ?? "unknown"),
+    ]
+    activeSpans[context.spanId] = TraceSpan(
+      name: TraceSpanName(request.method.rawValue.rawValue),
+      context: context,
+      attributes: attributes
     )
-  }
-
-  private func applyRequestAttributes(to span: TraceSpan, request: HTTPRequest) async {
-    await span.setAttribute(
-      TraceAttributeKey(HTTPSemanticAttributes.httpMethod),
-      TraceAttributeValue(request.method.rawValue.rawValue)
-    )
-    await span.setAttribute(
-      TraceAttributeKey(HTTPSemanticAttributes.httpUrl),
-      TraceAttributeValue(request.url.absoluteString)
-    )
-    await span.setAttribute(
-      TraceAttributeKey(HTTPSemanticAttributes.httpHost),
-      TraceAttributeValue(request.url.host ?? "unknown")
-    )
-    await span.setAttribute(
-      TraceAttributeKey(HTTPSemanticAttributes.httpPath),
-      TraceAttributeValue(request.url.path)
-    )
-    await span.setAttribute(
-      TraceAttributeKey(HTTPSemanticAttributes.httpScheme),
-      TraceAttributeValue(request.url.scheme ?? "https")
-    )
-
-    if let port = request.url.port {
-      await span.setAttribute(
-        TraceAttributeKey(HTTPSemanticAttributes.httpPort),
-        TraceAttributeValue(String(port))
-      )
-    }
-
-    if let bodySize = request.body?.count {
-      await span.setAttribute(
-        TraceAttributeKey(HTTPSemanticAttributes.httpRequestBodySize),
-        TraceAttributeValue(String(describing: bodySize))
-      )
-    }
-
-    if let userAgent = request.headers[HTTPHeaderName("User-Agent")] {
-      await span.setAttribute(
-        TraceAttributeKey(HTTPSemanticAttributes.userAgentOriginal),
-        TraceAttributeValue(userAgent.rawValue)
-      )
-    }
-  }
-
-  private func injectTraceHeaders(into request: HTTPRequest, context: TraceContext) -> HTTPRequest {
     var headers = request.headers
     headers[HTTPHeaderName("traceparent")] = context.traceparent
-
-    if let tracestate = context.tracestateHeader {
-      headers[HTTPHeaderName("tracestate")] = tracestate
-    }
-
     return HTTPRequest(
       method: request.method,
       url: request.url,
       headers: headers,
       body: request.body,
-      timeout: request.timeoutOverride
+      timeout: request.timeoutOverride,
+      id: request.id
     )
   }
 
-  private func applyResponseAttributes(to span: TraceSpan, response: HTTPResponse) async {
+  /// Records HTTP status and exports exactly once for this transport attempt.
+  public func processResponse(
+    _ response: HTTPResponse,
+    for request: HTTPRequest
+  )
+    async throws -> HTTPResponse
+  {
+    guard let span = takeSpan(for: request) else { return response }
     await span.setAttribute(
       TraceAttributeKey(HTTPSemanticAttributes.httpStatusCode),
       TraceAttributeValue(String(response.status.rawValue.rawValue))
     )
-
-    if let bodySize = response.body?.count {
-      await span.setAttribute(
-        TraceAttributeKey(HTTPSemanticAttributes.httpResponseBodySize),
-        TraceAttributeValue(String(describing: bodySize))
-      )
-    }
+    let status: TraceSpan.SpanStatus =
+      response.status.rawValue.rawValue >= 400
+      ? .error(SpanStatusMessage("HTTP \(response.status.rawValue.rawValue)")) : .ok
+    await span.end(status: status)
+    try? await exporter.export(span)
+    return response
   }
 
-  private func end(span: TraceSpan, for response: HTTPResponse) async {
-    guard !response.status.isSuccess.rawValue else {
-      await span.end(status: TraceSpan.SpanStatus.ok)
-      return
+  /// Completes a failed span and preserves the original request failure.
+  public func handleError(_ error: HTTPError, for request: HTTPRequest) async throws -> HTTPResponse
+  {
+    if let span = takeSpan(for: request) {
+      await span.end(status: .error("Request failed"))
+      try? await exporter.export(span)
     }
+    throw error
+  }
 
-    await span.end(
-      status: TraceSpan.SpanStatus.error(
-        SpanStatusMessage("HTTP \(response.status.rawValue.rawValue)")
-      )
-    )
+  private func takeSpan(for request: HTTPRequest) -> TraceSpan? {
+    guard let header = request.headers[HTTPHeaderName("traceparent")],
+      let context = TraceContext.parse(traceparent: header)
+    else { return nil }
+    return activeSpans.removeValue(forKey: context.spanId)
   }
 }

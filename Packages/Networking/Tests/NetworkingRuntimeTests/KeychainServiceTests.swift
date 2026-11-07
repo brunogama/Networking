@@ -7,8 +7,6 @@ import Security
 #endif
 
 @testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
 import NetworkingTesting
 
 // Comprehensive tests for KeychainService secure credential storage
@@ -46,42 +44,10 @@ final class KeychainServiceTests: XCTestCase {  // swiftlint:disable:this type_b
     try await super.tearDown()
   }
 
-  // swiftlint:disable:next cyclomatic_complexity
   private func skipWhenDefaultKeychainIsUnavailable() throws {
-    #if os(macOS) && canImport(Security)
-    var defaultKeychain: SecKeychain?
-    let copyStatus = SecKeychainCopyDefault(&defaultKeychain)
-
-    switch copyStatus {
-    case errSecSuccess:
-      break
-
-    case errSecNoDefaultKeychain, errSecNoSuchKeychain:
-      throw XCTSkip(
-        "Skipping KeychainServiceTests because the default macOS keychain is unavailable."
-      )
-
-    default:
-      return
-    }
-
-    guard let defaultKeychain else {
-      throw XCTSkip(
-        "Skipping KeychainServiceTests because the default macOS keychain is unavailable."
-      )
-    }
-
-    var keychainStatus: SecKeychainStatus = 0
-    let statusResult = SecKeychainGetStatus(defaultKeychain, &keychainStatus)
-
-    guard statusResult == errSecSuccess else {
-      return
-    }
-
-    let isUnlocked = keychainStatus & SecKeychainStatus(kSecUnlockStateStatus) != 0
-
-    guard isUnlocked else {
-      throw XCTSkip("Skipping KeychainServiceTests because the default macOS keychain is locked.")
+    #if canImport(Security)
+    if keychainIsUnavailable() {
+      throw XCTSkip("KeychainServiceTests require an available, unlocked keychain.")
     }
     #endif
   }

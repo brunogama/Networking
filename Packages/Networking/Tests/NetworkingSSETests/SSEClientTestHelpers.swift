@@ -32,7 +32,7 @@ extension SSEClientTests {
       return
     }
 
-    #expect(actualAttempt == attempt)
+    #expect(actualAttempt.rawValue == attempt)
     #expect(abs(actualDelay.rawValue - delay) < 0.000_1)
   }
 }

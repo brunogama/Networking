@@ -20,11 +20,6 @@ final class BackgroundTransferDelegate: NSObject, URLSessionDownloadDelegate, @u
   private let lock = NSLock()
   private var downloadedFiles: [Int: Result<URL, any Error>] = [:]
 
-  private enum Event: Sendable {
-    case progress(URLSessionDownloadTask, Int64, Int64)
-    case completion(URLSessionTask, BackgroundTransferCompletion)
-  }
-
   init(
     downloadDirectory: URL,
     progressHandler: @escaping ProgressHandler,

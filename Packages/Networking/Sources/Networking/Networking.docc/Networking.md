@@ -1,71 +1,47 @@
 # ``Networking``
 
-An HTTP client for Swift 6 applications, built on `URLSession`.
+HTTP requests, explicit middleware, and scoped cancellation for Swift 6 applications.
 
 ---
 
 ## Overview
 
-The `Networking` product reexports the core, runtime, request builder, runtime
-DSL, observability, server-sent event, and compatibility interceptor modules.
-Import `Networking` for the complete runtime API, or depend on individual
-products when a target needs fewer modules. API client macros are in the
-separate `NetworkingMacros` product.
+Create `HTTPRequest` values and execute them through `NetworkClient`. Configure
+transport defaults with `NetworkClient.Configuration`, and install optional
+behavior through `HTTPMiddleware` arrays. Stateful services own their mutable
+state; request tickets give one scope ownership of a response and cancellation.
 
-`NetworkClient` accepts an `HTTPRequest`, runs request middleware, checks for a
-cached response, and calls `URLSession` when needed. Response middleware handles
-the result. Error middleware can recover a failed request.
+The package targets iOS 16, macOS 13, tvOS 16, and watchOS 9 or later and uses
+Swift 6 language mode. The native SwiftUI traffic inspector supports iOS and macOS.
 
 ---
 
-## Make a request
+## Products
 
-```swift
-import Foundation
-import Networking
+| Product | Responsibility |
+| --- | --- |
+| `Networking` | Re-exports Core, Runtime, Observability, and SSE for a single application import |
+| `NetworkingCore` | HTTP values, domain errors, client protocols, and `JSONCodec` |
+| `NetworkingRuntime` | URLSession execution, tickets, middleware, caching, security, and file transfers |
+| `NetworkingObservability` | Native inspector, trace contracts, tracing middleware, and completed-request metrics |
+| `NetworkingObservabilityOTLP` | Optional awaited OTLP HTTP protobuf export |
+| `NetworkingSSE` | Server-sent event parsing and streaming transport |
+| `NetworkingTesting` | Explicit test dependency with mocks, fakes, and URLProtocol stubs |
 
-func fetchUsers() async throws -> HTTPResponse {
-    guard let url = URL(string: "https://api.example.com/users") else {
-        throw URLError(.badURL)
-    }
-
-    let request = HTTPRequest(method: .get, url: url)
-    return try await NetworkClient().execute(request)
-}
-```
-
-Replace the example URL with an endpoint you control before calling the
-function. See <doc:Getting-Started> for package installation and local checks.
+The separate `Packages/NetworkingMacros` package generates clients that receive
+an injected HTTP client and reusable codec. It is not a dependency of the
+`Networking` umbrella product.
 
 ---
 
-## Modules
+## Topics
 
-- `NetworkingCore` defines requests, responses, errors, and the `HTTPClient` contract.
-- `NetworkingRuntime` implements `NetworkClient`, middleware, and file transfers.
-- `NetworkingDSL` builds requests. `NetworkingRuntimeDSL` adds client conveniences.
-- `NetworkingObservability` provides tracing and metrics.
-- `NetworkingSSE` handles server-sent events.
-- `NetworkingTesting` provides test clients and URL protocol helpers.
-
----
-
-## Guides
+### Using the client
 
 - <doc:Getting-Started>
-- <doc:Core-Networking>
-- <doc:Request-Building>
-- <doc:Client-Configuration>
+- <doc:Requests-and-Cancellation>
+
+### Optional behavior
+
 - <doc:Middleware-Guide>
-- <doc:Authentication>
-- <doc:Error-Handling>
 - <doc:Security-Features>
-- <doc:Module-Migration>
-- <doc:API-Reference>
-
----
-
-## Supported platforms
-
-The package manifest declares iOS 16, macOS 13, tvOS 16, and watchOS 9 as
-minimum deployment versions. The package uses Swift tools version 6.0.

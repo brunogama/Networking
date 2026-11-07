@@ -1,149 +1,60 @@
-import NetworkingObservability
 import Foundation
+import NetworkingObservability
 import OpenTelemetryProtocolExporterCommon
-import OpenTelemetryProtocolExporterHttp
-@preconcurrency import OpenTelemetrySdk
-
-#if canImport(OSLog)
-import OSLog
+#if canImport(FoundationNetworking)
+import FoundationNetworking
 #endif
 
-/// OTLP trace exporter that conforms to the existing TraceExporter protocol.
+/// Sends one completed span as OTLP protobuf using the caller's task and cancellation.
 ///
-/// Batches spans and exports them to an OTLP HTTP collector endpoint.
-///
-/// ## Usage
-///
-/// ```swift
-/// let config = OTLPConfiguration(
-///   endpoint: URL(string: "http://localhost:4318")!,
-///   resource: OTLPResource(serviceName: "my-app")
-/// )
-/// let exporter = try OTLPTraceExporter(configuration: config)
-///
-/// let middleware = TracingMiddleware(exporter: exporter)
-/// ```
-public actor OTLPTraceExporter: TraceExporter {
-  // MARK: - Properties
+/// There is no background worker or queue; return means the collector accepted the HTTP export.
+public struct OTLPTraceExporter: TraceExporter {
+  private let transport: OTLPHTTPTransport
+  private let encoding: OTLPEncoding
 
-  private let configuration: OTLPConfiguration
-  private let converter: OTLPSpanConverter
-  private let httpExporter: OtlpHttpTraceExporter
-  private var buffer: [TraceSpan] = []
-  private var lastFlush = Date()
-  private var flushTask: Task<Void, Never>?
-
-  #if canImport(OSLog)
-  private let logger = Logger(subsystem: "Networking", category: "OTLPTraceExporter")
-  #endif
-
-  // MARK: - Initialization
-
-  /// Creates an OTLP trace exporter.
-  ///
-  /// - Parameter configuration: OTLP configuration including endpoint and resource
-  /// - Throws: OTLPConfigurationError if configuration is invalid
-  public init(configuration: OTLPConfiguration) throws {
+  /// Creates an exporter; the caller retains ownership of an injected session.
+  public init(
+    configuration: OTLPConfiguration,
+    session: URLSession = .shared
+  )
+    throws(OTLPConfigurationError)
+  {
     try configuration.validate()
-
-    self.configuration = configuration
-    self.converter = OTLPSpanConverter(resource: configuration.resource)
-
-    // Create the OpenTelemetry HTTP exporter
-    let otlpConfig = OtlpConfiguration(
-      timeout: configuration.timeout.rawValue,
-      headers: configuration.headers.map { ($0.key.rawValue, $0.value.rawValue) }
-    )
-    self.httpExporter = OtlpHttpTraceExporter(
-      endpoint: configuration.endpoint.rawValue,
-      config: otlpConfig
-    )
+    self.transport = OTLPHTTPTransport(configuration: configuration, session: session)
+    self.encoding = OTLPEncoding(configuration: configuration)
   }
 
-  /// Starts the periodic flush background task.
-  ///
-  /// Must be called after initialization to enable automatic batching.
-  public func start() {
-    startPeriodicFlush()
+  /// Exports the atomic completed snapshot, preserving trace/span/parent IDs and events.
+  public func export(_ span: TraceSpan) async throws(OTLPExportError) {
+    let snapshot = await span.snapshot()
+    let body = try payload(snapshot)
+    let response = try await transport.send(body, signal: .traces)
+    try validateResponse(response)
   }
 
-  deinit {
-    flushTask?.cancel()
+  func payload(_ snapshot: TraceSpanSnapshot) throws(OTLPExportError) -> Data {
+    let converter = OTLPSpanConverter(encoding: encoding)
+    var scope = Opentelemetry_Proto_Trace_V1_ScopeSpans()
+    scope.scope.name = "Networking"
+    scope.spans = [try converter.convert(snapshot)]
+    var resource = Opentelemetry_Proto_Trace_V1_ResourceSpans()
+    resource.resource = encoding.resource()
+    resource.scopeSpans = [scope]
+    var request = Opentelemetry_Proto_Collector_Trace_V1_ExportTraceServiceRequest()
+    request.resourceSpans = [resource]
+    do { return try request.serializedData() } catch { throw .invalidPayload }
   }
 
-  // MARK: - TraceExporter Protocol
-
-  /// Exports a completed span to the OTLP collector.
-  ///
-  /// Spans are buffered and exported in batches for efficiency.
-  ///
-  /// - Parameter span: The span to export
-  public func export(_ span: TraceSpan) async throws {
-    buffer.append(span)
-
-    // Flush if batch size reached
-    if buffer.count >= configuration.batchSize.rawValue {
-      await flushBuffer()
-    }
-  }
-
-  /// Flushes any buffered spans immediately.
-  public func flush() async throws {
-    await flushBuffer()
-  }
-
-  // MARK: - Private Methods
-
-  private func startPeriodicFlush() {
-    flushTask = Task { [weak self] in
-      while !Task.isCancelled {
-        try? await Task.sleep(for: .seconds(5))
-        await self?.flushIfNeeded()
+  private func validateResponse(_ data: Data) throws(OTLPExportError) {
+    do {
+      let response = try Opentelemetry_Proto_Collector_Trace_V1_ExportTraceServiceResponse(
+        serializedBytes: data
+      )
+      guard response.partialSuccess.rejectedSpans == 0 else {
+        throw OTLPExportError.partialRejection
       }
-    }
-  }
-
-  private func flushIfNeeded() async {
-    let elapsed = Date().timeIntervalSince(lastFlush)
-    if elapsed >= configuration.flushInterval.rawValue && !buffer.isEmpty {
-      await flushBuffer()
-    }
-  }
-
-  private func flushBuffer() async {
-    guard !buffer.isEmpty else { return }
-
-    let spansToExport = buffer
-    buffer.removeAll()
-    lastFlush = Date()
-
-    // Convert all spans to OpenTelemetry SpanData
-    var spanDataList: [SpanData] = []
-    for span in spansToExport {
-      let spanData = await converter.convert(span)
-      spanDataList.append(spanData)
-    }
-
-    // Export via OTLP HTTP
-    let result = httpExporter.export(spans: spanDataList)
-    switch result {
-    case .success:
-      #if canImport(OSLog)
-      logger.debug("Exported \(spanDataList.count) spans to OTLP")
-      #endif
-    case .failure:
-      #if canImport(OSLog)
-      logger.warning("Failed to export \(spanDataList.count) spans")
-      #endif
-    // Note: Failed spans are dropped to prevent unbounded memory growth
-    // In production, consider implementing retry with exponential backoff
-    }
-  }
-
-  /// Forces immediate shutdown and final flush.
-  public func shutdown() async {
-    flushTask?.cancel()
-    await flushBuffer()
-    httpExporter.shutdown()
+    } catch let error as OTLPExportError {
+      throw error
+    } catch { throw .invalidPayload }
   }
 }

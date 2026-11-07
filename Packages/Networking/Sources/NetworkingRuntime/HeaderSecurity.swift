@@ -2,17 +2,12 @@ import Foundation
 import NetworkingCore
 
 extension HTTPError {
-  public enum SecurityError: Sendable {
-    case headerInjection
-    case maliciousContent
-    case suspiciousActivity
-    case rateLimitExceeded
-  }
 }
 
 extension HTTPError.Category {
+  /// Creates a security category with an optional non-sensitive explanation.
   public static func security(
-    _ error: HTTPError.SecurityError,
+    _ error: HeaderSecurityError,
     message: HTTPErrorDetail? = nil
   ) -> Self {
     let defaultMessage: HTTPErrorDetail
@@ -34,13 +29,15 @@ extension HTTPError.Category {
   }
 }
 
-public struct HeaderSecurity {
+/// HTTP field-name and field-value validation utilities.
+public enum HeaderSecurity {
   /// Validates a header name according to RFC 7230.
   public static func isValidHeaderName(_ name: HTTPHeaderName) -> HeaderValidationDecision {
-    guard !name.isEmpty else { return false }
+    guard !name.rawValue.isEmpty else { return false }
 
-    let tokenCharacters = CharacterSet.alphanumerics
-      .union(CharacterSet(charactersIn: "!#$%&'*+-.^_`|~"))
+    let tokenCharacters = CharacterSet(
+      charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
+    )
 
     return HeaderValidationDecision(
       name.rawValue.rangeOfCharacter(from: tokenCharacters.inverted) == nil
@@ -98,7 +95,7 @@ public struct HeaderSecurity {
       "\\r\\n", "\\n", "\\r",
     ]
 
-    let lowercaseValue = value.lowercased()
+    let lowercaseValue = value.rawValue.lowercased()
     return HeaderValidationDecision(injectionPatterns.contains { lowercaseValue.contains($0) })
   }
 }

@@ -2,7 +2,7 @@ import Foundation
 import NetworkingCore
 
 /// A basic in-memory cache storage implementation.
-public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
+public actor MemoryCacheStorage: HTTPResponseCacheStorage {
   private var cache: [CacheKey: CachingMiddleware.CacheEntry] = [:]
   private let maxSize: CacheEntryLimit?
 
@@ -12,10 +12,12 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     self.maxSize = maxSize
   }
 
+  /// Lists retained keys.
   public func keys() async -> [CacheKey] {
     Array(cache.keys)
   }
 
+  /// Returns a fresh entry.
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     guard let entry = cache[key] else {
       return nil
@@ -29,14 +31,17 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     return entry
   }
 
+  /// Returns an entry including stale validators.
   public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     cache[key]
   }
 
+  /// Stores an entry and its tags, respecting capacity.
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
     await removeExpired()
 
-    if let maxSize = maxSize, cache.count >= maxSize.rawValue {
+    if let maxSize, maxSize.rawValue <= 0 { return }
+    if cache[key] == nil, let maxSize, cache.count >= maxSize.rawValue {
       let oldestKey = cache.min { lhs, rhs in
         lhs.value.cachedAt < rhs.value.cachedAt
       }?.key
@@ -49,14 +54,17 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     cache[key] = entry
   }
 
+  /// Removes one key.
   public func remove(_ key: CacheKey) async {
     cache.removeValue(forKey: key)
   }
 
+  /// Clears all entries.
   public func removeAll() async {
     cache.removeAll()
   }
 
+  /// Removes stale entries.
   public func removeExpired() async {
     let now = Date()
     cache = cache.filter { _, entry in
@@ -64,28 +72,19 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
   }
 
+  /// Removes entries matching any supplied tag.
   public func removeByTags(_ tags: [CacheTagName]) async {
-    _ = tags
-    // Basic memory cache does not retain tag metadata.
+    let requested = Set(tags)
+    cache = cache.filter { requested.isDisjoint(with: $0.value.tags) }
   }
 
+  /// Removes whole keys matching a wildcard pattern.
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
-    let regex: NSRegularExpression?
-    do {
-      let regexPattern =
-        pattern.rawValue
-        .replacingOccurrences(of: "*", with: ".*")
-        .replacingOccurrences(of: "?", with: ".")
-      regex = try NSRegularExpression(pattern: regexPattern, options: [])
-    } catch {
-      return
-    }
-
-    guard let regex = regex else { return }
+    let regex = cachePatternRegex(pattern)
 
     let keysToRemove = cache.keys.filter { key in
       let range = NSRange(location: 0, length: key.rawValue.utf16.count)
-      return regex.firstMatch(in: key.rawValue, options: [], range: range) != nil
+      return regex?.firstMatch(in: key.rawValue, options: [], range: range) != nil
     }
 
     for key in keysToRemove {
@@ -93,6 +92,7 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
   }
 
+  /// Removes the supplied keys.
   public func removeByKeys(_ keys: [CacheKey]) async {
     for key in keys {
       cache.removeValue(forKey: key)

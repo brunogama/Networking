@@ -1,31 +1,21 @@
 import Foundation
 import NetworkingCore
 
-// swiftlint:disable file_length type_body_length
-
-/// Middleware that provides response caching with TTL, cache invalidation, and flexible storage strategies.
+/// Optional response caching with caller-owned prefetch and serialized invalidation.
 public actor CachingMiddleware: CachedResponseProviding, HTTPRequestMiddleware,
   HTTPResponseMiddleware
 {
-  // MARK: - Properties
+  let configuration: Configuration
+  let storage: any HTTPResponseCacheStorage
+  let client: any HTTPClient
+  let mutations = CacheMutationGate()
+  var generation = UUID()
+  var pendingInvalidations = 0
 
-  private let configuration: Configuration
-  private let storage: any CacheStorage
-  private let client: any HTTPClient
-
-  // REENTRANCY-SAFE: track in-flight requests to deduplicate concurrent fetches
-  private var inFlightRequests: [CacheKey: Task<HTTPResponse, Error>] = [:]
-
-  // MARK: - Initialization
-
-  /// Creates a new caching middleware
-  /// - Parameters:
-  ///   - configuration: The caching configuration
-  ///   - storage: The cache storage implementation
-  ///   - client: The HTTP client to use for requests
+  /// Creates a cache using the supplied storage and client for explicit prefetch requests.
   public init(
     configuration: Configuration,
-    storage: any CacheStorage,
+    storage: any HTTPResponseCacheStorage,
     client: any HTTPClient
   ) {
     self.configuration = configuration
@@ -33,312 +23,70 @@ public actor CachingMiddleware: CachedResponseProviding, HTTPRequestMiddleware,
     self.client = client
   }
 
-  // MARK: - HTTPRequestMiddleware
-
+  /// Adds validators to stale GET requests without changing their logical identity.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
-    // For cacheable requests, check if we have a cached entry
-    guard request.method == .get else { return request }
-
-    // Extract cache metadata
-    let metadata = configuration.metadataExtractor(request)
-    let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
-
-    if configuration.useConditionalRequests.rawValue,
-      let cachedEntry = await storage.getForRevalidation(cacheKey),
-      cachedEntry.isExpired.rawValue
-    {
-      return addConditionalHeaders(to: request, entry: cachedEntry)
+    guard request.method == .get, configuration.useConditionalRequests.rawValue else {
+      return request
     }
-
-    return request
+    let observed = generation
+    let entry = await storage.getForRevalidation(cacheKey(for: request))
+    guard observed == generation, pendingInvalidations == 0, let entry,
+      entry.isExpired.rawValue
+    else { return request }
+    return addConditionalHeaders(to: request, entry: entry)
   }
 
   package func cachedResponse(for request: HTTPRequest) async -> HTTPResponse? {
-    guard request.method == .get else { return nil }
-
-    let metadata = configuration.metadataExtractor(request)
-    let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
-    guard
-      let entry = await storage.getForRevalidation(cacheKey),
-      !entry.isExpired.rawValue
-    else {
-      return nil
-    }
-
-    return entry.response
+    guard request.method == .get, pendingInvalidations == 0 else { return nil }
+    let observed = generation
+    let key = cacheKey(for: request)
+    let retained = await storage.getForRevalidation(key)
+    guard observed == generation, pendingInvalidations == 0, let retained,
+      !retained.isExpired.rawValue
+    else { return nil }
+    let accessed = await storage.get(key)
+    guard observed == generation, pendingInvalidations == 0, let accessed,
+      !accessed.isExpired.rawValue
+    else { return nil }
+    return response(accessed.response, for: request)
   }
 
-  // MARK: - HTTPResponseMiddleware
-
+  /// Stores cacheable responses or resolves 304 revalidation using retained content.
   public func processResponse(
     _ response: HTTPResponse,
     for request: HTTPRequest
-  ) async throws -> HTTPResponse {
-    // Extract cache metadata
+  )
+    async throws -> HTTPResponse
+  {
     let metadata = configuration.metadataExtractor(request)
-
-    // Handle cache invalidation first
-    if let metadata = metadata, metadata.isInvalidating.rawValue {
-      await handleCacheInvalidation(metadata: metadata)
+    if let metadata, metadata.isInvalidating.rawValue {
+      await invalidate(metadata)
+      return response
     }
-
-    let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
-
-    // Handle 304 Not Modified responses
-    if response.status.rawValue == 304 {
-      if let cachedEntry = await storage.getForRevalidation(cacheKey) {
-        // Return the cached response but update its expiration
-        let ttl = determineTTL(request: request, response: response, metadata: metadata)
-        let updatedEntry = CacheEntry(
-          response: cachedEntry.response,
-          ttl: ttl,
-          etag: response.headers.caseInsensitiveValue(for: "ETag") ?? cachedEntry.etag,
-          lastModified: response.headers.caseInsensitiveValue(for: "Last-Modified")
-            ?? cachedEntry.lastModified
-        )
-        await storage.set(cacheKey, entry: updatedEntry)
-        return updatedEntry.response
-      }
-    }
-
-    // Check if we should cache this response
-    if shouldCacheResponse(request: request, response: response, metadata: metadata).rawValue {
-      let ttl = determineTTL(request: request, response: response, metadata: metadata)
-
-      let entry = CacheEntry(
-        response: response,
-        ttl: ttl,
-        etag: response.headers.caseInsensitiveValue(for: "ETag"),
-        lastModified: response.headers.caseInsensitiveValue(for: "Last-Modified")
-      )
-
-      await storage.set(cacheKey, entry: entry)
-    }
-
-    return response
+    return try await storeResponse(response, for: request, generation: generation)
   }
 
-  // MARK: - Public Cache Management
-
-  /// Clears all cached entries
-  public func clearCache() async {
-    await storage.removeAll()
-  }
-
-  /// Removes expired entries from the cache
-  public func cleanExpiredEntries() async {
-    await storage.removeExpired()
-  }
-
-  /// Invalidates cache entries matching a predicate
-  /// - Parameter predicate: Function to determine which entries to invalidate
-  public func invalidateEntries(
-    matching predicate: @Sendable (CacheKey) -> CacheInvalidationFlag
-  ) async {
-    let keys = await storage.keys().filter { predicate($0).rawValue }
-    await storage.removeByKeys(keys)
-  }
-
-  /// Gets a cached entry for debugging/inspection
-  /// - Parameter request: The request to get cached entry for
-  /// - Returns: The cached entry if available
+  /// Returns a fresh cache entry for inspection.
   public func getCachedEntry(for request: HTTPRequest) async -> CacheEntry? {
+    guard pendingInvalidations == 0 else { return nil }
+    let observed = generation
+    let result = await storage.get(cacheKey(for: request))
+    guard observed == generation, pendingInvalidations == 0 else { return nil }
+    return result
+  }
+
+  func cacheKey(for request: HTTPRequest) -> CacheKey {
     let metadata = configuration.metadataExtractor(request)
-    let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
-    return await storage.get(cacheKey)
+    let base = metadata?.customKey ?? configuration.cacheKeyGenerator(request)
+    return Configuration.partitionedKey(base, request: request, tags: metadata?.tags ?? [])
   }
 
-  /// Invalidates cache entries by tags
-  /// - Parameter tags: Tags to invalidate
-  public func invalidateByTags(_ tags: [CacheTagName]) async {
-    await storage.removeByTags(tags)
+  func response(_ cached: HTTPResponse, for request: HTTPRequest) -> HTTPResponse {
+    HTTPResponse(
+      request: request,
+      status: cached.status,
+      headers: cached.headers,
+      body: cached.body
+    )
   }
-
-  /// Invalidates cache entries by pattern
-  /// - Parameter pattern: Pattern to match against cache keys
-  public func invalidateByPattern(_ pattern: CacheInvalidationPattern) async {
-    await storage.removeByPattern(pattern)
-  }
-
-  /// Invalidates specific cache keys
-  /// - Parameter keys: Keys to invalidate
-  public func invalidateByKeys(_ keys: [CacheKey]) async {
-    await storage.removeByKeys(keys)
-  }
-
-  // MARK: - Cache Warming and Prefetching
-
-  /// Warms the cache by prefetching data for specified requests
-  /// - Parameter requests: Array of requests to prefetch
-  /// - Parameter concurrency: Maximum concurrent prefetch operations
-  /// - Returns: Array of results indicating success/failure for each request
-  public func warmCache(
-    requests: [HTTPRequest],
-    concurrency: CachePreloadConcurrency = 4
-  ) async -> [WarmCacheResult] {
-    let semaphore = AsyncSemaphore(value: concurrency)
-
-    return await withTaskGroup(of: (Int, WarmCacheResult).self) { group in
-      // Schedule all prefetch tasks
-      for (index, request) in requests.enumerated() {
-        group.addTask {
-          guard await semaphore.wait() else {
-            return (index, .failure(request: request, error: CancellationError()))
-          }
-
-          let result = await self.prefetchSingle(request: request)
-          await semaphore.signal()
-
-          return (index, result)
-        }
-      }
-
-      // Collect results in order
-      var results = [WarmCacheResult?](repeating: nil, count: requests.count)
-      for await (index, result) in group {
-        results[index] = result
-      }
-
-      return results.compactMap { $0 }
-    }
-  }
-
-  /// Prefetches a single request and stores it in cache
-  /// - Parameter request: The request to prefetch
-  /// - Returns: Result indicating success or failure
-  /// - Note: REENTRANCY-SAFE - deduplicates concurrent requests for same key
-  public func prefetchSingle(request: HTTPRequest) async -> WarmCacheResult {
-    do {
-      // Check if already cached and fresh
-      let metadata = configuration.metadataExtractor(request)
-      let cacheKey = configuration.intelligentCacheKeyGenerator(request, metadata)
-
-      if let existingEntry = await storage.get(cacheKey), !existingEntry.isExpired.rawValue {
-        return .alreadyCached(key: cacheKey)
-      }
-
-      // Check if request already in flight - join existing
-      if let existingTask = inFlightRequests[cacheKey] {
-        let response = try await existingTask.value
-        return .success(key: cacheKey, response: response)
-      }
-
-      // Start new request - store task BEFORE await
-      let task = Task<HTTPResponse, Error> {
-        let response = try await client.execute(request)
-        return try await processResponse(response, for: request)
-      }
-      inFlightRequests[cacheKey] = task
-
-      // Clean up after completion
-      defer { inFlightRequests[cacheKey] = nil }
-
-      let processedResponse = try await task.value
-      return .success(key: cacheKey, response: processedResponse)
-    } catch {
-      return .failure(request: request, error: error)
-    }
-  }
-
-  /// Preloads cache entries based on access patterns
-  /// - Parameter patterns: Cache access patterns to preload
-  /// - Parameter strategy: Preloading strategy to use
-  public func preloadCache(
-    patterns: [CachePreloadPattern],
-    strategy: CachePreloadStrategy = .sequential
-  ) async {
-    switch strategy {
-    case .sequential:
-      await preloadSequentially(patterns)
-
-    case .concurrent(let maxConcurrency):
-      await preloadConcurrently(patterns, maxConcurrency: maxConcurrency)
-
-    case .prioritized:
-      await preloadPrioritized(patterns)
-    }
-  }
-
-  /// Intelligently prefetches related content based on current request
-  /// - Parameter request: The current request
-  /// - Parameter depth: How many levels of related content to prefetch
-  /// - Returns: Number of items prefetched
-  @discardableResult
-  public func intelligentPrefetch(
-    basedOn request: HTTPRequest,
-    depth: CachePrefetchDepth = 1
-  ) async -> CachePrefetchCount {
-    guard depth > 0 else { return 0 }
-
-    var prefetchedCount: CachePrefetchCount = 0
-    let relatedRequests = generateRelatedRequests(from: request, depth: depth)
-
-    for relatedRequest in relatedRequests {
-      let result = await prefetchSingle(request: relatedRequest)
-      if case .success = result {
-        prefetchedCount = CachePrefetchCount(prefetchedCount.rawValue + 1)
-      }
-    }
-
-    return prefetchedCount
-  }
-
-  // MARK: - Private Methods
-
-  /// Handles cache invalidation based on metadata
-  private func handleCacheInvalidation(metadata: CacheMetadata) async {
-    // Invalidate by tags
-    if !metadata.invalidationTags.isEmpty {
-      await storage.removeByTags(metadata.invalidationTags)
-    }
-
-    // Invalidate by pattern
-    if let pattern = metadata.invalidationPattern {
-      await storage.removeByPattern(pattern)
-    }
-
-    // Invalidate specific keys
-    if !metadata.invalidationKeys.isEmpty {
-      await storage.removeByKeys(metadata.invalidationKeys)
-    }
-  }
-
-  /// Determines if a response should be cached considering metadata
-  private func shouldCacheResponse(
-    request: HTTPRequest,
-    response: HTTPResponse,
-    metadata: CacheMetadata?
-  ) -> CacheDecision {
-    // If we have metadata with custom caching rules, override default behavior
-    if let metadata = metadata {
-      // Don't cache responses from invalidating requests
-      if metadata.isInvalidating.rawValue {
-        return false
-      }
-
-      // Cache if it has cacheable metadata and passes basic checks
-      if !metadata.tags.isEmpty || metadata.ttl != nil || metadata.customKey != nil {
-        return configuration.shouldCache(request, response)
-      }
-    }
-
-    return configuration.shouldCache(request, response)
-  }
-
-  /// Determines TTL considering metadata
-  private func determineTTL(
-    request: HTTPRequest,
-    response: HTTPResponse,
-    metadata: CacheMetadata?
-  ) -> CacheMaxAge {
-    // Use metadata TTL if provided
-    if let metadataTTL = metadata?.ttl {
-      return CacheMaxAge(metadataTTL.rawValue)
-    }
-
-    return configuration.ttlCalculator(request, response)
-  }
-
 }
-
-// swiftlint:enable file_length type_body_length

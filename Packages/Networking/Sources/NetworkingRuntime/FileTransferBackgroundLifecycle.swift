@@ -5,33 +5,7 @@ import NetworkingCore
 import FoundationNetworking
 #endif
 
-enum BackgroundTransferCompletion: Sendable {
-  case success(URL)
-  case failure(any Error, downloadedFileURL: URL?)
-
-  var downloadedFileURL: URL? {
-    switch self {
-    case .success(let fileURL):
-      return fileURL
-    case .failure(_, let fileURL):
-      return fileURL
-    }
-  }
-}
-
 actor BackgroundTransferCoordinator {
-  private struct ActiveDownload {
-    let transferId: TransferIdentifier
-    let startTime: Date
-    let progressCallback: ProgressCallback?
-    let task: URLSessionDownloadTask
-    var continuation: CheckedContinuation<FileTransferResult, any Error>?
-    var isCancelled = false
-
-    var duration: TimeInterval {
-      Date().timeIntervalSince(startTime)
-    }
-  }
 
   private let fileInspector: FileTransferFileInspector
   private var downloadsByTask: [Int: ActiveDownload] = [:]

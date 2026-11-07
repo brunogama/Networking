@@ -1,14 +1,15 @@
-import Foundation
 import NetworkingCore
 
 // MARK: - Hybrid Cache Storage
 
 /// Combines memory and disk caching for optimal performance
-public actor HybridCacheStorage: CachingMiddleware.CacheStorage {
+public actor HybridCacheStorage: HTTPResponseCacheStorage {
+  private let operations = CacheMutationGate()
   private let memoryCache: AdvancedMemoryCacheStorage
   private let diskCache: DiskCacheStorage
   private let memoryThreshold: StorageSizeBytes  // Entries larger than this go directly to disk
 
+  /// Creates a coherent memory front cache backed by persistent disk storage.
   public init(
     memorySizePolicy: CacheSizePolicy = .maxEntries(500),
     diskSizePolicy: CacheSizePolicy = .maxDiskSize(52_428_800),
@@ -26,21 +27,29 @@ public actor HybridCacheStorage: CachingMiddleware.CacheStorage {
     self.memoryThreshold = memoryThreshold
   }
 
+  /// Lists keys from both storage tiers.
   public func keys() async -> [CacheKey] {
+    await operations.acquire()
     let memoryKeys = await memoryCache.keys()
     let diskKeys = await diskCache.keys()
+    await operations.release()
     return Array(Set(memoryKeys).union(diskKeys))
   }
 
+  /// Returns a fresh entry, promoting small disk entries into memory.
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
-    // Try memory first
+    await operations.acquire()
+    let result = await lookup(key)
+    await operations.release()
+    return result
+  }
+
+  private func lookup(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     if let entry = await memoryCache.get(key) {
       return entry
     }
 
-    // Try disk
     if let entry = await diskCache.get(key) {
-      // Promote to memory if small enough
       let responseSize = entry.response.cacheStorageSize
       if responseSize <= memoryThreshold {
         await memoryCache.set(key, entry: entry)
@@ -51,15 +60,18 @@ public actor HybridCacheStorage: CachingMiddleware.CacheStorage {
     return nil
   }
 
+  /// Returns retained content and validators from either tier, including stale entries.
   public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
-    if let entry = await memoryCache.getForRevalidation(key) {
-      return entry
-    }
-
-    return await diskCache.getForRevalidation(key)
+    await operations.acquire()
+    var result = await memoryCache.getForRevalidation(key)
+    if result == nil { result = await diskCache.getForRevalidation(key) }
+    await operations.release()
+    return result
   }
 
+  /// Stores an entry in disk and, when small enough, memory.
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
+    await operations.acquire()
     let responseSize = entry.response.cacheStorageSize
 
     if responseSize <= memoryThreshold {
@@ -69,42 +81,63 @@ public actor HybridCacheStorage: CachingMiddleware.CacheStorage {
     }
 
     await diskCache.set(key, entry: entry)
+    await operations.release()
   }
 
+  /// Removes one entry from both tiers.
   public func remove(_ key: CacheKey) async {
+    await operations.acquire()
     await memoryCache.remove(key)
     await diskCache.remove(key)
+    await operations.release()
   }
 
+  /// Clears both tiers before another operation begins.
   public func removeAll() async {
+    await operations.acquire()
     await memoryCache.removeAll()
     await diskCache.removeAll()
+    await operations.release()
   }
 
+  /// Removes expired entries from both tiers.
   public func removeExpired() async {
+    await operations.acquire()
     await memoryCache.removeExpired()
     await diskCache.removeExpired()
+    await operations.release()
   }
 
+  /// Removes entries associated with any supplied tag.
   public func removeByTags(_ tags: [CacheTagName]) async {
+    await operations.acquire()
     await memoryCache.removeByTags(tags)
     await diskCache.removeByTags(tags)
+    await operations.release()
   }
 
+  /// Removes whole keys matching a wildcard pattern.
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
+    await operations.acquire()
     await memoryCache.removeByPattern(pattern)
     await diskCache.removeByPattern(pattern)
+    await operations.release()
   }
 
+  /// Removes the supplied keys from both tiers.
   public func removeByKeys(_ keys: [CacheKey]) async {
+    await operations.acquire()
     await memoryCache.removeByKeys(keys)
     await diskCache.removeByKeys(keys)
+    await operations.release()
   }
 
-  /// Returns combined cache metrics
+  /// Returns combined cache metrics.
   public func getMetrics() async -> (memory: CacheMetrics, disk: StorageSizeBytes) {
+    await operations.acquire()
     let memoryMetrics = await memoryCache.getMetrics()
     let diskUsage = await diskCache.diskUsage
+    await operations.release()
     return (memory: memoryMetrics, disk: diskUsage)
   }
 }

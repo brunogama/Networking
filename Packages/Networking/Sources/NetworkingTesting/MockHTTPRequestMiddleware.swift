@@ -1,165 +1,61 @@
-import NetworkingRuntime
-import NetworkingInterceptorsCompat
-import NetworkingObservability
-import Dispatch
-import Foundation
+import NetworkingCore
 
-/// Mock implementation of `HTTPRequestMiddleware` for testing.
-///
-/// `MockHTTPRequestMiddleware` allows you to stub request transformations
-/// and verify that middleware was called in tests.
-///
-/// ## Example Usage
-///
-/// ```swift
-/// let mock = MockHTTPRequestMiddleware()
-/// mock.stubAddHeader("X-Custom", value: "test-value")
-///
-/// let request = HTTPRequest(method: .get, url: url)
-/// let processed = try await mock.modifyRequest(request)
-///
-/// XCTAssertEqual(mock.callCount, 1)
-/// XCTAssertEqual(processed.headers["X-Custom"], "test-value")
-/// ```
-///
-/// ## Thread Safety
-///
-/// This class uses `@unchecked Sendable` with a private DispatchQueue
-/// to protect all mutable state. All state modifications are serialized
-/// through the queue using `sync` or `async` depending on context.
-public final class MockHTTPRequestMiddleware: HTTPRequestMiddleware, MockVerifiable,
-  @unchecked Sendable
-{
-  // MARK: - Private State (Queue-Protected)
-
-  private let queue = DispatchQueue(label: "com.networking.MockHTTPRequestMiddleware")
-
+/// Records requests and applies a configured transformation selected before suspension.
+public actor MockHTTPRequestMiddleware: HTTPRequestMiddleware, MockVerifiable {
   private var transform: (@Sendable (HTTPRequest) async throws -> HTTPRequest)?
-  private var processCount: Int = 0
-  private var capturedRequests: [HTTPRequest] = []
-  private var shouldFail: Error?
+  private var failure: (any Error)?
+  private var requests: [HTTPRequest] = []
 
-  // MARK: - Initialization
-
-  /// Creates a new mock request middleware.
+  /// Creates a middleware that returns requests unchanged.
   public init() {}
 
-  // MARK: - HTTPRequestMiddleware Conformance
-
-  /// Processes the request using the stubbed transformation.
-  ///
-  /// - Parameter request: The request to process
-  /// - Returns: The transformed request (or original if no transform stubbed)
-  /// - Throws: The stubbed error if `stubFailure` was called
+  /// Records the request, then applies the current behavior without later state mutation.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
-    // Capture request and increment count
-    queue.sync {
-      processCount += 1
-      capturedRequests.append(request)
-    }
-
-    // Check for stubbed failure
-    if let error = queue.sync(execute: { shouldFail }) {
-      throw error
-    }
-
-    // Apply transform if stubbed
-    if let transform = queue.sync(execute: { transform }) {
-      return try await transform(request)
-    }
-
-    // Passthrough by default
-    return request
+    requests.append(request)
+    if let failure { throw failure }
+    guard let transform else { return request }
+    return try await transform(request)
   }
 
-  // MARK: - Stubbing Methods
-
-  /// Stubs a custom transformation function.
-  ///
-  /// - Parameter transform: The transformation to apply to requests
+  /// Configures a transformation and clears any previous failure.
   public func stubTransform(
     _ transform: @escaping @Sendable (HTTPRequest) async throws -> HTTPRequest
   ) {
-    queue.sync {
-      self.transform = transform
-    }
+    self.transform = transform
+    failure = nil
   }
 
-  /// Stubs passthrough behavior (requests are returned unchanged).
-  ///
-  /// This clears any previously stubbed transformation.
+  /// Restores successful passthrough behavior.
   public func stubPassthrough() {
-    queue.sync {
-      transform = nil
-    }
+    transform = nil
+    failure = nil
   }
 
-  /// Stubs a failure to be thrown when processing requests.
-  ///
-  /// - Parameter error: The error to throw
-  public func stubFailure(_ error: Error) {
-    queue.sync {
-      shouldFail = error
-    }
-  }
+  /// Makes subsequent processing throw the supplied error.
+  public func stubFailure(_ error: any Error) { failure = error }
 
-  /// Stubs adding a header to all processed requests.
-  ///
-  /// This is a convenience method for the common case of adding headers.
-  ///
-  /// - Parameters:
-  ///   - name: The header name
-  ///   - value: The header value
+  /// Adds a header while preserving the identity and other fields of each request.
   public func stubAddHeader(_ name: HTTPHeaderName, value: HTTPHeaderValue) {
     stubTransform { request in
-      var updatedHeaders = request.headers
-      updatedHeaders[name] = value
-      return HTTPRequest(
-        method: request.method,
-        url: request.url,
-        headers: updatedHeaders,
-        body: request.body,
-        timeout: request.timeoutOverride
-      )
+      var result = request
+      result.addHeader(name: name, value: value)
+      return result
     }
   }
 
-  // MARK: - MockVerifiable Conformance
+  /// The number of requests processed since initialization or reset.
+  public var callCount: MockVerificationCount { MockVerificationCount(requests.count) }
 
-  /// The number of times `modifyRequest` was called.
-  nonisolated public var callCount: MockVerificationCount {
-    get async {
-      MockVerificationCount(queue.sync { processCount })
-    }
-  }
+  /// Returns captured requests in call order.
+  public func getCapturedRequests() -> [HTTPRequest] { requests }
 
-  // MARK: - Inspection Methods
+  /// Returns the most recent captured request.
+  public func getLastCapturedRequest() -> HTTPRequest? { requests.last }
 
-  /// Returns all captured requests in order.
-  ///
-  /// - Returns: An array of all requests that were processed
-  public func getCapturedRequests() -> [HTTPRequest] {
-    queue.sync { capturedRequests }
-  }
-
-  /// Returns the last captured request, if any.
-  ///
-  /// - Returns: The most recent request, or `nil` if none
-  public func getLastCapturedRequest() -> HTTPRequest? {
-    queue.sync { capturedRequests.last }
-  }
-
-  // MARK: - Reset
-
-  /// Resets all stubbed behavior and captured state.
-  ///
-  /// After calling `reset`, the mock returns to its initial state.
+  /// Clears configuration and history without changing already selected in-flight transformations.
   public func reset() {
-    queue.sync {
-      transform = nil
-      processCount = 0
-      capturedRequests.removeAll()
-      shouldFail = nil
-    }
+    transform = nil
+    failure = nil
+    requests.removeAll()
   }
 }
