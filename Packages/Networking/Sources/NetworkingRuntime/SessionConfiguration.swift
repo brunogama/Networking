@@ -112,7 +112,7 @@ public struct SessionConfiguration: Sendable {
   #if canImport(Network)
   private func tlsProtocolVersion(
     for version: TLSConfiguration.TLSVersion
-  ) -> tls_protocol_version_t {
+  ) -> Network.tls_protocol_version_t {
     switch version {
     case .tls12:
       return .TLSv12

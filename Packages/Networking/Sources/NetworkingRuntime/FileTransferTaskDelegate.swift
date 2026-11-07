@@ -1,5 +1,4 @@
 import Foundation
-import NetworkingCore
 import os
 
 #if canImport(FoundationNetworking)

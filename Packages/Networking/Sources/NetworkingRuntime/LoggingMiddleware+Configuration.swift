@@ -1,7 +1,7 @@
 import NetworkingCore
 
 #if canImport(OSLog)
-import OSLog
+import os
 
 extension LoggingMiddleware {
   // MARK: - Configuration
@@ -13,7 +13,7 @@ extension LoggingMiddleware {
 
     public let category: LoggingCategoryName
 
-    public let logLevel: OSLogType
+    public let logLevel: os.OSLogType
 
     public let logHeaders: CollectHeadersFlag
 
@@ -24,7 +24,7 @@ extension LoggingMiddleware {
     public init(
       subsystem: LoggingSubsystemName = "Networking",
       category: LoggingCategoryName = "HTTPClient",
-      logLevel: OSLogType = .debug,
+      logLevel: os.OSLogType = .debug,
       logHeaders: CollectHeadersFlag = true,
       logBody: CollectBodyInfoFlag = false,
       maxBodyLength: LogBodyLengthLimit = 1024

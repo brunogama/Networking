@@ -2,7 +2,7 @@ import Foundation
 import NetworkingCore
 
 #if canImport(OSLog)
-import OSLog
+import os
 
 /// Middleware that logs HTTP requests and responses using OSLog.
 public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, HTTPErrorMiddleware
@@ -11,13 +11,13 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
   // MARK: - Properties
 
   private let configuration: Configuration
-  private let logger: Logger
+  private let logger: os.Logger
 
   // MARK: - Initialization
 
   public init(configuration: Configuration = Configuration()) {
     self.configuration = configuration
-    self.logger = Logger(
+    self.logger = os.Logger(
       subsystem: configuration.subsystem.rawValue,
       category: configuration.category.rawValue
     )
