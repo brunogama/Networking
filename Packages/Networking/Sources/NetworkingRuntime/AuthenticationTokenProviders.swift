@@ -1,10 +1,21 @@
+import Foundation
 import NetworkingCore
+
+extension AuthenticationMiddleware.TokenProvider {
+  /// Refreshes bearer credentials only after an unauthorized response by default.
+  public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
+    if case .http(.unauthorized) = error.category { return true }
+    return false
+  }
+}
 
 /// A simple token provider that stores tokens in memory.
 public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
   private var accessToken: BearerTokenValue?
+  private var credentialRevision = UUID()
   private let refreshHandler: @Sendable () async throws -> BearerTokenValue
 
+  /// Creates an in-memory credential store and its refresh operation.
   public init(
     initialToken: BearerTokenValue? = nil,
     refreshHandler: @escaping @Sendable () async throws -> BearerTokenValue
@@ -13,16 +24,26 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
     self.refreshHandler = refreshHandler
   }
 
+  /// Returns the current credential.
   public func getCurrentToken() async throws -> BearerTokenValue? {
     accessToken
   }
 
+  /// Refreshes the credential unless another mutation supersedes the operation while suspended.
   public func refreshToken() async throws -> BearerTokenValue {
+    try Task.checkCancellation()
+    let revision = credentialRevision
     let newToken = try await refreshHandler()
+    try Task.checkCancellation()
+    guard revision == credentialRevision else {
+      throw HTTPError(category: .custom("Authentication", "Credentials changed during refresh"))
+    }
     accessToken = newToken
+    credentialRevision = UUID()
     return newToken
   }
 
+  /// Allows refresh after an unauthorized response.
   public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
     if case .http(let status) = error.category, status.rawValue == 401 {
       return true
@@ -31,44 +52,10 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
     return false
   }
 
+  /// Replaces the credential; nil represents a signed-out state.
   public func setToken(_ token: BearerTokenValue?) async {
+    credentialRevision = UUID()
     accessToken = token
-  }
-}
-
-/// A token provider that uses closures for all operations.
-public struct ClosureTokenProvider: AuthenticationMiddleware.TokenProvider {
-  private let getCurrentHandler: @Sendable () async throws -> BearerTokenValue?
-  private let refreshHandler: @Sendable () async throws -> BearerTokenValue
-  private let shouldRefreshHandler: @Sendable (HTTPError) async -> AuthenticationDecision
-
-  public init(
-    getCurrentToken: @escaping @Sendable () async throws -> BearerTokenValue?,
-    refreshToken: @escaping @Sendable () async throws -> BearerTokenValue,
-    shouldRefreshToken: @escaping @Sendable (HTTPError) async -> AuthenticationDecision = {
-      error in
-      if case .http(let status) = error.category, status == .unauthorized {
-        return true
-      }
-
-      return false
-    }
-  ) {
-    self.getCurrentHandler = getCurrentToken
-    self.refreshHandler = refreshToken
-    self.shouldRefreshHandler = shouldRefreshToken
-  }
-
-  public func getCurrentToken() async throws -> BearerTokenValue? {
-    try await getCurrentHandler()
-  }
-
-  public func refreshToken() async throws -> BearerTokenValue {
-    try await refreshHandler()
-  }
-
-  public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
-    await shouldRefreshHandler(error)
   }
 }
 

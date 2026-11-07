@@ -1,124 +1,83 @@
-@testable import NetworkingObservability
-import NetworkingRuntime
-import NetworkingDSL
-import NetworkingObservabilityOTLP
-import NetworkingTesting
+import Foundation
+import NetworkingCore
+import NetworkingObservability
+import OpenTelemetryProtocolExporterCommon
 import Testing
+@testable import NetworkingObservabilityOTLP
 
-@Suite("OTLP Trace Exporter Tests")
+@Suite("OTLP trace protobuf export")
 struct OTLPTraceExporterTests {
-    // MARK: - Initialization Tests
+  @Test("Wire payload preserves identifiers, events, resources, and redaction")
+  func preservesTraceWireData() async throws {
+    let fixture = try OTLPTestFixture()
+    let context = TraceContext().createChild()
+    let span = TraceSpan(name: "GET", context: context, startTime: Date(timeIntervalSince1970: 1))
+    await span.setAttribute("http.request.header.authorization", "secret")
+    await span.setAttribute("safe", "visible")
+    await span.addEvent(
+      .init(
+        name: "received",
+        timestamp: Date(timeIntervalSince1970: 1.5),
+        attributes: ["user.token": "secret"]
+      )
+    )
+    await span.end(endTime: Date(timeIntervalSince1970: 2))
+    let exporter = try OTLPTraceExporter(
+      configuration: fixture.configuration,
+      session: fixture.session
+    )
+    let data = try exporter.payload(await span.snapshot())
+    let decoded = try Opentelemetry_Proto_Collector_Trace_V1_ExportTraceServiceRequest(
+      serializedBytes: data
+    )
+    let resource = try #require(decoded.resourceSpans.first)
+    let exported = try #require(resource.scopeSpans.first?.spans.first)
+    #expect(exported.traceID == hexData(context.traceId.rawValue))
+    #expect(exported.spanID == hexData(context.spanId.rawValue))
+    #expect(exported.parentSpanID == context.parentSpanId.map { hexData($0.rawValue) })
+    #expect(exported.startTimeUnixNano == 1_000_000_000)
+    #expect(exported.endTimeUnixNano == 2_000_000_000)
+    #expect(exported.attributes.map(\.key) == ["safe"])
+    #expect(exported.events.first?.name == "received")
+    #expect(exported.events.first?.attributes.isEmpty == true)
+    #expect(resource.resource.attributes.contains { $0.key == "service.name" })
+  }
 
-    @Test("Creates exporter with valid configuration")
-    func initWithValidConfig() async throws {
-        let config = OTLPConfiguration(
-            endpoint: URL(string: "http://localhost:4318")!,
-            resource: OTLPResource(serviceName: "test-service")
-        )
+  @Test("Exporter awaits correct endpoint and surfaces collector rejection")
+  func checksCollectorResponse() async throws {
+    let fixture = try OTLPTestFixture()
+    fixture.stub(signal: "traces", status: 503)
+    let exporter = try OTLPTraceExporter(
+      configuration: fixture.configuration,
+      session: fixture.session
+    )
+    let span = TraceSpan(name: "GET", context: TraceContext())
+    await span.end()
+    await #expect(throws: OTLPExportError.rejectedStatus(503)) { try await exporter.export(span) }
+    let request = try #require(await fixture.requests().first)
+    #expect(request.url?.path == "/v1/traces")
+    #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-protobuf")
+  }
 
-        let exporter = try OTLPTraceExporter(configuration: config)
-        // Exporter created successfully (non-optional type)
-
-        // Cleanup
-        await exporter.shutdown()
+  @Test("Unfinished spans never reach the transport")
+  func rejectsUnfinishedSpan() async throws {
+    let fixture = try OTLPTestFixture()
+    let exporter = try OTLPTraceExporter(
+      configuration: fixture.configuration,
+      session: fixture.session
+    )
+    await #expect(throws: OTLPExportError.unfinishedSpan) {
+      try await exporter.export(TraceSpan(name: "GET", context: TraceContext()))
     }
+    #expect(await fixture.requests().isEmpty)
+  }
 
-    @Test("Throws on invalid configuration")
-    func initThrowsOnInvalidConfig() {
-        let config = OTLPConfiguration(
-            endpoint: URL(string: "ftp://invalid:4318")!
-        )
-
-        #expect(throws: OTLPConfigurationError.self) {
-            _ = try OTLPTraceExporter(configuration: config)
-        }
-    }
-
-    // MARK: - Export Tests
-
-    @Test("Exports span without throwing")
-    func exportSpan() async throws {
-        let config = OTLPConfiguration(
-            endpoint: URL(string: "http://localhost:4318")!,
-            resource: OTLPResource(serviceName: "test-service")
-        )
-
-        let exporter = try OTLPTraceExporter(configuration: config)
-
-        // Create a test span
-        let context = TraceContext()
-        let span = TraceSpan(name: "test-span", context: context)
-        await span.setAttribute("test.attribute", "test-value")
-        await span.end(status: .ok)
-
-        // Export should not throw (network errors are logged, not thrown)
-        try await exporter.export(span)
-
-        await exporter.shutdown()
-    }
-
-    @Test("Buffers spans until batch size reached")
-    func buffersSpans() async throws {
-        let config = OTLPConfiguration(
-            endpoint: URL(string: "http://localhost:4318")!,
-            batchSize: 5,
-            resource: OTLPResource(serviceName: "test-service")
-        )
-
-        let exporter = try OTLPTraceExporter(configuration: config)
-
-        // Export fewer spans than batch size
-        for i in 0 ..< 3 {
-            let context = TraceContext()
-            let span = TraceSpan(name: "span-\(i)", context: context)
-            await span.end()
-            try await exporter.export(span)
-        }
-
-        // Spans should be buffered (not flushed yet)
-        // No network error means buffering worked
-
-        await exporter.shutdown()
-    }
-
-    // MARK: - Flush Tests
-
-    @Test("Flush exports buffered spans")
-    func flushExportsBufferedSpans() async throws {
-        let config = OTLPConfiguration(
-            endpoint: URL(string: "http://localhost:4318")!,
-            batchSize: 100, // High batch size to prevent auto-flush
-            resource: OTLPResource(serviceName: "test-service")
-        )
-
-        let exporter = try OTLPTraceExporter(configuration: config)
-
-        // Export a span
-        let context = TraceContext()
-        let span = TraceSpan(name: "flush-test-span", context: context)
-        await span.end()
-        try await exporter.export(span)
-
-        // Manually flush
-        try await exporter.flush()
-
-        // Shutdown
-        await exporter.shutdown()
-    }
-
-    // MARK: - TraceExporter Protocol Conformance
-
-    @Test("Conforms to TraceExporter protocol")
-    func conformsToProtocol() async throws {
-        let config = OTLPConfiguration(
-            endpoint: URL(string: "http://localhost:4318")!
-        )
-
-        let exporter = try OTLPTraceExporter(configuration: config)
-
-        // Verify protocol conformance via type constraint
-        let _: any TraceExporter = exporter
-
-        await exporter.shutdown()
-    }
+  private func hexData(_ value: String) -> Data {
+    let bytes = Array(value.utf8)
+    return Data(
+      stride(from: 0, to: bytes.count, by: 2).compactMap { index in
+        String(bytes: bytes[index..<index + 2], encoding: .utf8).flatMap { UInt8($0, radix: 16) }
+      }
+    )
+  }
 }

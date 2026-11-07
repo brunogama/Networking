@@ -3,8 +3,6 @@ import Foundation
 import XCTest
 
 @testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
 import NetworkingTesting
 
 // Comprehensive tests for FileTransferOperations file upload/download functionality.
@@ -44,6 +42,7 @@ final class FileTransferOperationsTests: XCTestCase {
     XCTAssertTrue(result.isSuccessful.rawValue)
     XCTAssertNil(result.error)
     XCTAssertNil(result.resumeData)
+    XCTAssertNil(result.fileURL)
   }
 
   func testFileTransferResultFailureWithResumeData() {
@@ -381,6 +380,254 @@ final class FileTransferOperationsTests: XCTestCase {
     XCTAssertNotNil(operations)
   }
 
+  func testDownloadFileReturnsCallerDestinationURL() async throws {
+    let payload = Data("downloaded file".utf8)
+    await mockClient.setResponseData(payload)
+    let operations = FileTransferOperations(httpClient: mockClient)
+    let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString
+    )
+    defer { try? FileManager.default.removeItem(at: destinationURL) }
+
+    let result = try await operations.downloadFile(
+      from: RemoteTransferURL(try XCTUnwrap(URL(string: "https://example.com/file.bin"))),
+      to: LocalFileURL(destinationURL)
+    )
+
+    XCTAssertEqual(result.fileURL, LocalFileURL(destinationURL))
+    XCTAssertEqual(try Data(contentsOf: destinationURL), payload)
+  }
+
+  func testDownloadDataExecutesExactlyOneRequest() async throws {
+    let payload = Data("single response".utf8)
+    await mockClient.setResponseData(payload)
+    let operations = FileTransferOperations(httpClient: mockClient)
+
+    let download = try await operations.downloadData(
+      from: RemoteTransferURL(try XCTUnwrap(URL(string: "https://example.com/file.bin")))
+    )
+
+    XCTAssertEqual(download.data.rawValue, payload)
+    let executeCallCount = await mockClient.executeCallCount
+    XCTAssertEqual(executeCallCount, 1)
+  }
+
+  func testDownloadDataUsesNativeFileTransportOnce() async throws {
+    let payload = Data("native download".utf8)
+    let client = FileTransferTestNativeClient(downloadedData: payload)
+    let operations = FileTransferOperations(httpClient: client)
+
+    let download = try await operations.downloadData(
+      from: RemoteTransferURL(try XCTUnwrap(URL(string: "https://example.com/native.bin")))
+    )
+    let calls = await client.calls
+
+    XCTAssertEqual(download.data.rawValue, payload)
+    XCTAssertEqual(calls.download, 1)
+    XCTAssertEqual(calls.execute, 0)
+  }
+
+  func testUploadFileUsesNativeFileTransportWithoutRequestBody() async throws {
+    let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let payload = Data("native upload".utf8)
+    try payload.write(to: sourceURL)
+    defer { try? FileManager.default.removeItem(at: sourceURL) }
+    let client = FileTransferTestNativeClient(downloadedData: Data())
+    let operations = FileTransferOperations(
+      httpClient: client,
+      configuration: FileTransferConfiguration(enableIntegrityCheck: false)
+    )
+
+    let result = try await operations.uploadFile(
+      from: LocalFileURL(sourceURL),
+      to: RemoteTransferURL(try XCTUnwrap(URL(string: "https://example.com/upload.bin")))
+    )
+    let calls = await client.calls
+
+    XCTAssertEqual(result.bytesTransferred, TransferByteCount(Int64(payload.count)))
+    XCTAssertEqual(calls.upload, 1)
+    XCTAssertEqual(calls.execute, 0)
+    XCTAssertEqual(calls.uploadedFileURL, sourceURL)
+    XCTAssertFalse(calls.uploadRequestHasBody)
+  }
+
+  func testFileTransportFallsBackToExecuteWhenNativeTransferIsUnavailable() async throws {
+    let payload = Data("retry compatible download".utf8)
+    let client = FileTransferTestNativeClient(
+      downloadedData: payload,
+      canPerformNativeFileTransfer: false
+    )
+    let operations = FileTransferOperations(httpClient: client)
+
+    let download = try await operations.downloadData(
+      from: RemoteTransferURL(try XCTUnwrap(URL(string: "https://example.com/fallback.bin")))
+    )
+    let calls = await client.calls
+
+    XCTAssertEqual(download.data.rawValue, payload)
+    XCTAssertEqual(calls.execute, 1)
+    XCTAssertEqual(calls.download, 0)
+  }
+
+  func testResumeTransferReturnsWhenBackgroundTaskFinishesWithError() async {
+    #if !os(Linux)
+    let backgroundConfiguration = BackgroundTransferConfiguration(
+      enableBackgroundTransfer: true,
+      backgroundSessionIdentifier: BackgroundSessionIdentifier(
+        "NetworkingTests.\(UUID().uuidString)"
+      )
+    )
+    let operations = FileTransferOperations(
+      httpClient: mockClient,
+      configuration: FileTransferConfiguration(
+        backgroundTransferConfiguration: backgroundConfiguration
+      )
+    )
+
+    let returnedBeforeTimeout = await withTaskGroup(of: Bool.self) { group in
+      group.addTask {
+        do {
+          _ = try await operations.resumeTransfer(
+            with: TransferResumeData(Data("invalid resume data".utf8))
+          )
+        } catch {
+          return true
+        }
+        return true
+      }
+      group.addTask {
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        return false
+      }
+
+      let result = await group.next() ?? false
+      group.cancelAll()
+      return result
+    }
+
+    XCTAssertTrue(returnedBeforeTimeout, "resumeTransfer waited after the task completed")
+    #endif
+  }
+
+  // swiftlint:disable:next function_body_length
+  func testBackgroundDelegatePreservesDownloadAndForwardsTaskIdentity() async throws {
+    #if !os(Linux)
+    let downloadDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString,
+      isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: downloadDirectory) }
+
+    let recorder = BackgroundTransferEventRecorder()
+    let progressRecorded = expectation(description: "Progress recorded")
+    let completionRecorded = expectation(description: "Completion recorded")
+    let delegate = BackgroundTransferDelegate(
+      downloadDirectory: downloadDirectory,
+      progressHandler: { task, totalBytesWritten, totalBytesExpected in
+        await recorder.recordProgress(
+          task: task,
+          totalBytesWritten: totalBytesWritten,
+          totalBytesExpected: totalBytesExpected
+        )
+        progressRecorded.fulfill()
+      },
+      completionHandler: { task, completion in
+        await recorder.recordCompletion(
+          task: task,
+          completion: completion
+        )
+        completionRecorded.fulfill()
+      }
+    )
+    let session = URLSession(configuration: .ephemeral)
+    defer { session.invalidateAndCancel() }
+    let requestURL = try XCTUnwrap(URL(string: "https://example.com/archive.bin"))
+    let task = session.downloadTask(with: requestURL)
+    let payload = Data("resumed download".utf8)
+    let temporaryDownload = downloadDirectory.appendingPathComponent("url-session.tmp")
+    try FileManager.default.createDirectory(
+      at: downloadDirectory,
+      withIntermediateDirectories: true
+    )
+    try payload.write(to: temporaryDownload)
+
+    delegate.urlSession(
+      session,
+      downloadTask: task,
+      didWriteData: Int64(payload.count),
+      totalBytesWritten: Int64(payload.count),
+      totalBytesExpectedToWrite: Int64(payload.count)
+    )
+    delegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: temporaryDownload
+    )
+    delegate.urlSession(session, task: task, didCompleteWithError: nil)
+
+    await fulfillment(of: [progressRecorded, completionRecorded], timeout: 1)
+
+    let events = await recorder.events
+    XCTAssertTrue(events.progress?.task === task)
+    XCTAssertEqual(events.progress?.totalBytesWritten, Int64(payload.count))
+    XCTAssertEqual(events.progress?.totalBytesExpected, Int64(payload.count))
+    XCTAssertTrue(events.completion?.task === task)
+    XCTAssertEqual(events.order, ["progress", "completion"])
+
+    guard case .success(let storedFile) = events.completion?.completion else {
+      return XCTFail("Expected a persisted download")
+    }
+    XCTAssertEqual(try Data(contentsOf: storedFile), payload)
+    XCTAssertEqual(storedFile.deletingLastPathComponent(), downloadDirectory)
+    #endif
+  }
+
+  func testBackgroundDelegateRemovesDownloadWhenTerminalOwnerNoLongerClaimsTask() async throws {
+    #if !os(Linux)
+    let downloadDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString,
+      isDirectory: true
+    )
+    defer { try? FileManager.default.removeItem(at: downloadDirectory) }
+
+    let coordinator = BackgroundTransferCoordinator(configuration: .default)
+    let completionHandled = expectation(description: "Completion handled")
+    let delegate = BackgroundTransferDelegate(
+      downloadDirectory: downloadDirectory,
+      progressHandler: { _, _, _ in },
+      completionHandler: { task, completion in
+        await coordinator.didComplete(task: task, completion: completion)
+        completionHandled.fulfill()
+      }
+    )
+    let session = URLSession(configuration: .ephemeral)
+    defer { session.invalidateAndCancel() }
+    let requestURL = try XCTUnwrap(URL(string: "https://example.com/unclaimed.bin"))
+    let task = session.downloadTask(with: requestURL)
+    let temporaryDownload = downloadDirectory.appendingPathComponent("url-session.tmp")
+    try FileManager.default.createDirectory(
+      at: downloadDirectory,
+      withIntermediateDirectories: true
+    )
+    try Data("unclaimed download".utf8).write(to: temporaryDownload)
+
+    delegate.urlSession(
+      session,
+      downloadTask: task,
+      didFinishDownloadingTo: temporaryDownload
+    )
+    delegate.urlSession(session, task: task, didCompleteWithError: nil)
+
+    await fulfillment(of: [completionHandled], timeout: 1)
+
+    let remainingFiles = try FileManager.default.contentsOfDirectory(
+      at: downloadDirectory,
+      includingPropertiesForKeys: nil
+    )
+    XCTAssertTrue(remainingFiles.isEmpty, "Unclaimed downloads must not remain on disk")
+    #endif
+  }
+
   // MARK: - Sendable Conformance Tests
 
   func testFileTransferResultSendable() {
@@ -443,7 +690,7 @@ final class FileTransferOperationsTests: XCTestCase {
     )
 
     XCTAssertEqual(metadata.fileExtension, "pdf")
-    XCTAssertTrue(metadata.name.contains(" "))
+    XCTAssertTrue(metadata.name.rawValue.contains(" "))
   }
 
   func testFileMetadataWithNoNameExtension() {
@@ -502,43 +749,5 @@ final class FileTransferOperationsTests: XCTestCase {
   }
 }
 
-// MARK: - Test Mock HTTP Client
-
-private final class FileTransferTestMockClient: HTTPClient, @unchecked Sendable {
-  var shouldFail = false
-  var failureError: HTTPError?
-  var responseData: Data?
-
-  func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
-    if shouldFail {
-      throw failureError ?? HTTPError(category: .network(.serverUnreachable), request: request)
-    }
-
-    return HTTPResponse(
-      request: request,
-      status: .ok,
-      headers: [:],
-      body: responseData ?? Data()
-    )
-  }
-
-  // MARK: - Download Progress Integration Tests
-
-  /// FileTransferOperations downloadFile with progress tracking
-  /// Note: Full download progress integration requires URLSessionDownloadDelegate
-  /// and UUID mapping (tracked in TODO comment in FileTransferOperations.swift)
-  func testFileTransferOperationsDownloadWithProgress() async throws {
-    #if !os(Linux)  // Background sessions only on Apple platforms
-
-    // This test validates the infrastructure exists but the actual download
-    // requires background session setup which is complex to mock.
-    // The bridgeDownloadProgress method is tested separately in ProgressTrackingTests.
-
-    // Verify FileTransferOperations type exists and has expected interface
-    let client = NetworkClient()
-    let fileTransfer = FileTransferOperations(httpClient: client)
-    XCTAssertNotNil(fileTransfer)
-
-    #endif
-  }
-}
+#if !os(Linux)
+#endif

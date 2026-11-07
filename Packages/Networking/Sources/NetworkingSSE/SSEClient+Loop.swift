@@ -1,4 +1,3 @@
-import Foundation
 import NetworkingCore
 
 extension SSEClient {
@@ -65,7 +64,7 @@ extension SSEClient {
         state: state
       )
     else {
-      continuation.yield(.closed)
+      try yieldEvent(.closed, to: continuation)
       return false
     }
 
@@ -97,7 +96,7 @@ extension SSEClient {
     }
 
     if failure.openedConnection {
-      continuation.yield(.closed)
+      try yieldEvent(.closed, to: continuation)
       return false
     }
 
@@ -110,7 +109,10 @@ extension SSEClient {
     state: inout SSEConnectionState
   ) async throws {
     state.reconnectAttempts = decision.attempt
-    continuation.yield(.reconnecting(attempt: decision.attempt, delay: decision.delay))
+    try yieldEvent(
+      .reconnecting(attempt: decision.attempt, delay: decision.delay),
+      to: continuation
+    )
     try await Task.sleep(for: .seconds(decision.delay.rawValue))
   }
 }

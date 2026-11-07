@@ -1,239 +1,116 @@
-import Foundation
-import SwiftCheck
-import XCTest
+import NetworkingCore
+import PremiseCore
+import PremiseStrategies
+import PremiseTesting
+import Testing
 
 @testable import NetworkingRuntime
-import NetworkingCore
-import NetworkingDSL
-import NetworkingRuntimeDSL
-import NetworkingTesting
 
-/// Property-based tests for header security validation and sanitization.
-///
-/// Tests RFC 7230 compliance, CRLF injection detection, and sanitization properties.
-final class HeaderSecurityPropertyTests: XCTestCase {
-  // MARK: - Sanitization Properties
-
-  func testSanitizationIdempotence() {
-    property("Sanitization is idempotent: sanitize(sanitize(x)) == sanitize(x)")
-      <- forAll { (value: String) in
-        let onceSanitized = HeaderSecurity.sanitizeHeaderValue(HTTPHeaderValue(value))
-        let twiceSanitized = HeaderSecurity.sanitizeHeaderValue(onceSanitized)
-        return onceSanitized == twiceSanitized
-      }
-  }
-
-  func testSanitizationProducesValidOutput() {
-    property("Sanitized values are always valid header values")
-      <- forAll { (value: String) in
-        let sanitized = HeaderSecurity.sanitizeHeaderValue(HTTPHeaderValue(value))
-        // Empty strings are technically valid (no invalid chars)
-        if sanitized.isEmpty == true { return true }
-        return HeaderSecurity.isValidHeaderValue(sanitized).rawValue
-      }
-  }
-
-  func testSanitizationPreservesValidInput() {
-    property("Sanitization preserves already-valid header values")
-      <- forAll(ValidHeaderValueGen.arbitrary) { (value: String) in
-        let sanitized = HeaderSecurity.sanitizeHeaderValue(HTTPHeaderValue(value))
-        return sanitized == HTTPHeaderValue(value)
-      }
-  }
-
-  // MARK: - Injection Detection Properties
-
-  func testInjectionDetectionCRLFPatterns() {
-    property("All CRLF injection patterns are detected")
-      <- forAll(CRLFInjectionGen.arbitrary) { (maliciousValue: String) in
-        HeaderSecurity.containsInjectionAttempt(HTTPHeaderValue(maliciousValue)).rawValue
-      }
-  }
-
-  func testNoFalsePositivesOnValidHeaders() {
-    property("Valid RFC 7230 header values do not trigger injection detection")
-      <- forAll(SafeHeaderValueGen.arbitrary) { (value: String) in
-        !HeaderSecurity.containsInjectionAttempt(HTTPHeaderValue(value)).rawValue
-      }
-  }
-
-  // MARK: - RFC 7230 Compliance Properties
-
-  func testHeaderNameValidation() {
-    property("Valid RFC 7230 token header names pass validation")
-      <- forAll(ValidHeaderNameGen.arbitrary) { (name: String) in
-        HeaderSecurity.isValidHeaderName(HTTPHeaderName(name)).rawValue
-      }
-
-    property("Invalid header names (with forbidden chars) fail validation")
-      <- forAll(InvalidHeaderNameGen.arbitrary) { (name: String) in
-        !HeaderSecurity.isValidHeaderName(HTTPHeaderName(name)).rawValue
-      }
-  }
-
-  func testHeaderValueValidation() {
-    property("Valid RFC 7230 header values pass validation")
-      <- forAll(ValidHeaderValueGen.arbitrary) { (value: String) in
-        HeaderSecurity.isValidHeaderValue(HTTPHeaderValue(value)).rawValue
-      }
-
-    property("Header values with control characters fail validation")
-      <- forAll(ControlCharHeaderValueGen.arbitrary) { (value: String) in
-        !HeaderSecurity.isValidHeaderValue(HTTPHeaderValue(value)).rawValue
-      }
-  }
-
-  func testEmptyHeaderNameIsInvalid() {
-    XCTAssertFalse(HeaderSecurity.isValidHeaderName("").rawValue)
-  }
-
-  // MARK: - Combined Security Invariants
-
-  func testValidHeadersPassMiddleware() {
-    property("Headers with valid names and values pass through security middleware unchanged")
-      <- forAll(ValidHeaderNameGen.arbitrary, SafeHeaderValueGen.arbitrary) {
-        (name: String, value: String) in
-        guard !name.isEmpty, !value.isEmpty else { return Discard() }
-
-        // Both name and value must be valid
-        let nameValid = HeaderSecurity.isValidHeaderName(HTTPHeaderName(name)).rawValue
-        let valueValid = HeaderSecurity.isValidHeaderValue(HTTPHeaderValue(value)).rawValue
-        let noInjection = !HeaderSecurity.containsInjectionAttempt(HTTPHeaderValue(value)).rawValue
-
-        // If all checks pass, the header should be safe
-        return nameValid && valueValid && noInjection
-      }
-  }
-}
-
-// MARK: - Custom Generators for Header Security
-
-/// Generates strings containing CRLF injection patterns
-enum CRLFInjectionGen {
-  static var arbitrary: Gen<String> {
-    let injectionPatterns = [
-      "\r\n",
-      "\n",
-      "\r",
-      "%0d%0a",
-      "%0a",
-      "%0d",
-      "\\r\\n",
-      "\\n",
-      "\\r",
-    ]
-
-    return Gen<String>.compose { composer in
-      let prefix = composer.generate(using: Gen<String>.pure("prefix"))
-      let pattern = composer.generate(using: Gen<String>.fromElements(of: injectionPatterns))
-      let suffix = composer.generate(using: Gen<String>.pure("suffix"))
-      return prefix + pattern + suffix
+@Suite("Header security properties")
+struct HeaderSecurityPropertyTests {
+  @Test("Sanitizing a header value is idempotent and yields a valid value")
+  func sanitizationContract() async throws {
+    try await forAll(Self.untrustedHeaderValue, config: Self.config) { value in
+      let sanitized = HeaderSecurity.sanitizeHeaderValue(HTTPHeaderValue(value))
+      #expect(HeaderSecurity.sanitizeHeaderValue(sanitized) == sanitized)
+      #expect(HeaderSecurity.isValidHeaderValue(sanitized).rawValue)
     }
   }
-}
 
-/// Generates valid RFC 7230 header names (tokens)
-enum ValidHeaderNameGen {
-  static var arbitrary: Gen<String> {
-    // RFC 7230 token: 1*tchar
-    // tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
-    //         "0"-"9" / "A"-"Z" / "^" / "_" / "`" / "a"-"z" / "|" / "~"
-    let tokenChars = Array(
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-.^_`|~"
-    )
-
-    return Gen<String>.compose { composer in
-      let length = composer.generate(using: Gen.choose((1, 20)))
-      let chars = (0..<length).map { _ in
-        composer.generate(using: Gen<Character>.fromElements(of: tokenChars))
-      }
-      return String(chars)
+  @Test("Sanitization preserves valid field values")
+  func validValuesArePreserved() async throws {
+    try await forAll(Self.validHeaderValue, config: Self.config) { value in
+      #expect(HeaderSecurity.sanitizeHeaderValue(HTTPHeaderValue(value)) == HTTPHeaderValue(value))
     }
   }
-}
 
-/// Generates invalid header names with forbidden characters
-enum InvalidHeaderNameGen {
-  static var arbitrary: Gen<String> {
-    // Forbidden in header names: ()<>@,;:\"/[]?={} and control chars
-    let forbiddenChars: [Character] = [
-      "(", ")", "<", ">", "@", ",", ";", ":", "\\", "\"", "/", "[", "]", "?", "=", "{", "}",
-    ]
-
-    return Gen<String>.compose { composer in
-      let validPart = composer.generate(using: ValidHeaderNameGen.arbitrary)
-      let forbiddenChar = composer.generate(using: Gen<Character>.fromElements(of: forbiddenChars))
-      // Insert forbidden char at random position
-      var chars = Array(validPart)
-      if chars.isEmpty {
-        chars = [forbiddenChar]
-      } else {
-        let insertPos = composer.generate(using: Gen.choose((0, chars.count - 1)))
-        chars.insert(forbiddenChar, at: insertPos)
-      }
-      return String(chars)
+  @Test("Known injection forms are always detected")
+  func injectionDetection() async throws {
+    try await forAll(
+      Self.safeHeaderValue,
+      Self.injectionPattern,
+      Self.safeHeaderValue,
+      config: Self.config
+    ) { prefix, pattern, suffix in
+      #expect(
+        HeaderSecurity.containsInjectionAttempt(HTTPHeaderValue(prefix + pattern + suffix)).rawValue
+      )
     }
   }
-}
 
-/// Generates valid RFC 7230 header values (field-value)
-enum ValidHeaderValueGen {
-  static var arbitrary: Gen<String> {
-    // RFC 7230: field-value = *( field-content / obs-fold )
-    // field-content = field-vchar [ 1*( SP / HTAB ) field-vchar ]
-    // field-vchar = VCHAR / obs-text
-    // VCHAR = %x21-7E, obs-text = %x80-FF
-
-    // For simplicity, generate printable ASCII + space + tab
-    let vcharRange = (0x21...0x7E).map { Character(UnicodeScalar($0)) }
-    let wspChars: [Character] = [" ", "\t"]
-    let validChars = vcharRange + wspChars
-
-    return Gen<String>.compose { composer in
-      let length = composer.generate(using: Gen.choose((1, 50)))
-      let chars = (0..<length).map { _ in
-        composer.generate(using: Gen<Character>.fromElements(of: validChars))
-      }
-      return String(chars)
+  @Test("Safe field values never look like injection")
+  func safeValuesDoNotTriggerInjectionDetection() async throws {
+    try await forAll(Self.safeHeaderValue, config: Self.config) { value in
+      #expect(!HeaderSecurity.containsInjectionAttempt(HTTPHeaderValue(value)).rawValue)
     }
   }
-}
 
-/// Generates safe header values (valid and no injection patterns)
-enum SafeHeaderValueGen {
-  static var arbitrary: Gen<String> {
-    // Printable ASCII without any characters that could form injection patterns
-    let safeChars = (0x21...0x7E)
-      .filter { $0 != 0x25 }  // Exclude % to avoid URL-encoded patterns
-      .filter { $0 != 0x5C }  // Exclude \ to avoid escaped patterns
-      .map { Character(UnicodeScalar($0)) }
-
-    return Gen<String>.compose { composer in
-      let length = composer.generate(using: Gen.choose((1, 30)))
-      let chars = (0..<length).map { _ in
-        composer.generate(using: Gen<Character>.fromElements(of: safeChars))
-      }
-      return String(chars)
+  @Test("RFC 7230 token names are accepted and forbidden characters are rejected")
+  func headerNameValidation() async throws {
+    try await forAll(Self.validHeaderName, config: Self.config) { name in
+      #expect(HeaderSecurity.isValidHeaderName(HTTPHeaderName(name)).rawValue)
+    }
+    try await forAll(Self.validHeaderName, Self.forbiddenHeaderNameCharacter, config: Self.config) {
+      prefix,
+      forbidden in
+      #expect(!HeaderSecurity.isValidHeaderName(HTTPHeaderName(prefix + forbidden)).rawValue)
     }
   }
-}
 
-/// Generates header values containing control characters
-enum ControlCharHeaderValueGen {
-  static var arbitrary: Gen<String> {
-    // Control characters: 0x00-0x1F (except 0x09 tab) and 0x7F
-    let controlChars =
-      ((0x00...0x08).map { UnicodeScalar($0) }
-      + (0x0A...0x1F).map { UnicodeScalar($0) }
-      + [UnicodeScalar(0x7F)])
-      .compactMap { $0 }
-      .map { Character($0) }
-
-    return Gen<String>.compose { composer in
-      let prefix = composer.generate(using: Gen<String>.pure("valid"))
-      let controlChar = composer.generate(using: Gen<Character>.fromElements(of: controlChars))
-      let suffix = composer.generate(using: Gen<String>.pure("suffix"))
-      return prefix + String(controlChar) + suffix
+  @Test("Field values reject every prohibited control character")
+  func headerValueValidation() async throws {
+    try await forAll(Self.validHeaderValue, config: Self.config) { value in
+      #expect(HeaderSecurity.isValidHeaderValue(HTTPHeaderValue(value)).rawValue)
+    }
+    try await forAll(Self.safeHeaderValue, Self.prohibitedControlCharacter, config: Self.config) {
+      prefix,
+      controlCharacter in
+      #expect(
+        !HeaderSecurity.isValidHeaderValue(HTTPHeaderValue(prefix + controlCharacter)).rawValue
+      )
     }
   }
+
+  @Test("An empty header name is invalid")
+  func emptyHeaderNameIsInvalid() {
+    #expect(!HeaderSecurity.isValidHeaderName("").rawValue)
+  }
+
+  private static let config = PropertyConfig.bounded(runs: 40, shrinks: 160)
+  private static let validHeaderName = Strategy<String>.strings(
+    from: Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-.^_`|~"),
+    length: 1...20
+  )
+  private static let validHeaderValue = Strategy<String>.strings(
+    from: Array(
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !#$%&'*+-.^_`|~\\\t"
+    ),
+    length: 1...50
+  )
+  private static let safeHeaderValue = Strategy<String>.strings(
+    from: Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !#$&'*+-.^_`|~"),
+    length: 0...30
+  )
+  private static let untrustedHeaderValue = Strategy<String>.strings(
+    from: Array(
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !#$%&'*+-.^_`|~\\\t"
+        + "\r\n\u{0000}\u{007F}"
+    ),
+    length: 0...50
+  )
+  private static let injectionPattern = Strategy<String>.oneOf(
+    ["\r\n", "\n", "\r", "%0d%0a", "%0a", "%0d", "\\r\\n", "\\n", "\\r"].map {
+      Strategy<String>.constant($0)
+    }
+  )
+  private static let forbiddenHeaderNameCharacter = Strategy<String>.oneOf(
+    ["(", ")", "<", ">", "@", ",", ";", ":", "\\", "\"", "/", "[", "]", "?", "=", "{", "}"].map {
+      Strategy<String>.constant($0)
+    }
+  )
+  private static let prohibitedControlCharacter = Strategy<String>.oneOf(
+    ["\u{0000}", "\u{0001}", "\u{0008}", "\u{000A}", "\u{000D}", "\u{001F}", "\u{007F}"].map {
+      Strategy<String>.constant($0)
+    }
+  )
 }

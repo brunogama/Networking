@@ -17,16 +17,11 @@ struct SSEAttemptFailure: Error {
   let openedConnection: Bool
 }
 
-struct SSEReconnectDecision {
-  let attempt: SSEReconnectAttempt
-  let delay: SSEReconnectDelay
-}
-
 extension SSEClient {
   func reconnectDecision(
     for error: HTTPError,
     configuration: SSEConfiguration,
-    state: SSEConnectionState
+    state: borrowing SSEConnectionState
   ) -> SSEReconnectDecision? {
     guard shouldReconnect(for: error) else {
       return nil
@@ -37,7 +32,7 @@ extension SSEClient {
     }
 
     let attempt = SSEReconnectAttempt(state.reconnectAttempts.rawValue + 1)
-    guard policy.maxAttempts.map({ attempt <= $0.rawValue }) ?? true else {
+    guard policy.maxAttempts.map({ attempt.rawValue <= $0.rawValue }) ?? true else {
       return nil
     }
 
@@ -111,6 +106,13 @@ extension SSEClient {
   }
 
   private func isRetryable(_ error: HTTPError) -> Bool {
-    error.recoveryCategory == .retryable || error.recoveryCategory == .retryableWithDelay
+    switch error.category {
+    case .network(.noConnection), .network(.connectionLost), .network(.serverUnreachable), .timeout:
+      return true
+    case .http(let status):
+      return [408, 429, 500, 502, 503, 504].contains(status.rawValue.rawValue)
+    default:
+      return false
+    }
   }
 }

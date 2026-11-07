@@ -1,19 +1,6 @@
 import Foundation
 
-struct SSEDispatchResult {
-  let event: SSEEvent?
-  let retryHint: SSEReconnectDelay?
-
-  static let none = Self(event: nil, retryHint: nil)
-}
-
 struct SSEParser {
-  private enum Field: String {
-    case data
-    case event
-    case id
-    case retry
-  }
 
   private var dataLines: [String] = []
   private var eventName: SSEEventName?
@@ -47,7 +34,7 @@ struct SSEParser {
     defer { resetCurrentEvent() }
 
     guard !dataLines.isEmpty else {
-      return SSEDispatchResult(event: nil, retryHint: retryHint)
+      return SSEDispatchResult(event: nil, retryHint: retryHint, idUpdate: eventID)
     }
 
     return SSEDispatchResult(
@@ -57,7 +44,8 @@ struct SSEParser {
         data: SSEEventPayload(dataLines.joined(separator: "\n")),
         retry: retryHint
       ),
-      retryHint: retryHint
+      retryHint: retryHint,
+      idUpdate: eventID
     )
   }
 
