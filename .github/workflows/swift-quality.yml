@@ -40,9 +40,10 @@ jobs:
           source .swift-style.env
 
           : "${XCODE_VERSION:?Missing XCODE_VERSION}"
+          : "${XCODE_APPLICATION_VERSION:?Missing XCODE_APPLICATION_VERSION}"
           : "${SWIFTLINT_VERSION:?Missing SWIFTLINT_VERSION}"
 
-          developer_dir="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+          developer_dir="/Applications/Xcode_${XCODE_APPLICATION_VERSION}.app/Contents/Developer"
 
           if [[ ! -d "$developer_dir" ]]; then
             echo "::error::Pinned Xcode is unavailable on this runner: $developer_dir"
