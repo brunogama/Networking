@@ -14,7 +14,6 @@ import SwiftSyntaxMacros
 public struct POSTMacro: PeerMacro, HTTPMacroExpansion {
   static let config = HTTPMethodConfig.post
 
-  /// Expands an endpoint using the shared HTTP request implementation.
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,

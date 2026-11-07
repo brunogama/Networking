@@ -13,7 +13,6 @@ import SwiftSyntaxMacros
 public struct DELETEMacro: PeerMacro, HTTPMacroExpansion {
   static let config = HTTPMethodConfig.delete
 
-  /// Expands an endpoint using the shared HTTP request implementation.
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,

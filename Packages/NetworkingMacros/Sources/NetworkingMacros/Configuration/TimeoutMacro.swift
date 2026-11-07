@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 
 /// Validates the default request timeout consumed by `@API`.
 public struct TimeoutMacro: MemberMacro {
-  /// Requires a positive Duration literal on a protocol.
+
   public static func expansion(
     of node: AttributeSyntax,
     providingMembersOf declaration: some DeclGroupSyntax,

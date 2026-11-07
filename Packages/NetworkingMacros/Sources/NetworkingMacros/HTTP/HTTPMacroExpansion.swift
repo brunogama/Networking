@@ -26,26 +26,12 @@ import SwiftSyntaxMacros
 /// }
 /// ```
 protocol HTTPMacroExpansion {
-  /// Configuration for this HTTP method (GET, POST, etc.)
-  ///
-  /// This is the ONLY requirement conformers must satisfy.
-  /// The protocol extension reads this property to customize behavior.
+
   static var config: HTTPMethodConfig { get }
 }
 
 extension HTTPMacroExpansion {
-  /// Shared expansion implementation for all HTTP method macros.
-  ///
-  /// This default implementation in the protocol extension provides
-  /// the complete 10-step expansion workflow. Conforming types call
-  /// this method from their `expansion(of:providingPeersOf:in:)` method.
-  ///
-  /// - Parameters:
-  ///   - node: The attribute syntax node
-  ///   - declaration: The function declaration being annotated
-  ///   - context: The macro expansion context
-  /// - Returns: Array of generated declarations
-  /// - Throws: Macro expansion errors
+
   static func sharedExpansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -75,10 +61,6 @@ extension HTTPMacroExpansion {
     )
   }
 
-  /// Validates one endpoint and generates its concrete implementation method.
-  ///
-  /// `APIMacro` calls this entry point for every protocol requirement so all
-  /// HTTP verbs share the same validation and method generator.
   static func endpointExpansion(
     of node: AttributeSyntax,
     function: FunctionDeclSyntax,

@@ -3,8 +3,7 @@ import SwiftSyntaxMacros
 
 /// Generates a concrete client next to an `@API` protocol.
 public struct APIMacro: PeerMacro {
-  /// Validates endpoint declarations and generates a private implementation with its factory.
-  /// - Throws: An endpoint validation error for unsupported or inconsistent declarations.
+
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,
