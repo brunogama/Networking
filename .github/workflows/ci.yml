@@ -14,14 +14,18 @@ concurrency:
 jobs:
   build-macros:
     name: Build NetworkingMacros
-    runs-on: macos-15
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16.4
+      - name: Select pinned Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          set -euo pipefail
+          source .swift-style.env
+          developer_dir="/Applications/Xcode_${XCODE_APPLICATION_VERSION}.app/Contents/Developer"
+          test -d "$developer_dir"
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
           swift --version
           xcodebuild -version
 
@@ -43,15 +47,19 @@ jobs:
 
   build-networking:
     name: Build Networking
-    runs-on: macos-15
+    runs-on: macos-latest
     needs: build-macros
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16.4
+      - name: Select pinned Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          set -euo pipefail
+          source .swift-style.env
+          developer_dir="/Applications/Xcode_${XCODE_APPLICATION_VERSION}.app/Contents/Developer"
+          test -d "$developer_dir"
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
           swift --version
 
       - name: Resolve Dependencies
