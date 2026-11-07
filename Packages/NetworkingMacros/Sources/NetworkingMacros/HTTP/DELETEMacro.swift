@@ -1,7 +1,5 @@
-import MacroTemplateKit
 import SwiftSyntax
 import SwiftSyntaxMacros
-import SwiftDiagnostics
 
 /// Macro implementation for @DELETE HTTP method.
 ///
@@ -13,8 +11,9 @@ import SwiftDiagnostics
 /// func deleteUser(id: String) async throws
 /// ```
 public struct DELETEMacro: PeerMacro, HTTPMacroExpansion {
-  public static let config = HTTPMethodConfig.delete
+  static let config = HTTPMethodConfig.delete
 
+  /// Expands an endpoint using the shared HTTP request implementation.
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,

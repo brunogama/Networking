@@ -1,0 +1,1 @@
+enum MacroDiagnosticTextTag: Sendable {}

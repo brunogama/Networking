@@ -1,0 +1,1 @@
+typealias EndpointPath = MacroPluginBoundaryString<EndpointPathTag>

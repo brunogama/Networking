@@ -1,8 +1,5 @@
-import MacroTemplateKit
 import Foundation
-import SwiftDiagnostics
 import SwiftSyntax
-import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 /// Macro implementation for @DefaultHeaders.
@@ -23,6 +20,7 @@ import SwiftSyntaxMacros
 /// The @DefaultHeaders macro works in conjunction with @API to inject header configuration
 /// into the generated implementation struct.
 public struct DefaultHeadersMacro: MemberMacro {
+  /// Validates the annotation consumed by API generation.
   public static func expansion(
     of node: AttributeSyntax,
     providingMembersOf declaration: some DeclGroupSyntax,
@@ -32,6 +30,7 @@ public struct DefaultHeadersMacro: MemberMacro {
     guard declaration.is(ProtocolDeclSyntax.self) else {
       MacroHelpers.emitError(
         "@DefaultHeaders can only be applied to protocols",
+        id: .defaultHeadersRequiresProtocol,
         node: node,
         context: context
       )
@@ -47,6 +46,7 @@ public struct DefaultHeadersMacro: MemberMacro {
     guard !headers.isEmpty else {
       MacroHelpers.emitError(
         "@DefaultHeaders requires a non-empty headers dictionary",
+        id: .emptyDefaultHeaders,
         node: node,
         context: context
       )
@@ -56,7 +56,6 @@ public struct DefaultHeadersMacro: MemberMacro {
     // Note: The actual header application is handled by APIMacro
     // This macro just validates the syntax and makes the information available
     // to other macros via the attribute syntax
-    // Template algebra infrastructure available via MacroTemplateKit for future enhancement
 
     return []
   }
@@ -74,6 +73,7 @@ public struct DefaultHeadersMacro: MemberMacro {
     else {
       MacroHelpers.emitError(
         "@DefaultHeaders requires a dictionary argument",
+        id: .invalidDefaultHeaders,
         node: node,
         context: context
       )
@@ -111,36 +111,4 @@ public struct DefaultHeadersMacro: MemberMacro {
     return [:]
   }
 
-  /// Generates a dictionary expression for default headers using Template algebra.
-  ///
-  /// Constructs a Template representing a dictionary literal with string key-value pairs,
-  /// then renders it to SwiftSyntax ExprSyntax for macro expansion.
-  ///
-  /// Dictionary literals are represented using binaryOperation with ":" operator for each
-  /// key-value pair, wrapped in an arrayLiteral (which uses [...] syntax).
-  ///
-  /// - Parameter headers: Dictionary of header names to values
-  /// - Returns: SwiftSyntax expression representing `["key": "value", ...]`
-  public static func generateHeadersExpression(
-    from headers: [String: String]
-  ) -> ExprSyntax {
-    // Sort headers for deterministic output
-    let sortedHeaders = headers.sorted(by: { $0.key < $1.key })
-
-    // Build array of binary operation templates representing dictionary key-value pairs
-    // Each pair is rendered as: "key": "value"
-    let headerPairs: [Template<Void>] = sortedHeaders.map { key, value in
-      .binaryOperation(
-        left: .literal(.string(key)),
-        operator: ":",
-        right: .literal(.string(value))
-      )
-    }
-
-    // Construct dictionary literal template (array syntax with : operators creates dict literal)
-    let dictionaryTemplate: Template<Void> = .arrayLiteral(headerPairs)
-
-    // Render template to ExprSyntax
-    return Renderer.render(dictionaryTemplate)
-  }
 }

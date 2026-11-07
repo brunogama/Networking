@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - HTTP Method Macros
 
 /// Marks a method as an HTTP GET request.
@@ -18,22 +16,25 @@ import Foundation
 ///
 /// Basic GET request:
 /// ```swift
-/// @API(baseURL: "https://api.example.com")
+/// @API(baseURL: .absolute("https://api.example.com"))
 /// protocol UserAPI {
-///     @GET("/users")
+///     @GET(.path("/users"))
 ///     func listUsers() async throws -> [User]
 /// }
 /// ```
 ///
 /// With path parameters:
 /// ```swift
-/// @GET("/users/{id}")
+/// @GET(.path("/users/{id}"))
 /// func getUser(id: String) async throws -> User
 /// ```
 ///
 /// With query parameters:
 /// ```swift
-/// @GET("/users", queryParameters: ["role", "status", "limit"])
+/// @GET(
+///     .path("/users"),
+///     queryParameters: [.parameter("role"), .parameter("status"), .parameter("limit")]
+/// )
 /// func searchUsers(
 ///     role: String?,
 ///     status: String?,
@@ -51,7 +52,7 @@ import Foundation
 ///
 /// Invalid example (compile error):
 /// ```swift
-/// @GET("/users/{userId}")  // Path expects "userId"
+/// @GET(.path("/users/{userId}"))  // Path expects "userId"
 /// func getUser(id: String) // Function has "id" - mismatch!
 /// ```
 ///
@@ -64,7 +65,10 @@ import Foundation
 ///
 /// Example with optional parameters:
 /// ```swift
-/// @GET("/search", queryParameters: ["q", "page", "limit"])
+/// @GET(
+///     .path("/search"),
+///     queryParameters: [.parameter("q"), .parameter("page"), .parameter("limit")]
+/// )
 /// func search(q: String, page: Int?, limit: Int?) async throws -> SearchResults
 ///
 /// // Usage:
@@ -75,7 +79,7 @@ import Foundation
 /// ## Return Type
 ///
 /// The return type must conform to `Decodable` for automatic JSON decoding.
-/// The macro validates this at compile time.
+/// The generated codec call lets the Swift compiler enforce that requirement.
 ///
 /// Supported return types:
 /// - Custom types conforming to `Decodable`
@@ -87,12 +91,25 @@ import Foundation
 /// For a GET endpoint, the macro generates:
 /// ```swift
 /// func getUser(id: String) async throws -> User {
-///     let request = HTTPRequest {
-///         GET("/users/\(id)")
-///         BaseURL("https://api.example.com")
+///     let path = "/users/\(id)"
+///     guard let url = HTTPRequestURL(
+///         BaseURLText(rawValue: baseURL.rawValue + path)
+///     ) else {
+///         throw URLError(.badURL)
 ///     }
+///     let request = HTTPRequest(
+///         method: .get,
+///         url: url,
+///         headers: defaultHeaders,
+///         timeout: defaultTimeout
+///     )
 ///     let response = try await client.execute(request)
-///     return try response.decode(User.self)
+///     guard let body = response.body else {
+///         throw DecodingError.dataCorrupted(
+///             .init(codingPath: [], debugDescription: "Response body is empty")
+///         )
+///     }
+///     return try codec.decode(User.self, from: body.rawValue)
 /// }
 /// ```
 ///
@@ -113,7 +130,7 @@ import Foundation
 ///
 /// ## Error Handling
 ///
-/// Generated code throws `APIClientError` for:
+/// Generated code propagates errors for:
 /// - HTTP errors (4xx, 5xx status codes)
 /// - Network failures (connectivity issues)
 /// - JSON decoding failures
@@ -121,9 +138,9 @@ import Foundation
 /// ## See Also
 ///
 /// - ``API(baseURL:)``: Define the API protocol
-/// - ``POST(_:body:headers:)``: Create resources
-/// - ``PUT(_:body:headers:)``: Update resources
-/// - ``DELETE(_:)``: Delete resources
+/// - ``POST(_:queryParameters:)``: Create resources
+/// - ``PUT(_:queryParameters:)``: Update resources
+/// - ``DELETE(_:queryParameters:)``: Delete resources
 ///
 @attached(peer)
 public macro GET(
@@ -139,27 +156,27 @@ public macro GET(
 /// ## Usage
 ///
 /// ```swift
-/// @POST("/users", body: "user")
+/// @POST(.path("/users"))
+/// @Body(.parameter("user"))
 /// func createUser(user: CreateUserRequest) async throws -> User
 /// ```
 ///
 /// With path parameters:
 /// ```swift
-/// @POST("/orgs/{orgId}/users", body: "user")
+/// @POST(.path("/orgs/{orgId}/users"))
+/// @Body(.parameter("user"))
 /// func createOrgUser(orgId: String, user: CreateUserRequest) async throws -> User
 /// ```
 ///
 /// ## Parameters
 ///
 /// - Parameter path: The endpoint path relative to base URL
-/// - Parameter body: Name of the function parameter to use as request body
-/// - Parameter headers: Optional dictionary of custom headers for this request
+/// - Parameter queryParameters: Function parameters to include in the query string
 ///
 @attached(peer)
 public macro POST(
   _ path: EndpointPath,
-  body: ParameterReference,
-  headers: DefaultHeaderMap = [:]
+  queryParameters: [ParameterReference] = []
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "POSTMacro")
 
 /// Marks a method as an HTTP PUT request.
@@ -169,21 +186,20 @@ public macro POST(
 /// ## Usage
 ///
 /// ```swift
-/// @PUT("/users/{id}", body: "user")
+/// @PUT(.path("/users/{id}"))
+/// @Body(.parameter("user"))
 /// func updateUser(id: String, user: User) async throws -> User
 /// ```
 ///
 /// ## Parameters
 ///
 /// - Parameter path: The endpoint path relative to base URL
-/// - Parameter body: Name of the function parameter to use as request body
-/// - Parameter headers: Optional dictionary of custom headers for this request
+/// - Parameter queryParameters: Function parameters to include in the query string
 ///
 @attached(peer)
 public macro PUT(
   _ path: EndpointPath,
-  body: ParameterReference,
-  headers: DefaultHeaderMap = [:]
+  queryParameters: [ParameterReference] = []
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PUTMacro")
 
 /// Marks a method as an HTTP PATCH request.
@@ -193,21 +209,20 @@ public macro PUT(
 /// ## Usage
 ///
 /// ```swift
-/// @PATCH("/users/{id}", body: "updates")
+/// @PATCH(.path("/users/{id}"))
+/// @Body(.parameter("updates"))
 /// func patchUser(id: String, updates: UserUpdates) async throws -> User
 /// ```
 ///
 /// ## Parameters
 ///
 /// - Parameter path: The endpoint path relative to base URL
-/// - Parameter body: Name of the function parameter to use as request body
-/// - Parameter headers: Optional dictionary of custom headers for this request
+/// - Parameter queryParameters: Function parameters to include in the query string
 ///
 @attached(peer)
 public macro PATCH(
   _ path: EndpointPath,
-  body: ParameterReference,
-  headers: DefaultHeaderMap = [:]
+  queryParameters: [ParameterReference] = []
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PATCHMacro")
 
 /// Marks a method as an HTTP DELETE request.
@@ -217,20 +232,24 @@ public macro PATCH(
 /// ## Usage
 ///
 /// ```swift
-/// @DELETE("/users/{id}")
+/// @DELETE(.path("/users/{id}"))
 /// func deleteUser(id: String) async throws
 /// ```
 ///
 /// With response body:
 /// ```swift
-/// @DELETE("/users/{id}")
+/// @DELETE(.path("/users/{id}"))
 /// func deleteUser(id: String) async throws -> DeletionConfirmation
 /// ```
 ///
 /// ## Parameters
 ///
 /// - Parameter path: The endpoint path relative to base URL
+/// - Parameter queryParameters: Function parameters to include in the query string
 ///
 @attached(peer)
-public macro DELETE(_ path: EndpointPath) =
+public macro DELETE(
+  _ path: EndpointPath,
+  queryParameters: [ParameterReference] = []
+) =
   #externalMacro(module: "NetworkingMacrosPlugin", type: "DELETEMacro")

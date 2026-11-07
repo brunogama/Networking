@@ -1,3 +1,5 @@
+import Foundation
+import SwiftParser
 import SwiftSyntax
 
 enum BoundaryExpressionParser {
@@ -5,9 +7,9 @@ enum BoundaryExpressionParser {
     let expr = ExprSyntax(expression)
 
     if let stringLiteral = expr.as(StringLiteralExprSyntax.self),
-      let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+      let value = stringLiteral.representedLiteralValue
     {
-      return segment.content.text
+      return value
     }
 
     if let functionCall = expr.as(FunctionCallExprSyntax.self),
@@ -20,46 +22,15 @@ enum BoundaryExpressionParser {
     return nil
   }
 
-  static func integer(from expression: some ExprSyntaxProtocol) -> Int? {
-    let expr = ExprSyntax(expression)
-
-    if let intLiteral = expr.as(IntegerLiteralExprSyntax.self) {
-      return Int(intLiteral.literal.text)
-    }
-
-    if let floatLiteral = expr.as(FloatLiteralExprSyntax.self),
-      let value = Double(floatLiteral.literal.text),
-      value.rounded() == value
-    {
-      return Int(value)
-    }
-
-    if let functionCall = expr.as(FunctionCallExprSyntax.self),
-      functionCall.arguments.count == 1,
-      let argument = functionCall.arguments.first
-    {
-      return integer(from: argument.expression)
-    }
-
-    return nil
-  }
-
   static func double(from expression: some ExprSyntaxProtocol) -> Double? {
     let expr = ExprSyntax(expression)
 
     if let floatLiteral = expr.as(FloatLiteralExprSyntax.self) {
-      return Double(floatLiteral.literal.text)
+      return Double(floatLiteral.literal.text.replacingOccurrences(of: "_", with: ""))
     }
 
     if let intLiteral = expr.as(IntegerLiteralExprSyntax.self) {
-      return Double(intLiteral.literal.text)
-    }
-
-    if let functionCall = expr.as(FunctionCallExprSyntax.self),
-      functionCall.arguments.count == 1,
-      let argument = functionCall.arguments.first
-    {
-      return double(from: argument.expression)
+      return Double(intLiteral.literal.text.replacingOccurrences(of: "_", with: ""))
     }
 
     return nil
@@ -70,17 +41,8 @@ enum BoundaryExpressionParser {
   ) -> [String: String]? {
     let expr = ExprSyntax(expression)
 
-    if let array = expr.as(ArrayExprSyntax.self),
-      array.elements.isEmpty
-    {
-      return [:]
-    }
-
-    guard let dictionary = expr.as(DictionaryExprSyntax.self),
-      case .elements(let elements) = dictionary.content
-    else {
-      return nil
-    }
+    guard let dictionary = expr.as(DictionaryExprSyntax.self) else { return nil }
+    guard case .elements(let elements) = dictionary.content else { return [:] }
 
     var result: [String: String] = [:]
 
