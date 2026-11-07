@@ -1,7 +1,5 @@
-import MacroTemplateKit
 import SwiftSyntax
 import SwiftSyntaxMacros
-import SwiftDiagnostics
 
 /// Protocol for HTTP method macros that share common expansion logic.
 ///
@@ -56,6 +54,7 @@ extension HTTPMacroExpansion {
     guard let function = declaration.as(FunctionDeclSyntax.self) else {
       MacroHelpers.emitError(
         "@\(config.method) can only be applied to function declarations",
+        id: .httpMethodRequiresFunction,
         node: node,
         context: context
       )
@@ -76,10 +75,14 @@ extension HTTPMacroExpansion {
     )
   }
 
+  /// Validates one endpoint and generates its concrete implementation method.
+  ///
+  /// `APIMacro` calls this entry point for every protocol requirement so all
+  /// HTTP verbs share the same validation and method generator.
   static func endpointExpansion(
     of node: AttributeSyntax,
     function: FunctionDeclSyntax,
-    accessLevel: String?,
+    accessLevel: APIAccessLevel?,
     context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
 
@@ -98,47 +101,15 @@ extension HTTPMacroExpansion {
     }
     try MacroHelpers.validatePathTemplate(path, context: context)
 
-    // Step 4: Detect syntax style
-    let usesOldSyntax = function.usesOldMacroSyntax()
-    let newBodyParam = function.detectBodyMacro()
-    let newHeaders = function.detectHeadersMacro()
-
-    // Step 5: Check for syntax mixing
-    if usesOldSyntax && (newBodyParam != nil || !newHeaders.isEmpty) {
-      MacroHelpers.emitError(
-        "Cannot mix old and new syntax for @\(config.method)",
-        node: node,
-        context: context
-      )
-      return []
-    }
-
-    emitOldSyntaxWarningIfNeeded(usesOldSyntax, node: node, context: context)
-
-    // Steps 7-10: Delegate to helper methods
     return try expandWithHelpers(
       HTTPMacroEndpointInput(
         function: function,
         node: node,
         path: path,
-        usesOldSyntax: usesOldSyntax,
-        bodyParameter: newBodyParam,
-        headers: newHeaders,
+        bodyParameter: function.detectBodyMacro(),
+        headers: function.detectHeadersMacro(),
         accessLevel: accessLevel
       ),
-      context: context
-    )
-  }
-
-  private static func emitOldSyntaxWarningIfNeeded(
-    _ usesOldSyntax: Bool,
-    node: AttributeSyntax,
-    context: some MacroExpansionContext
-  ) {
-    guard usesOldSyntax else { return }
-    MacroHelpers.emitWarning(
-      "Old syntax is deprecated. Use @Body and @Headers macros instead.",
-      node: Syntax(node),
       context: context
     )
   }

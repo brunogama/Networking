@@ -5,7 +5,7 @@ extension APIMacro {
   static func makeImplementation(
     for protocolDeclaration: ProtocolDeclSyntax,
     baseURL: String,
-    accessLevel: String?,
+    accessLevel: APIAccessLevel?,
     methods: [DeclSyntax]
   ) -> DeclSyntax {
     let protocolName = protocolDeclaration.name.text
@@ -16,10 +16,7 @@ extension APIMacro {
       accessLevel: accessLevel,
       methods: methods
     )
-    let modifiers =
-      accessLevel.map {
-        DeclModifierListSyntax([DeclModifierSyntax(name: .identifier($0))])
-      } ?? []
+    let modifiers = DeclModifierListSyntax([DeclModifierSyntax(name: .keyword(.private))])
 
     return DeclSyntax(
       StructDeclSyntax(
@@ -38,54 +35,56 @@ extension APIMacro {
     )
   }
 
+
+  static func makeFactory(
+    for protocolDeclaration: ProtocolDeclSyntax,
+    accessLevel: APIAccessLevel?
+  ) -> DeclSyntax {
+    let protocolName = protocolDeclaration.name.text
+    let factoryAccess = accessLevel?.sourcePrefix ?? ""
+    let methodAccess = accessLevel.map { $0.peerAccessLevel.sourcePrefix } ?? ""
+    return DeclSyntax(
+      stringLiteral: """
+        \(factoryAccess)enum \(protocolName)Factory {
+          \(methodAccess)static func make(
+            client: any HTTPClient = NetworkClient(),
+            codec: JSONCodec = JSONCodec()
+          ) -> any \(protocolName) {
+            \(protocolName)Implementation(client: client, codec: codec)
+          }
+        }
+        """
+    )
+  }
   private static func implementationMembers(
     for protocolDeclaration: ProtocolDeclSyntax,
     baseURL: String,
-    accessLevel: String?,
+    accessLevel: APIAccessLevel?,
     methods: [DeclSyntax]
   ) -> [DeclSyntax] {
     let defaultHeaders = DefaultHeadersMacro.extractDefaultHeaders(from: protocolDeclaration)
     let timeout = TimeoutMacro.extractDefaultTimeout(from: protocolDeclaration) ?? 30
-    let interceptors = InterceptorsMacro.extractInterceptorExpressions(from: protocolDeclaration)
     var members: [DeclSyntax] = [
       "private let client: any HTTPClient",
+      "private let codec: JSONCodec",
       "private let baseURL: BaseURLText = BaseURLText(rawValue: \(raw: swiftLiteral(baseURL)))",
       "private let defaultHeaders: HTTPHeaders = \(raw: headersLiteral(defaultHeaders))",
       "private let defaultTimeout = NetworkingCore.RequestTimeout(rawValue: \(raw: String(timeout)))",
     ]
-    if !interceptors.isEmpty {
-      members.append("private let interceptors: InterceptorChain")
-    }
-    members.append(initializer(accessLevel: accessLevel, interceptorExpressions: interceptors))
+    members.append(
+      initializer(accessLevel: accessLevel)
+    )
     members.append(contentsOf: methods)
     return members
   }
 
-  private static func initializer(
-    accessLevel: String?,
-    interceptorExpressions: [ExprSyntax]
-  ) -> DeclSyntax {
-    let accessPrefix = accessLevel.map { "\($0) " } ?? ""
-    var assignments = ["self.client = client"]
-    if !interceptorExpressions.isEmpty {
-      let expressions = interceptorExpressions.map(\.trimmedDescription).joined(separator: ", ")
-      assignments.append(
-        "let configuredInterceptors: [any Sendable] = [\(expressions)]"
-      )
-      assignments.append(
-        "self.interceptors = InterceptorChain("
-          + "requestInterceptors: configuredInterceptors.compactMap { "
-          + "$0 as? any RequestInterceptor }, "
-          + "responseInterceptors: configuredInterceptors.compactMap { "
-          + "$0 as? any ResponseInterceptor })"
-      )
-    }
-
-    let body = assignments.map { "  \($0)" }.joined(separator: "\n")
+  private static func initializer(accessLevel: APIAccessLevel?) -> DeclSyntax {
+    let accessPrefix = accessLevel?.sourcePrefix ?? ""
     return DeclSyntax(
       stringLiteral: """
-        \(accessPrefix)init(client: any HTTPClient = NetworkClient()) {
-        \(body)
+        \(accessPrefix)init(client: any HTTPClient, codec: JSONCodec) {
+          self.client = client
+          self.codec = codec
         }
         """
     )
@@ -93,11 +92,8 @@ extension APIMacro {
 
   static func declaredAccessLevel(
     of protocolDeclaration: ProtocolDeclSyntax
-  ) -> String? {
-    let supported = Set(["public", "package", "fileprivate", "private"])
-    return protocolDeclaration.modifiers
-      .map(\.name.text)
-      .first(where: supported.contains)
+  ) -> APIAccessLevel? {
+    APIAccessLevel(modifiers: protocolDeclaration.modifiers)
   }
 
   private static func headersLiteral(_ headers: [String: String]) -> String {

@@ -1,183 +1,73 @@
-import MacroTesting
-import XCTest
+import SwiftSyntax
+import Testing
 @testable import NetworkingMacrosPlugin
 
-/// Macro expansion tests for configuration macros (@Timeout, @DefaultHeaders).
-///
-/// Tests validate proper validation and configuration handling for protocol-level
-/// timeout and header defaults.
-final class ConfigurationMacroTests: XCTestCase {
-  override func invokeTest() {
-    withMacroTesting(macros: [TimeoutMacro.self, DefaultHeadersMacro.self]) {
-      super.invokeTest()
-    }
+struct ConfigurationMacroTests {
+  @Test(arguments: [
+    (".seconds(30)", 30.0),
+    (".seconds(0.5)", 0.5),
+    (".milliseconds(250)", 0.25),
+    (".microseconds(250000)", 0.25),
+    (".nanoseconds(250000000)", 0.25),
+    ("Duration.milliseconds(250)", 0.25),
+  ])
+  func preservesDurationUnits(expression: String, seconds: Double) throws {
+    let source = "@Timeout(\(expression)) protocol UserAPI {}"
+    let expansion = try expandMember(TimeoutMacro.self, source: source)
+    #expect(expansion.messages.isEmpty)
+    #expect(expansion.declarations.isEmpty)
+    let input = try MacroTestInput(source)
+    let declaration = try #require(input.declaration.as(ProtocolDeclSyntax.self))
+    #expect(TimeoutMacro.extractDefaultTimeout(from: declaration) == seconds)
   }
 
-  // MARK: - Timeout Macro Tests
-
-  func testTimeoutBasicExpansion() {
-    assertMacro {
-      """
-      @Timeout(.seconds(30.0))
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    } expansion: {
-      """
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    }
+  @Test(arguments: [".seconds(0)", ".seconds(-1)", "someDuration", ".minutes(1)", "30"])
+  func rejectsInvalidDuration(expression: String) throws {
+    let expansion = try expandMember(
+      TimeoutMacro.self,
+      source: """
+        @Timeout(\(expression)) protocol UserAPI {}
+        """
+    )
+    #expect(expansion.messages.first?.contains("requires a positive Duration literal") == true)
   }
 
-  func testTimeoutOnProtocol() {
-    assertMacro {
-      """
-      @Timeout(.seconds(60.0))
-      protocol PostAPI {
-        func getPosts() async throws -> [Post]
-      }
-      """
-    } expansion: {
-      """
-      protocol PostAPI {
-        func getPosts() async throws -> [Post]
-      }
-      """
-    }
+  @Test func timeoutRequiresProtocol() throws {
+    let expansion = try expandMember(
+      TimeoutMacro.self,
+      source: """
+        @Timeout(.seconds(30)) struct Service {}
+        """
+    )
+    #expect(expansion.messages == ["@Timeout can only be applied to protocols"])
   }
 
-  func testTimeoutRequiresProtocol() {
-    assertMacro {
+  @Test func extractsDefaultHeaders() throws {
+    let source = """
+      @DefaultHeaders([
+        .named("Accept"): .literal("application/json"),
+        .named("X-Version"): .literal("v1")
+      ])
+      protocol UserAPI {}
       """
-      @Timeout(.seconds(30.0))
-      struct UserService {
-        func getUsers() async throws -> [User]
-      }
-      """
-    } diagnostics: {
-      """
-      @Timeout(.seconds(30.0))
-      ┬───────────────────────
-      ╰─ 🛑 @Timeout can only be applied to protocols
-      struct UserService {
-        func getUsers() async throws -> [User]
-      }
-      """
-    }
+    let expansion = try expandMember(DefaultHeadersMacro.self, source: source)
+    #expect(expansion.messages.isEmpty)
+    let input = try MacroTestInput(source)
+    let declaration = try #require(input.declaration.as(ProtocolDeclSyntax.self))
+    #expect(
+      DefaultHeadersMacro.extractDefaultHeaders(from: declaration) == [
+        "Accept": "application/json", "X-Version": "v1",
+      ]
+    )
   }
 
-  // MARK: - DefaultHeaders Macro Tests
-
-  func testDefaultHeadersBasicExpansion() {
-    assertMacro {
-      """
-      @DefaultHeaders([.named("Accept"): .literal("application/json")])
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    } expansion: {
-      """
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    }
-  }
-
-  func testDefaultHeadersMultiple() {
-    assertMacro {
-      """
-      @DefaultHeaders([.named("Accept"): .literal("application/json"), .named("X-API-Version"): .literal("v1")])
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    } expansion: {
-      """
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    }
-  }
-
-  func testDefaultHeadersOnProtocol() {
-    assertMacro {
-      """
-      @DefaultHeaders([.named("Authorization"): .literal("Bearer token")])
-      protocol SecureAPI {
-        func getData() async throws -> Data
-      }
-      """
-    } expansion: {
-      """
-      protocol SecureAPI {
-        func getData() async throws -> Data
-      }
-      """
-    }
-  }
-
-  func testDefaultHeadersRequiresProtocol() {
-    assertMacro {
-      """
-      @DefaultHeaders([.named("Accept"): .literal("application/json")])
-      struct UserService {
-        func getUsers() async throws -> [User]
-      }
-      """
-    } diagnostics: {
-      """
-      @DefaultHeaders([.named("Accept"): .literal("application/json")])
-      ┬────────────────────────────────────────────────────────────────
-      ╰─ 🛑 @DefaultHeaders can only be applied to protocols
-      struct UserService {
-        func getUsers() async throws -> [User]
-      }
-      """
-    }
-  }
-
-  // MARK: - Edge Cases
-
-  func testTimeoutWithInteger() {
-    assertMacro {
-      """
-      @Timeout(.seconds(45))
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    } expansion: {
-      """
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    }
-  }
-
-  func testDefaultHeadersEmptyDictionary() {
-    assertMacro {
-      """
-      @DefaultHeaders([])
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    } diagnostics: {
-      """
-      @DefaultHeaders([])
-      ┬──────────────────
-      ╰─ 🛑 @DefaultHeaders requires a non-empty headers dictionary
-      protocol UserAPI {
-        func getUsers() async throws -> [User]
-      }
-      """
-    }
+  @Test(arguments: [
+    ("@DefaultHeaders([:]) protocol UserAPI {}", "requires a non-empty headers dictionary"),
+    ("@DefaultHeaders protocol UserAPI {}", "requires a dictionary argument"),
+    ("@DefaultHeaders([:]) struct Service {}", "can only be applied to protocols"),
+  ])
+  func rejectsInvalidDefaultHeaders(source: String, message: String) throws {
+    let expansion = try expandMember(DefaultHeadersMacro.self, source: source)
+    #expect(expansion.messages.first?.contains(message) == true)
   }
 }

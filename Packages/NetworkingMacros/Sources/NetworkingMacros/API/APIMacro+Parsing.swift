@@ -2,12 +2,6 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-struct APIExpansionInput {
-  let protocolDeclaration: ProtocolDeclSyntax
-  let baseURL: String
-  let accessLevel: String?
-}
-
 extension APIMacro {
   static func expansionInput(
     node: AttributeSyntax,
@@ -17,7 +11,7 @@ extension APIMacro {
     guard let protocolDeclaration = declaration.as(ProtocolDeclSyntax.self) else {
       diagnose(
         "@API can only be applied to protocols",
-        id: "invalidAPIUsage",
+        id: .apiRequiresProtocol,
         node: node,
         context: context
       )
@@ -27,7 +21,7 @@ extension APIMacro {
       return nil
     }
     guard !baseURL.isEmpty else {
-      diagnose("Base URL cannot be empty", id: "emptyBaseURL", node: node, context: context)
+      diagnose("Base URL cannot be empty", id: .emptyBaseURL, node: node, context: context)
       return nil
     }
     return APIExpansionInput(
@@ -47,7 +41,7 @@ extension APIMacro {
     else {
       diagnose(
         "@API requires a baseURL argument",
-        id: "missingBaseURL",
+        id: .apiRequiresBaseURL,
         node: attribute,
         context: context
       )
@@ -57,7 +51,7 @@ extension APIMacro {
     guard let baseURL = BoundaryExpressionParser.string(from: firstArgument.expression) else {
       diagnose(
         "Base URL must use a typed base URL expression",
-        id: "invalidBaseURL",
+        id: .invalidBaseURL,
         node: attribute,
         context: context
       )
@@ -68,7 +62,7 @@ extension APIMacro {
 
   private static func diagnose(
     _ message: String,
-    id: String,
+    id: MacroDiagnosticID,
     node: some SyntaxProtocol,
     context: some MacroExpansionContext
   ) {
@@ -77,7 +71,7 @@ extension APIMacro {
         node: Syntax(node),
         message: SimpleDiagnosticMessage(
           message: message,
-          diagnosticID: MessageID(domain: "Networking", id: id),
+          identifier: id,
           severity: .error
         )
       )

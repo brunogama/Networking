@@ -19,29 +19,23 @@ let package = Package(
     )
   ],
   dependencies: [
+    // Runtime products used by compile-and-execute integration tests.
     .package(path: "../Networking"),
-
-    // MacroTemplateKit - Type-safe templating for macro code generation
-    .package(
-      url: "https://github.com/brunogama/MacroTemplateKit.git",
-      exact: "0.0.7"
-    ),
+    .package(path: "../NetworkingCore"),
 
     // Swift Syntax for macro implementations
     .package(
       url: "https://github.com/swiftlang/swift-syntax.git",
       from: "600.0.0"
     ),
-    // Macro testing framework
-    .package(
-      url: "https://github.com/pointfreeco/swift-macro-testing.git",
-      from: "0.5.2"
-    ),
   ],
   targets: [
     .target(
       name: "NetworkingMacros",
-      dependencies: ["NetworkingMacrosPlugin"],
+      dependencies: [
+        "NetworkingMacrosPlugin",
+        .product(name: "NetworkingCore", package: "NetworkingCore"),
+      ],
       path: "Sources/NetworkingMacrosDeclarations"
     ),
 
@@ -49,8 +43,8 @@ let package = Package(
     .macro(
       name: "NetworkingMacrosPlugin",
       dependencies: [
-        .product(name: "MacroTemplateKit", package: "MacroTemplateKit"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
+        .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
@@ -66,9 +60,10 @@ let package = Package(
         "NetworkingMacrosPlugin",
         .product(name: "Networking", package: "Networking"),
         .product(name: "NetworkingTesting", package: "Networking"),
-        .product(name: "MacroTesting", package: "swift-macro-testing"),
+        .product(name: "SwiftSyntaxMacroExpansion", package: "swift-syntax"),
         .product(name: "SwiftParser", package: "swift-syntax"),
       ]
     ),
-  ]
+  ],
+  swiftLanguageModes: [.v6]
 )

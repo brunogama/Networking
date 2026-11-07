@@ -1,7 +1,5 @@
 import SwiftSyntax
-import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
-import SwiftDiagnostics
 import Foundation
 
 /// Validation and utility functions for macro expansion.
@@ -45,17 +43,6 @@ enum MacroHelpers {
   ) -> [String] {
     function.signature.parameterClause.parameters.map { param in
       param.secondName?.text ?? param.firstName.text
-    }
-  }
-
-  /// Extracts parameter information including names and types.
-  static func extractParameters(
-    from function: FunctionDeclSyntax
-  ) -> [(name: String, type: String)] {
-    function.signature.parameterClause.parameters.map { param in
-      let name = param.secondName?.text ?? param.firstName.text
-      let type = param.type.description.trimmingCharacters(in: .whitespaces)
-      return (name: name, type: type)
     }
   }
 
@@ -127,30 +114,6 @@ enum MacroHelpers {
     }
   }
 
-  // MARK: - Body Parameter Validation
-
-  /// Validates that body parameter exists in function signature.
-  static func validateBodyParameter(
-    _ bodyParam: String,
-    functionParameters: [String],
-    context: some MacroExpansionContext
-  ) throws {
-    guard functionParameters.contains(bodyParam) else {
-      throw MacroExpansionError.bodyParameterNotFound(
-        ParameterReference(bodyParam),
-        available: functionParameters.map { ParameterReference($0) }
-      )
-    }
-  }
-
-  // MARK: - Return Type Extraction
-
-  /// Extracts return type from function signature.
-  static func extractReturnType(from function: FunctionDeclSyntax) -> String? {
-    function.signature.returnClause?.type.description
-      .trimmingCharacters(in: .whitespaces)
-  }
-
   // MARK: - HTTP Method Detection
 
   /// Detects HTTP method macros on a function.
@@ -186,53 +149,4 @@ enum MacroHelpers {
     }
   }
 
-  // MARK: - Macro Argument Extraction
-
-  /// Extracts a labeled argument from macro attribute syntax
-  /// - Parameters:
-  ///   - label: The argument label to extract
-  ///   - node: The attribute syntax containing arguments
-  /// - Returns: The labeled argument expression, or nil if not found
-  static func extractArgument(
-    labeled label: String,
-    from node: AttributeSyntax
-  ) -> LabeledExprSyntax? {
-    node.macroArgument(labeled: label)
-  }
-
-  /// Extracts an integer literal value from a labeled argument
-  /// - Parameters:
-  ///   - label: The argument label to extract
-  ///   - node: The attribute syntax containing arguments
-  /// - Returns: String representation of the integer, or nil if not found
-  static func extractIntegerValue(
-    labeled label: String,
-    from node: AttributeSyntax
-  ) -> String? {
-    node.macroIntegerValue(labeled: label)
-  }
-
-  /// Extracts a member access value (e.g., .standard) from a labeled argument
-  /// - Parameters:
-  ///   - label: The argument label to extract
-  ///   - node: The attribute syntax containing arguments
-  /// - Returns: The member name text, or nil if not found
-  static func extractMemberValue(
-    labeled label: String,
-    from node: AttributeSyntax
-  ) -> String? {
-    node.macroMemberValue(labeled: label)
-  }
-
-  /// Extracts a string literal value from a labeled argument
-  /// - Parameters:
-  ///   - label: The argument label to extract
-  ///   - node: The attribute syntax containing arguments
-  /// - Returns: The string content, or nil if not found
-  static func extractStringValue(
-    labeled label: String,
-    from node: AttributeSyntax
-  ) -> String? {
-    node.macroStringValue(labeled: label)
-  }
 }

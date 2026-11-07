@@ -32,6 +32,7 @@ enum ArgumentExtractors {
     else {
       MacroHelpers.emitError(
         "@\(method) requires a path argument",
+        id: .missingPath,
         node: node,
         context: context
       )
@@ -39,42 +40,6 @@ enum ArgumentExtractors {
     }
 
     return path
-  }
-
-  // MARK: - Body Parameter Extraction
-
-  /// Extracts the body parameter name from macro arguments.
-  ///
-  /// Example:
-  /// ```swift
-  /// @POST("/users", body: "user")
-  /// // Returns: "user"
-  /// ```
-  ///
-  /// - Parameters:
-  ///   - node: The attribute syntax node
-  ///   - context: The macro expansion context (not used for errors)
-  /// - Returns: The body parameter name, or nil if not found
-  ///
-  /// - Note: Does NOT emit error if missing - caller decides based on HTTPMethodConfig.requiresBody
-  static func extractBodyParameter(
-    from node: AttributeSyntax,
-    context: some MacroExpansionContext
-  ) -> String? {
-    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
-      return nil
-    }
-
-    // Find argument labeled "body"
-    for argument in arguments {
-      if argument.label?.text == "body",
-        let parameterName = BoundaryExpressionParser.string(from: argument.expression)
-      {
-        return parameterName
-      }
-    }
-
-    return nil
   }
 
   // MARK: - Query Parameter Extraction
@@ -110,37 +75,4 @@ enum ArgumentExtractors {
     return []
   }
 
-  // MARK: - Header Extraction
-
-  /// Extracts custom headers from the macro attribute.
-  ///
-  /// Example:
-  /// ```swift
-  /// @POST("/users", headers: ["Authorization": "Bearer token"])
-  /// // Returns: ["Authorization": "Bearer token"]
-  /// ```
-  ///
-  /// - Parameters:
-  ///   - node: The attribute syntax node
-  ///   - context: The macro expansion context (not used for errors)
-  /// - Returns: Dictionary of header names to values, or empty dictionary if not found
-  static func extractHeaders(
-    from node: AttributeSyntax,
-    context: some MacroExpansionContext
-  ) -> [String: String] {
-    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
-      return [:]
-    }
-
-    // Look for headers argument
-    for argument in arguments {
-      if argument.label?.text == "headers",
-        let headers = BoundaryExpressionParser.dictionaryOfStrings(from: argument.expression)
-      {
-        return headers
-      }
-    }
-
-    return [:]
-  }
 }

@@ -23,27 +23,4 @@ enum FunctionSignatureAdapter {
     .joined(separator: " ")
   }
 
-  static func invocationArgumentList(
-    from signature: FunctionSignatureSyntax
-  ) -> String {
-    signature.parameterClause.parameters
-      .map { parameter in
-        let label = parameter.firstName.text
-        let name = parameter.secondName?.text ?? label
-        let prefix = label == "_" ? "" : "\(label): "
-        let value = parameter.type.trimmedDescription.hasPrefix("inout ") ? "&\(name)" : name
-        return "\(prefix)\(value)"
-      }
-      .joined(separator: ", ")
-  }
-
-  static func invocationPrefix(from signature: FunctionSignatureSyntax) -> String {
-    [
-      signature.effectSpecifiers?.throwsClause != nil ? "try" : nil,
-      signature.effectSpecifiers?.asyncSpecifier != nil ? "await" : nil,
-    ]
-    .compactMap { $0 }
-    .joined(separator: " ")
-  }
-
 }

@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - API Protocol Macro
 
 /// Generates an API client implementation for a protocol.
@@ -32,54 +30,16 @@ import Foundation
 ///     ) async throws -> Issue
 /// }
 ///
-/// // Use the generated implementation
-/// let api = GitHubAPIImplementation()
+/// // The factory returns the protocol, not the implementation.
+/// let api: any GitHubAPI = GitHubAPIFactory.make()
 /// let user = try await api.getUser(username: "brunogama")
 /// ```
 ///
 /// ## Generated Code
 ///
-/// The macro generates an implementation struct with:
-/// - `Sendable` conformance for Swift 6 strict concurrency
-/// - Private `HTTPClient` property for making requests
-/// - Initializer accepting an injected `HTTPClient`
-/// - Full implementation of all protocol methods
-///
-/// Example generated code:
-/// ```swift
-/// struct GitHubAPIImplementation: GitHubAPI, Sendable {
-///     private let client: any HTTPClient
-///     private let baseURL = BaseURLText(rawValue: "https://api.github.com")
-///     private let defaultHeaders: HTTPHeaders = [:]
-///     private let defaultTimeout = RequestTimeout(rawValue: 30)
-///
-///     init(client: any HTTPClient = NetworkClient()) {
-///         self.client = client
-///     }
-///
-///     func getUser(username: String) async throws -> User {
-///         let path = "/users/\(username)"
-///         guard let url = HTTPRequestURL(
-///             BaseURLText(rawValue: baseURL.rawValue + path)
-///         ) else {
-///             throw URLError(.badURL)
-///         }
-///         let request = HTTPRequest(
-///             method: .get,
-///             url: url,
-///             headers: defaultHeaders,
-///             timeout: defaultTimeout
-///         )
-///         let response = try await client.execute(request)
-///         guard let body = response.body else {
-///             throw DecodingError.dataCorrupted(
-///                 .init(codingPath: [], debugDescription: "Response body is empty")
-///             )
-///         }
-///         return try JSONDecoder().decode(User.self, from: body.rawValue)
-///     }
-/// }
-/// ```
+/// The macro generates a private `Sendable` implementation and a factory named after
+/// the protocol. The factory's `make(client:codec:)` method returns the protocol and accepts
+/// any `HTTPClient` and a reusable `JSONCodec` for dependency injection.
 ///
 /// ## Parameters
 ///
@@ -100,13 +60,7 @@ import Foundation
 /// - Use the existing `NetworkClient` for all requests
 /// - Inherit all configured middleware (authentication, retry, caching, logging)
 /// - Support security features (certificate pinning, SSL validation)
-/// - Enable dependency injection for testing via custom `NetworkClient`
-///
-/// ## Performance
-///
-/// The generated code is identical in performance to hand-written `NetworkClient` code.
-/// There is zero runtime overhead from the macro system - all code generation happens
-/// at compile time.
+/// - Enable dependency injection through the factory's `HTTPClient` argument
 ///
 /// ## Compile-Time Validation
 ///
@@ -117,15 +71,14 @@ import Foundation
 /// Return and body types are checked by the Swift compiler where generated decoding and
 /// encoding call `Decodable` and `Encodable` APIs.
 ///
-/// Validation errors are reported at compile time with clear error messages and
-/// Fix-It suggestions.
+/// Validation errors are reported at compile time with clear messages and stable diagnostic IDs.
 ///
 /// ## Related Macros
 ///
 /// - ``GET(_:queryParameters:)``: Define GET endpoints
-/// - ``POST(_:body:headers:queryParameters:)``: Define POST endpoints
-/// - ``PUT(_:body:headers:queryParameters:)``: Define PUT endpoints
-/// - ``PATCH(_:body:headers:queryParameters:)``: Define PATCH endpoints
+/// - ``POST(_:queryParameters:)``: Define POST endpoints
+/// - ``PUT(_:queryParameters:)``: Define PUT endpoints
+/// - ``PATCH(_:queryParameters:)``: Define PATCH endpoints
 /// - ``DELETE(_:queryParameters:)``: Define DELETE endpoints
 /// - ``DefaultHeaders(_:)``: Configure protocol-level default headers
 /// - ``Timeout(_:)``: Configure protocol-level timeout
@@ -135,6 +88,6 @@ import Foundation
 /// - `NetworkClient`: The underlying HTTP client used by generated implementations
 /// - `HTTPRequest`: The request type used by generated implementations
 ///
-@attached(peer, names: suffixed(Implementation))
+@attached(peer, names: suffixed(Implementation), suffixed(Factory))
 public macro API(baseURL: APIBaseURL) =
   #externalMacro(module: "NetworkingMacrosPlugin", type: "APIMacro")
