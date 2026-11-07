@@ -4,7 +4,6 @@ import NetworkingCore
 public struct HTTPRequestPredicate: Sendable {
   private let evaluator: @Sendable (HTTPRequest) -> MockPredicateMatchFlag
 
-  /// Stores the request predicate without erasing its Sendable guarantee.
   public init(_ evaluator: @escaping @Sendable (HTTPRequest) -> MockPredicateMatchFlag) {
     self.evaluator = evaluator
   }

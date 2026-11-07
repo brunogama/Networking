@@ -20,7 +20,6 @@ public final class NetworkClient: HTTPFileTransferClient {
     middleware.error.isEmpty && middleware.response.isEmpty
   }
 
-  /// Creates a client with a session, an ordered pipeline, and transport options.
   public init(
     session: URLSession = .shared,
     middleware: HTTPMiddleware,
@@ -33,8 +32,6 @@ public final class NetworkClient: HTTPFileTransferClient {
     self.codec = codec
   }
 
-  /// Executes a request through middleware, transport, response validation, and error recovery.
-  /// - Throws: A transport, middleware, or HTTP status error.
   public func execute(_ request: HTTPRequest) async throws(HTTPError) -> HTTPResponse {
     do {
       return try await executeWithRecovery(request)

@@ -9,14 +9,12 @@ public struct HeaderSecurityMiddleware: HTTPRequestMiddleware {
 
   // MARK: - Initialization
 
-  /// Creates header validation with explicit limits and sanitization policy.
   public init(configuration: Configuration = Configuration()) {
     self.configuration = configuration
   }
 
   // MARK: - HTTPRequestMiddleware
 
-  /// Validates headers while preserving request identity; invalid names are rejected.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
     try validateHeaderCount(in: request)
 

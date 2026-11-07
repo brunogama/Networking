@@ -4,13 +4,7 @@ import NetworkingCore
 import Testing
 
 extension MockURLProtocol {
-  /// Assert that a request was made with Swift Testing.
-  /// - Parameters:
-  ///   - url: The URL that should have been requested
-  ///   - method: Optional HTTP method to verify
-  ///   - count: Expected number of requests
-  ///   - contextID: Limits inspection to a specific test session.
-  ///   - sourceLocation: Source location for failure reporting.
+
   public static func expectRequest(
     url: HTTPRequestURL,
     method: HTTPMethod? = nil,
@@ -26,11 +20,6 @@ extension MockURLProtocol {
     )
   }
 
-  /// Assert that no requests were made to a URL.
-  /// - Parameters:
-  ///   - url: The URL that should not have been requested
-  ///   - contextID: Limits inspection to a specific test session.
-  ///   - sourceLocation: Source location for failure reporting.
   public static func expectNoRequest(
     url: HTTPRequestURL,
     contextID: MockContextIdentifier? = nil,

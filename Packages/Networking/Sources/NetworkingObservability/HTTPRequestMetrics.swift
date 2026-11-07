@@ -4,14 +4,12 @@ import NetworkingCore
 /// One completed request measurement without URL, headers, or body data.
 public struct HTTPRequestMetrics: Sendable, Equatable {
 
-  /// Completion time of the measured request.
   public let timestamp: Date
-  /// Nonnegative, finite elapsed time in seconds.
+
   public let duration: MeasurementDuration
-  /// The completed request outcome.
+
   public let outcome: Outcome
 
-  /// Rejects invalid durations and timestamps at the measurement boundary.
   public init(
     timestamp: Date = Date(),
     duration: MeasurementDuration,

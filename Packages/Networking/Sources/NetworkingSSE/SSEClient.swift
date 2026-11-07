@@ -14,7 +14,6 @@ public final class SSEClient: Sendable {
   let requestMiddlewares: [any HTTPRequestMiddleware]
   let diagnostics: NetworkDiagnostics?
 
-  /// Creates a streaming client whose connection task ends when the stream is terminated.
   public init(
     session: URLSession = .shared,
     requestMiddlewares: [any HTTPRequestMiddleware] = [],
@@ -25,7 +24,6 @@ public final class SSEClient: Sendable {
     self.diagnostics = diagnostics
   }
 
-  /// Creates a streaming client with the configured session and TLS policies.
   public convenience init(
     sessionConfiguration: SessionConfiguration = .init(),
     securityConfiguration: SecurityConfiguration? = nil,
@@ -39,7 +37,6 @@ public final class SSEClient: Sendable {
     )
   }
 
-  /// Opens a stream that cancels its connection task when iteration terminates.
   public func connect(
     _ request: HTTPRequest,
     configuration: SSEConfiguration = .init()

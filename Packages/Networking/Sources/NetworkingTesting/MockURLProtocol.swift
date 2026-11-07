@@ -17,13 +17,10 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
   private var started = false
   private var active = false
 
-  /// Handles all requests in an explicitly configured mock session, failing unmatched requests.
   override public static func canInit(with request: URLRequest) -> Bool { true }
 
-  /// Preserves the request used for matching and capture.
   override public static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
-  /// Consumes one matching stub and starts its response within this protocol's lifetime.
   override public func startLoading() {
     lifecycle.withLock {
       guard !started else { return }
@@ -40,7 +37,6 @@ public final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     }
   }
 
-  /// Cancels delayed work and prevents subsequent client callbacks.
   override public func stopLoading() {
     let pending = lifecycle.withLock {
       started = true

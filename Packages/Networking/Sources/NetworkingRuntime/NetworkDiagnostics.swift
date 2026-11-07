@@ -15,9 +15,6 @@ public final class NetworkDiagnostics: Sendable {
   private let logs: Logs
   private let logFormat: LogFormat
 
-  /// Creates a recorder with bounded traces and optional terminal unified logging.
-  ///
-  /// A nonpositive capacity retains no traces. Logging remains independent of retention.
   public init(
     capacity: Int = 100,
     privacy: HTTPTracePrivacy = .init(),
@@ -35,10 +32,8 @@ public final class NetworkDiagnostics: Sendable {
     codec = JSONCodec(configuration: encoding)
   }
 
-  /// Returns the currently retained traces, ordered from oldest to newest.
   public var traces: [HTTPTrace] { storage.withLock { $0.traces } }
 
-  /// Observes changes with bounded buffering so callers can read `traces` after each notification.
   public func changes() -> AsyncStream<Void> {
     let identity = UUID()
     let (stream, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
@@ -50,13 +45,11 @@ public final class NetworkDiagnostics: Sendable {
     return stream
   }
 
-  /// Removes retained traces without interrupting active requests.
   public func clear() {
     storage.withLock { $0.traces.removeAll(keepingCapacity: true) }
     notifyObservers()
   }
 
-  /// Encodes the retained, sanitized traces as JSON for inspection or export.
   public func export() throws -> Data {
     try codec.encode(traces)
   }

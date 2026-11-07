@@ -6,7 +6,6 @@ public struct ClosureTokenProvider: AuthenticationMiddleware.TokenProvider {
   private let refreshHandler: @Sendable () async throws -> BearerTokenValue
   private let shouldRefreshHandler: @Sendable (HTTPError) async -> AuthenticationDecision
 
-  /// Supplies explicit credential loading, refresh, and refresh eligibility operations.
   public init(
     getCurrentToken: @escaping @Sendable () async throws -> BearerTokenValue?,
     refreshToken: @escaping @Sendable () async throws -> BearerTokenValue,
@@ -24,17 +23,14 @@ public struct ClosureTokenProvider: AuthenticationMiddleware.TokenProvider {
     self.shouldRefreshHandler = shouldRefreshToken
   }
 
-  /// Loads the credential through the configured operation.
   public func getCurrentToken() async throws -> BearerTokenValue? {
     try await getCurrentHandler()
   }
 
-  /// Refreshes through the configured operation.
   public func refreshToken() async throws -> BearerTokenValue {
     try await refreshHandler()
   }
 
-  /// Evaluates refresh eligibility through the configured operation.
   public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
     await shouldRefreshHandler(error)
   }

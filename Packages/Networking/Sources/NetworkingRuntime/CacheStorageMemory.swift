@@ -24,7 +24,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
 
   // MARK: - Initialization
 
-  /// Creates a store with explicit eviction, capacity, and expiration policies.
   public init(
     policy: CachePolicy = .lru,
     sizePolicy: CacheSizePolicy = .maxEntries(1000),
@@ -37,12 +36,10 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
 
   // MARK: - CacheStorage Implementation
 
-  /// Lists retained keys.
   public func keys() async -> [CacheKey] {
     Array(cache.keys)
   }
 
-  /// Returns a fresh entry.
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     if let wrapper = cache[key] {
       // Check expiration
@@ -79,7 +76,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     return nil
   }
 
-  /// Returns an entry including stale validators.
   public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     guard let entry = cache[key]?.cacheEntry else {
       missCount += 1
@@ -90,12 +86,10 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     return entry
   }
 
-  /// Stores a tagged entry.
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
     await set(key, entry: entry, tags: entry.tags)
   }
 
-  /// Enhanced set method with tag support.
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry, tags: [CacheTagName]) async
   {
     let tagSet = Set(tags)
@@ -119,7 +113,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     await enforceSize()
   }
 
-  /// Removes one key.
   public func remove(_ key: CacheKey) async {
     if let wrapper = cache.removeValue(forKey: key) {
       // Clean up tag index
@@ -132,13 +125,11 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     }
   }
 
-  /// Clears all entries.
   public func removeAll() async {
     cache.removeAll()
     tagIndex.removeAll()
   }
 
-  /// Removes stale entries.
   public func removeExpired() async {
     let expiredKeys = cache.compactMap { key, wrapper in
       wrapper.cacheEntry.isExpired.rawValue ? key : nil
@@ -149,7 +140,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     }
   }
 
-  /// Removes entries matching any supplied tag.
   public func removeByTags(_ tags: [CacheTagName]) async {
     var keysToRemove = Set<CacheKey>()
 
@@ -164,7 +154,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     }
   }
 
-  /// Removes whole keys matching a wildcard pattern.
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
     let regex = cachePatternRegex(pattern)
 
@@ -178,7 +167,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     }
   }
 
-  /// Removes the supplied keys.
   public func removeByKeys(_ keys: [CacheKey]) async {
     for key in keys {
       await remove(key)
@@ -249,7 +237,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
 
   // MARK: - Metrics and Debugging
 
-  /// Returns cache performance metrics.
   public func getMetrics() async -> CacheMetrics {
     CacheMetrics(
       size: CacheEntryCount(cache.count),
@@ -262,7 +249,6 @@ public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
     )
   }
 
-  /// Returns estimated memory usage in bytes.
   public var estimatedMemoryUsage: StorageSizeBytes {
     get async { estimateMemoryUsage() }
   }

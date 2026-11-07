@@ -5,7 +5,7 @@ extension HTTPError {
 }
 
 extension HTTPError.Category {
-  /// Creates a security category with an optional non-sensitive explanation.
+
   public static func security(
     _ error: HeaderSecurityError,
     message: HTTPErrorDetail? = nil
@@ -31,7 +31,7 @@ extension HTTPError.Category {
 
 /// HTTP field-name and field-value validation utilities.
 public enum HeaderSecurity {
-  /// Validates a header name according to RFC 7230.
+
   public static func isValidHeaderName(_ name: HTTPHeaderName) -> HeaderValidationDecision {
     guard !name.rawValue.isEmpty else { return false }
 
@@ -44,7 +44,6 @@ public enum HeaderSecurity {
     )
   }
 
-  /// Validates a header value according to RFC 7230.
   public static func isValidHeaderValue(_ value: HTTPHeaderValue) -> HeaderValidationDecision {
     for char in value.rawValue.unicodeScalars {
       let code = char.value
@@ -67,7 +66,6 @@ public enum HeaderSecurity {
     return true
   }
 
-  /// Sanitizes a header value by removing invalid characters.
   public static func sanitizeHeaderValue(_ value: HTTPHeaderValue) -> HTTPHeaderValue {
     HTTPHeaderValue(
       String(
@@ -86,7 +84,6 @@ public enum HeaderSecurity {
     )
   }
 
-  /// Checks if a string contains header injection patterns.
   public static func containsInjectionAttempt(_ value: HTTPHeaderValue) -> HeaderValidationDecision
   {
     let injectionPatterns = [

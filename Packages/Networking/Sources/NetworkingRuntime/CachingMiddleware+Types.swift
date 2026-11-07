@@ -5,7 +5,7 @@ extension CachingMiddleware {
 }
 
 extension HTTPResponseCacheStorage {
-  /// Default revalidation lookup for stores that do not retain stale responses.
+
   public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     await get(key)
   }

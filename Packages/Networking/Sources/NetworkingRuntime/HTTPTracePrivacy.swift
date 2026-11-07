@@ -3,16 +3,15 @@ import NetworkingCore
 
 /// Controls diagnostic retention and explicit opt-in body capture.
 public struct HTTPTracePrivacy: Sendable {
-  /// Header names whose values must never appear in diagnostics.
+
   public var redactedHeaders: Set<String> = [
     "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key",
   ]
-  /// Whether to capture body prefixes, which may contain sensitive application data.
+
   public var capturesBodies = false
-  /// Maximum retained bytes per body; nonpositive values disable body capture.
+
   public var maximumBodyBytes = 4096
 
-  /// Creates a policy with secret headers redacted and body capture disabled.
   public init() {}
 
   func request(_ request: HTTPRequest) -> HTTPTrace.Message {

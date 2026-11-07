@@ -15,7 +15,6 @@ public actor DiskCacheStorage: HTTPResponseCacheStorage {
   let fileManager = FileManager.default
   private let codec = JSONCodec()
 
-  /// Creates storage; directory creation failures propagate to the caller.
   public init(
     cacheDirectory: CacheDirectoryURL? = nil,
     sizePolicy: CacheSizePolicy = .maxDiskSize(104_857_600),

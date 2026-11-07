@@ -8,13 +8,10 @@ public actor TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, H
   private let exporter: any TraceExporter
   private var activeSpans: [SpanIdentifier: TraceSpan] = [:]
 
-  /// Creates instrumentation using an explicit export destination.
   public init(exporter: any TraceExporter) { self.exporter = exporter }
 
-  /// Active spans awaiting a response or error callback.
   public var activeSpanCount: Int { activeSpans.count }
 
-  /// Creates a child span and preserves the request's logical identity and transport options.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
     let parent = request.headers[HTTPHeaderName("traceparent")].flatMap {
       TraceContext.parse(traceparent: $0)
@@ -43,7 +40,6 @@ public actor TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, H
     )
   }
 
-  /// Records HTTP status and exports exactly once for this transport attempt.
   public func processResponse(
     _ response: HTTPResponse,
     for request: HTTPRequest
@@ -63,7 +59,6 @@ public actor TracingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, H
     return response
   }
 
-  /// Completes a failed span and preserves the original request failure.
   public func handleError(_ error: HTTPError, for request: HTTPRequest) async throws -> HTTPResponse
   {
     if let span = takeSpan(for: request) {

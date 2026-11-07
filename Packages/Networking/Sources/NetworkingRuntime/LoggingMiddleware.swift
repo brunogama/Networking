@@ -15,7 +15,6 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
 
   // MARK: - Initialization
 
-  /// Creates logging middleware with explicit content capture settings.
   public init(configuration: Configuration = Configuration()) {
     self.configuration = configuration
     self.logger = Logger(
@@ -25,7 +24,6 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
   }
   // MARK: - HTTPRequestMiddleware
 
-  /// Logs the outgoing request and returns it unchanged.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
     logger.log(
       level: configuration.logLevel,
@@ -55,7 +53,6 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
 
   // MARK: - HTTPResponseMiddleware
 
-  /// Logs the completed response and returns it unchanged.
   public func processResponse(
     _ response: HTTPResponse,
     for request: HTTPRequest
@@ -87,7 +84,6 @@ public struct LoggingMiddleware: HTTPRequestMiddleware, HTTPResponseMiddleware, 
   }
   // MARK: - HTTPErrorMiddleware
 
-  /// Logs and rethrows the original HTTP error.
   public func handleError(
     _ error: HTTPError,
     for request: HTTPRequest

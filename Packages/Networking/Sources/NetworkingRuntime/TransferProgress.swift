@@ -3,16 +3,13 @@ import NetworkingCore
 
 /// Progress information for upload or download operations.
 public struct TransferProgress: Sendable, Hashable {
-  /// Total bytes expected to be transferred (nil if unknown).
+
   public let totalBytes: TransferByteCount?
 
-  /// Number of bytes transferred so far.
   public let transferredBytes: TransferByteCount
 
-  /// Current transfer phase.
   public let phase: TransferPhase
 
-  /// Progress as a percentage (0.0 to 1.0).
   public var progress: TransferProgressFraction {
     guard let total = totalBytes, total > 0 else {
       return phase == .completed ? 1 : 0
@@ -22,10 +19,8 @@ public struct TransferProgress: Sendable, Hashable {
     )
   }
 
-  /// Transfer speed in bytes per second (nil if cannot be calculated).
   public let bytesPerSecond: TransferSpeed?
 
-  /// Estimated time remaining in seconds (nil if cannot be calculated).
   public var estimatedTimeRemaining: TransferDuration? {
     guard let total = totalBytes,
       let speed = bytesPerSecond,
@@ -39,10 +34,8 @@ public struct TransferProgress: Sendable, Hashable {
     return TransferDuration(Double(remainingBytes) / speed.rawValue)
   }
 
-  /// Timestamp when this progress was recorded.
   public let timestamp: Date
 
-  /// Captures measured byte counts, transfer phase, and optional speed.
   public init(
     totalBytes: TransferByteCount?,
     transferredBytes: TransferByteCount,

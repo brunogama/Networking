@@ -3,16 +3,15 @@ import NetworkingCore
 
 /// A validated W3C version-00 trace context.
 public struct TraceContext: Sendable, Equatable {
-  /// A 32-character nonzero lowercase hexadecimal trace identifier.
+
   public let traceId: TraceIdentifier
-  /// A 16-character nonzero lowercase hexadecimal span identifier.
+
   public let spanId: SpanIdentifier
-  /// The parent span identifier, if this is a locally created child.
+
   public let parentSpanId: SpanIdentifier?
-  /// Propagated trace flags.
+
   public let traceFlags: TraceFlags
 
-  /// Creates a new sampled root trace.
   public init() {
     self.init(trace: Self.generateTraceId(), span: Self.generateSpanId(), parent: nil, flags: 1)
   }
@@ -24,24 +23,20 @@ public struct TraceContext: Sendable, Equatable {
     self.traceFlags = TraceFlags(flags)
   }
 
-  /// Whether the sampled bit is set.
   public var isSampled: TraceSampledFlag {
     TraceSampledFlag(traceFlags.rawValue & 1 != 0)
   }
 
-  /// The W3C traceparent header value.
   public var traceparent: HTTPHeaderValue {
     HTTPHeaderValue(
       "00-\(traceId.rawValue)-\(spanId.rawValue)-\(String(format: "%02x", traceFlags.rawValue))"
     )
   }
 
-  /// Creates a child with the same trace identifier and this span as its parent.
   public func createChild() -> Self {
     Self(trace: traceId, span: Self.generateSpanId(), parent: spanId, flags: traceFlags.rawValue)
   }
 
-  /// Parses a version-00 traceparent without changing its trace or span identity.
   public static func parse(traceparent header: HTTPHeaderValue) -> Self? {
     let parts = header.rawValue.split(separator: "-", omittingEmptySubsequences: false)
     guard parts.count == 4, parts[0] == "00" else { return nil }
@@ -59,12 +54,10 @@ public struct TraceContext: Sendable, Equatable {
     )
   }
 
-  /// Generates a nonzero trace identifier.
   public static func generateTraceId() -> TraceIdentifier {
     TraceIdentifier(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())
   }
 
-  /// Generates a nonzero span identifier.
   public static func generateSpanId() -> SpanIdentifier {
     SpanIdentifier(String(generateTraceId().rawValue.suffix(16)))
   }

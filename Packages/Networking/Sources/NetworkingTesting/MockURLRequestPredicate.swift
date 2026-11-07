@@ -5,7 +5,6 @@ import NetworkingCore
 public struct MockURLRequestPredicate: Sendable {
   private let evaluator: @Sendable (URLRequest) -> MockPredicateMatchFlag
 
-  /// Stores a predicate that may be called from concurrent protocol callbacks.
   public init(_ evaluator: @escaping @Sendable (URLRequest) -> MockPredicateMatchFlag) {
     self.evaluator = evaluator
   }

@@ -60,10 +60,7 @@ extension MockURLProtocol {
 }
 
 extension MockURLProtocol.MockResponse {
-  /// Convert MockResponse to HTTPResponse for use with MockNetworkClient.
-  /// - Parameter request: The original HTTP request
-  /// - Returns: HTTPResponse based on the mock configuration
-  /// - Throws: Configured HTTP and cancellation errors unchanged; other failures become HTTP errors.
+
   public func toHTTPResponse(for request: HTTPRequest) async throws -> HTTPResponse {
     if case .timeout = self {
       throw HTTPError(

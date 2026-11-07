@@ -5,15 +5,10 @@ public actor ProgressAggregator {
   private var activeTransfers: [TransferIdentifier: TransferProgress] = [:]
   private let callback: ProgressCallback
 
-  /// Creates actor-owned transfer aggregation with a synchronous callback.
   public init(callback: @escaping ProgressCallback) {
     self.callback = callback
   }
 
-  /// Updates progress for a specific transfer.
-  /// - Parameters:
-  ///   - transferId: The transfer identifier
-  ///   - progress: The current progress
   public func updateProgress(for transferId: TransferIdentifier, progress: TransferProgress) {
     activeTransfers[transferId] = progress
 

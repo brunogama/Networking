@@ -4,22 +4,21 @@ import NetworkingCore
 extension CachingMiddleware {
   /// Optional cache policy; every key is additionally partitioned by request headers.
   public struct Configuration: Sendable {
-    /// Default freshness duration when the server supplies none.
+
     public let defaultTTL: CacheMaxAge
-    /// Capacity supplied to convenience memory-storage factories.
+
     public let maxCacheSize: CacheEntryLimit?
-    /// Final response eligibility predicate.
+
     public var shouldCache: @Sendable (HTTPRequest, HTTPResponse) -> CacheDecision
-    /// Logical key customization; representation and credential partitions remain enforced.
+
     public var cacheKeyGenerator: @Sendable (HTTPRequest) -> CacheKey = Self.defaultCacheKey
-    /// Optional freshness override.
+
     public var ttlCalculator: (@Sendable (HTTPRequest, HTTPResponse) -> CacheMaxAge)?
-    /// Caller-supplied metadata for freshness, logical keys, and invalidation.
+
     public var metadataExtractor: @Sendable (HTTPRequest) -> CacheMetadata? = { _ in nil }
-    /// Whether stale content is conditionally revalidated.
+
     public let useConditionalRequests: CacheRevalidationFlag
 
-    /// Creates a cache policy with explicit eligibility and revalidation behavior.
     public init(
       defaultTTL: CacheMaxAge = 300,
       maxCacheSize: CacheEntryLimit? = 100,
@@ -33,7 +32,6 @@ extension CachingMiddleware {
       self.useConditionalRequests = useConditionalRequests
     }
 
-    /// Caches successful GET responses unless the server forbids reuse.
     public static func defaultShouldCache(
       _ request: HTTPRequest,
       _ response: HTTPResponse
@@ -45,12 +43,10 @@ extension CachingMiddleware {
       return CacheDecision(!directives.contains("no-store") && !directives.contains("no-cache"))
     }
 
-    /// Logical request key; query order remains significant.
     public static func defaultCacheKey(_ request: HTTPRequest) -> CacheKey {
       CacheKey("\(request.method.rawValue.rawValue):\(request.url.rawValue.absoluteString)")
     }
 
-    /// Builds a partitioned key from explicit metadata and all representation-affecting headers.
     public static func defaultIntelligentCacheKey(
       _ request: HTTPRequest,
       _ metadata: CacheMetadata?

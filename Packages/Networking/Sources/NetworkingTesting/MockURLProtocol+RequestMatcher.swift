@@ -54,7 +54,6 @@ extension MockURLProtocol {
       }
     }
 
-    /// Matches a regular expression; an invalid expression matches no requests.
     public static func urlPattern(_ pattern: RequestPathPattern) -> Self {
       do {
         return .urlPattern(try NSRegularExpression(pattern: pattern.rawValue, options: []))

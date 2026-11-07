@@ -18,11 +18,6 @@ public final class RequestCancellation: Sendable {
     (termination, signal) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
   }
 
-  /// Cancels this ticket's wait and signals the scoped task to stop.
-  ///
-  /// The first terminal operation wins. This method returns `true` only when it records the
-  /// cancellation result; every later cancellation or completion returns `false` without
-  /// changing that result. It is safe to call concurrently from multiple tasks.
   @discardableResult
   public func cancel() -> Bool { finish(.failure(.cancelled(request: request))) }
 

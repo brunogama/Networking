@@ -18,12 +18,10 @@ public actor KeychainService {
 
   // MARK: - Initialization
 
-  /// Creates an actor that serializes operations for the supplied service configuration.
   public init(configuration: Configuration) {
     self.configuration = configuration
   }
 
-  /// Creates a service with the default storage access policy.
   public init(service: KeychainServiceName) {
     self.configuration = Configuration(service: service)
   }
@@ -32,12 +30,11 @@ public actor KeychainService {
 // MARK: - Convenience Extensions
 
 extension KeychainService {
-  /// Default keychain service for the Networking framework.
+
   public static let `default` = KeychainService(
     configuration: Configuration(service: "Networking")
   )
 
-  /// Creates a keychain service for a specific app.
   public static func app(_ bundleIdentifier: KeychainServiceName) -> KeychainService {
     KeychainService(
       configuration: Configuration(
@@ -47,7 +44,6 @@ extension KeychainService {
     )
   }
 
-  /// Creates a keychain service with iCloud sync enabled.
   public static func synced(
     service: KeychainServiceName,
     accessGroup: KeychainAccessGroup? = nil

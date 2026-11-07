@@ -9,7 +9,6 @@ public struct MockURLRequestStub: Sendable {
   let requestCapture: (@Sendable (URLRequest) -> Void)?
   let contextID: MockContextIdentifier?
 
-  /// Defines a response, usage limit, capture callback, and optional test context.
   public init(
     matchers: [MockURLProtocol.RequestMatcher],
     response: MockURLProtocol.MockResponse,
