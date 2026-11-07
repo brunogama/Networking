@@ -43,16 +43,6 @@ extension HTTPResponse {
   }
 }
 
-extension HTTPResponse {
-  var cacheStorageSize: StorageSizeBytes {
-    let headerBytes = headers.reduce(into: 0) { size, header in
-      size += header.key.rawValue.utf8.count + header.value.rawValue.utf8.count
-    }
-    let bodyBytes = body?.rawValue.count ?? 0
-    return StorageSizeBytes(Int64(headerBytes + bodyBytes))
-  }
-}
-
 // MARK: - Data Extensions
 
 extension Data {
