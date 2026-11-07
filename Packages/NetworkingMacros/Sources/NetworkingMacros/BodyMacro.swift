@@ -7,7 +7,7 @@ import SwiftSyntaxMacros
 /// but doesn't generate any peer code. HTTP method macros (POST, PUT, PATCH) detect
 /// this attribute and use it to generate body encoding code.
 public struct BodyMacro: AccessorMacro, PeerMacro {
-  /// Synthesizes the accessor for a request-model body property.
+
   public static func expansion(
     of _: AttributeSyntax,
     providingAccessorsOf declaration: some DeclSyntaxProtocol,
@@ -23,7 +23,6 @@ public struct BodyMacro: AccessorMacro, PeerMacro {
     return [RequestModelSyntaxFactory.getter(from: .payload, property: name)]
   }
 
-  /// Validates the annotation consumed by API generation.
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,

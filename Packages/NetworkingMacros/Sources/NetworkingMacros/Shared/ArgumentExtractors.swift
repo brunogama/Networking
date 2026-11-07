@@ -8,19 +8,6 @@ import SwiftSyntaxMacros
 enum ArgumentExtractors {
   // MARK: - Path Extraction
 
-  /// Extracts the path from the first macro argument.
-  ///
-  /// Example:
-  /// ```swift
-  /// @GET("/users/{id}")
-  /// // Returns: "/users/{id}"
-  /// ```
-  ///
-  /// - Parameters:
-  ///   - node: The attribute syntax node
-  ///   - method: The HTTP method name for error messages (e.g., "GET", "POST")
-  ///   - context: The macro expansion context for diagnostics
-  /// - Returns: The path string, or nil if not found (emits error)
   static func extractPath(
     from node: AttributeSyntax,
     method: String,
@@ -44,18 +31,6 @@ enum ArgumentExtractors {
 
   // MARK: - Query Parameter Extraction
 
-  /// Extracts query parameters from macro arguments.
-  ///
-  /// Example:
-  /// ```swift
-  /// @GET("/users", queryParameters: ["page", "limit"])
-  /// // Returns: ["page", "limit"]
-  /// ```
-  ///
-  /// - Parameters:
-  ///   - node: The attribute syntax node
-  ///   - context: The macro expansion context (not used for errors)
-  /// - Returns: Array of query parameter names, or empty array if not found
   static func extractQueryParameters(
     from node: AttributeSyntax,
     context: some MacroExpansionContext

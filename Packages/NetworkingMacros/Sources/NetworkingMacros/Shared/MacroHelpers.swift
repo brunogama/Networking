@@ -6,7 +6,6 @@ import Foundation
 enum MacroHelpers {
   // MARK: - Function Signature Validation
 
-  /// Validates that a function has the `async` keyword.
   static func validateAsync(
     function: FunctionDeclSyntax,
     context: some MacroExpansionContext
@@ -16,7 +15,6 @@ enum MacroHelpers {
     }
   }
 
-  /// Validates that a function has the `throws` keyword.
   static func validateThrows(
     function: FunctionDeclSyntax,
     context: some MacroExpansionContext
@@ -26,7 +24,6 @@ enum MacroHelpers {
     }
   }
 
-  /// Validates that a function is both async and throws.
   static func validateAsyncThrows(
     function: FunctionDeclSyntax,
     context: some MacroExpansionContext
@@ -37,7 +34,6 @@ enum MacroHelpers {
 
   // MARK: - Parameter Extraction
 
-  /// Extracts all parameter names from a function signature.
   static func extractParameterNames(
     from function: FunctionDeclSyntax
   ) -> [String] {
@@ -48,7 +44,6 @@ enum MacroHelpers {
 
   // MARK: - Path Template Validation
 
-  /// Validates that all path parameters exist in function parameters.
   static func validatePathParameters(
     path: String,
     functionParameters: [String],
@@ -67,7 +62,6 @@ enum MacroHelpers {
     }
   }
 
-  /// Extracts parameter names from path template (e.g., "{id}" -> "id").
   static func extractPathParameters(from path: String) -> [String] {
     let pattern = #"\{(\w+)\}"#
     guard let regex = try? NSRegularExpression(pattern: pattern) else {
@@ -87,7 +81,6 @@ enum MacroHelpers {
     }
   }
 
-  /// Validates path template syntax.
   static func validatePathTemplate(
     _ path: String,
     context: some MacroExpansionContext
@@ -98,7 +91,6 @@ enum MacroHelpers {
 
   // MARK: - Query Parameter Validation
 
-  /// Validates that query parameters exist in function signature.
   static func validateQueryParameters(
     _ queryParams: [String],
     functionParameters: [String],
@@ -116,7 +108,6 @@ enum MacroHelpers {
 
   // MARK: - HTTP Method Detection
 
-  /// Detects HTTP method macros on a function.
   static func detectHTTPMethods(on declaration: some WithAttributesSyntax) -> [String] {
     let httpMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
     var found: [String] = []
@@ -134,7 +125,6 @@ enum MacroHelpers {
     return found
   }
 
-  /// Validates that only one HTTP method macro is present.
   static func validateSingleHTTPMethod(
     on function: FunctionDeclSyntax,
     context: some MacroExpansionContext

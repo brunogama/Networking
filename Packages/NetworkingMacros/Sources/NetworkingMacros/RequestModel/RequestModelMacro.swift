@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 
 /// Generates request members from property-level annotations.
 public enum RequestModelMacro: MemberMacro {
-  /// Generates endpoint properties, payload storage, and an initializer.
+
   public static func expansion(
     of node: AttributeSyntax,
     providingMembersOf declaration: some DeclGroupSyntax,

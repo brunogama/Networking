@@ -20,7 +20,7 @@ import SwiftSyntaxMacros
 /// The @DefaultHeaders macro works in conjunction with @API to inject header configuration
 /// into the generated implementation struct.
 public struct DefaultHeadersMacro: MemberMacro {
-  /// Validates the annotation consumed by API generation.
+
   public static func expansion(
     of node: AttributeSyntax,
     providingMembersOf declaration: some DeclGroupSyntax,
@@ -62,7 +62,6 @@ public struct DefaultHeadersMacro: MemberMacro {
 
   // MARK: - Header Extraction
 
-  /// Extracts headers dictionary from macro arguments.
   private static func extractHeaders(
     from node: AttributeSyntax,
     context: some MacroExpansionContext
@@ -85,10 +84,6 @@ public struct DefaultHeadersMacro: MemberMacro {
 
   // MARK: - Helper Methods
 
-  /// Extracts default headers from protocol attributes.
-  ///
-  /// This is used by APIMacro and HTTP method macros to find the default headers
-  /// configuration on the protocol.
   public static func extractDefaultHeaders(
     from declaration: some WithAttributesSyntax
   ) -> [String: String] {

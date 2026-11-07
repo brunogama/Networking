@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 
 /// Validates method-level headers that the HTTP method macro applies to its request.
 public struct HeadersMacro: PeerMacro {
-  /// Diagnoses invalid header dictionaries without adding peer declarations.
+
   public static func expansion(
     of node: AttributeSyntax,
     providingPeersOf declaration: some DeclSyntaxProtocol,

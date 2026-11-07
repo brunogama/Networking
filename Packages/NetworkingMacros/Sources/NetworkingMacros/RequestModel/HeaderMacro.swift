@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 
 /// Synthesizes the accessor for a request-model header property.
 public enum HeaderMacro: AccessorMacro {
-  /// Returns a getter that reads the generated header storage.
+
   public static func expansion(
     of _: AttributeSyntax,
     providingAccessorsOf declaration: some DeclSyntaxProtocol,
