@@ -510,7 +510,7 @@ public actor FileTransferOperations {
       let speed = duration > 0 ? Double(progress.transferredBytes) / duration : 0
       callback(
         TransferProgress(
-          totalBytes: (progress.totalBytes ?? expectedBytes).map(TransferByteCount.init),
+          totalBytes: (progress.totalBytes ?? expectedBytes).map { TransferByteCount($0) },
           transferredBytes: TransferByteCount(progress.transferredBytes),
           phase: direction.activePhase,
           bytesPerSecond: TransferSpeed(speed)
