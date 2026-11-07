@@ -9,7 +9,6 @@ public enum ChecksumAlgorithm: Sendable, CaseIterable {
   case sha256
   case sha512
 
-  /// Stable algorithm name for file metadata.
   public var identifier: ChecksumAlgorithmName {
     switch self {
     case .sha256: return "sha256"
@@ -17,7 +16,6 @@ public enum ChecksumAlgorithm: Sendable, CaseIterable {
     }
   }
 
-  /// Computes the cryptographic digest without retaining the input buffer.
   public func hash(_ data: HTTPBody) -> HTTPBody {
     switch self {
     case .sha256:

@@ -1,12 +1,7 @@
 import NetworkingCore
 
 extension CachingMiddleware {
-  /// Creates a caching middleware with default memory storage.
-  /// - Parameters:
-  ///   - client: The HTTP client to use.
-  ///   - ttl: Default time-to-live for cached responses.
-  ///   - maxCacheSize: Maximum number of entries in the cache.
-  /// - Returns: A configured caching middleware.
+
   public static func withMemoryStorage(
     client: any HTTPClient,
     ttl: CacheMaxAge = 300.0,
@@ -25,11 +20,6 @@ extension CachingMiddleware {
     )
   }
 
-  /// Creates a caching middleware with custom configuration.
-  /// - Parameters:
-  ///   - client: The HTTP client to use.
-  ///   - customConfiguration: Custom configuration closure.
-  /// - Returns: A configured caching middleware.
   public static func withCustomConfiguration(
     client: any HTTPClient,
     customConfiguration: (inout Configuration) -> Void

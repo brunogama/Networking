@@ -2,19 +2,15 @@ import Foundation
 import NetworkingCore
 
 extension CachingMiddleware {
-  /// Clears entries and prevents pre-invalidation prefetch operations from publishing results.
-  ///
-  /// Once invoked, invalidation completes even if its caller is cancelled while awaiting storage.
+
   public func clearCache() async {
     await invalidateStorage { await $0.removeAll() }
   }
 
-  /// Removes expired entries under the same storage mutation ordering as cache writes.
   public func cleanExpiredEntries() async {
     await invalidateStorage { await $0.removeExpired() }
   }
 
-  /// Removes keys selected by the caller; older prefetch work cannot undo the invalidation.
   public func invalidateEntries(
     matching predicate: @Sendable (CacheKey) -> CacheInvalidationFlag
   ) async {
@@ -24,17 +20,14 @@ extension CachingMiddleware {
     }
   }
 
-  /// Invalidates the storage's entries associated with the supplied tags.
   public func invalidateByTags(_ tags: [CacheTagName]) async {
     await invalidateStorage { await $0.removeByTags(tags) }
   }
 
-  /// Invalidates entries whose keys match the storage's pattern rules.
   public func invalidateByPattern(_ pattern: CacheInvalidationPattern) async {
     await invalidateStorage { await $0.removeByPattern(pattern) }
   }
 
-  /// Invalidates specific storage keys.
   public func invalidateByKeys(_ keys: [CacheKey]) async {
     await invalidateStorage { await $0.removeByKeys(keys) }
   }

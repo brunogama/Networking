@@ -3,18 +3,17 @@ import NetworkingCore
 
 /// Explicit configuration for awaited OTLP HTTP protobuf exports.
 public struct OTLPConfiguration: Sendable {
-  /// Collector base URL; signal paths are appended to this URL.
+
   public let endpoint: HTTPRequestURL
-  /// Service attributes attached to every export.
+
   public let resource: OTLPResource
-  /// Collector authentication headers; never included in telemetry payloads.
+
   public let headers: HTTPHeaders
-  /// Maximum duration of each export request.
+
   public let timeout: RequestTimeout
-  /// Case-insensitive attribute names omitted from spans, events, and resources.
+
   public var redactedAttributes: Set<TraceAttributeKey> = Self.defaultRedactedAttributes
 
-  /// Creates explicit export settings; exporters validate them before use.
   public init(
     endpoint: HTTPRequestURL,
     resource: OTLPResource = OTLPResource(),
@@ -27,13 +26,11 @@ public struct OTLPConfiguration: Sendable {
     self.timeout = timeout
   }
 
-  /// Credential-bearing attributes excluded unless the caller replaces this policy.
   public static let defaultRedactedAttributes: Set<TraceAttributeKey> = [
     "http.request.header.authorization", "http.request.header.cookie",
     "http.request.header.x-api-key", "user.password", "user.token",
   ]
 
-  /// Rejects non-HTTP URLs, URL credentials, invalid hosts, and invalid timeouts.
   public func validate() throws(OTLPConfigurationError) {
     guard ["http", "https"].contains(endpoint.rawValue.scheme ?? ""),
       endpoint.rawValue.host != nil

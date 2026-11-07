@@ -13,7 +13,6 @@ public actor OTLPMetricsCollector: MetricsCollector {
   private let encoding: OTLPEncoding
   private var totals: [HTTPRequestMetrics.Outcome: OTLPMetricTotals] = [:]
 
-  /// Creates an exporter using a caller-owned session and validated configuration.
   public init(
     configuration: OTLPConfiguration,
     session: URLSession = .shared
@@ -25,9 +24,6 @@ public actor OTLPMetricsCollector: MetricsCollector {
     self.encoding = OTLPEncoding(configuration: configuration)
   }
 
-  /// Adds one observation and sends cumulative totals, propagating export errors.
-  ///
-  /// Failed delivery remains in the totals for a later sample; there is no automatic retry.
   public func record(_ metrics: HTTPRequestMetrics) async throws(OTLPExportError) {
     let response = try await transport.send(payload(metrics), signal: .metrics)
     try validateResponse(response)

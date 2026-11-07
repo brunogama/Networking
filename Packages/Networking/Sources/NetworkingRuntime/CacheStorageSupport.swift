@@ -6,18 +6,17 @@ import CryptoKit
 
 /// Cache performance metrics.
 public struct CacheMetrics: Sendable {
-  /// Number of retained entries.
+
   public let size: CacheEntryCount
-  /// Number of successful fresh-entry lookups.
+
   public let hitCount: CacheHitCount
-  /// Number of lookups without a usable entry.
+
   public let missCount: CacheMissCount
-  /// Number of entries removed to satisfy storage limits.
+
   public let evictionCount: CacheEvictionCount
-  /// Fraction of recorded lookups that hit the cache.
+
   public let hitRatio: CacheHitRatioMetric
 
-  /// Captures one snapshot of storage counters.
   public init(
     size: CacheEntryCount,
     hitCount: CacheHitCount,

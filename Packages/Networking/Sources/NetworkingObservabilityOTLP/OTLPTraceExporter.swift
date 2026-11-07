@@ -12,7 +12,6 @@ public struct OTLPTraceExporter: TraceExporter {
   private let transport: OTLPHTTPTransport
   private let encoding: OTLPEncoding
 
-  /// Creates an exporter; the caller retains ownership of an injected session.
   public init(
     configuration: OTLPConfiguration,
     session: URLSession = .shared
@@ -24,7 +23,6 @@ public struct OTLPTraceExporter: TraceExporter {
     self.encoding = OTLPEncoding(configuration: configuration)
   }
 
-  /// Exports the atomic completed snapshot, preserving trace/span/parent IDs and events.
   public func export(_ span: TraceSpan) async throws(OTLPExportError) {
     let snapshot = await span.snapshot()
     let body = try payload(snapshot)

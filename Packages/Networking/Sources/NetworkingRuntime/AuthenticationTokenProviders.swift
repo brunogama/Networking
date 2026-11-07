@@ -2,7 +2,7 @@ import Foundation
 import NetworkingCore
 
 extension AuthenticationMiddleware.TokenProvider {
-  /// Refreshes bearer credentials only after an unauthorized response by default.
+
   public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
     if case .http(.unauthorized) = error.category { return true }
     return false
@@ -15,7 +15,6 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
   private var credentialRevision = UUID()
   private let refreshHandler: @Sendable () async throws -> BearerTokenValue
 
-  /// Creates an in-memory credential store and its refresh operation.
   public init(
     initialToken: BearerTokenValue? = nil,
     refreshHandler: @escaping @Sendable () async throws -> BearerTokenValue
@@ -24,12 +23,10 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
     self.refreshHandler = refreshHandler
   }
 
-  /// Returns the current credential.
   public func getCurrentToken() async throws -> BearerTokenValue? {
     accessToken
   }
 
-  /// Refreshes the credential unless another mutation supersedes the operation while suspended.
   public func refreshToken() async throws -> BearerTokenValue {
     try Task.checkCancellation()
     let revision = credentialRevision
@@ -43,7 +40,6 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
     return newToken
   }
 
-  /// Allows refresh after an unauthorized response.
   public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
     if case .http(let status) = error.category, status.rawValue == 401 {
       return true
@@ -52,7 +48,6 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
     return false
   }
 
-  /// Replaces the credential; nil represents a signed-out state.
   public func setToken(_ token: BearerTokenValue?) async {
     credentialRevision = UUID()
     accessToken = token
@@ -60,7 +55,7 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
 }
 
 extension AuthenticationMiddleware {
-  /// Creates an authentication middleware with a memory-based token provider.
+
   public static func withMemoryProvider(
     client: any HTTPClient,
     initialToken: BearerTokenValue? = nil,
@@ -76,7 +71,6 @@ extension AuthenticationMiddleware {
     )
   }
 
-  /// Creates an authentication middleware with a closure-based token provider.
   public static func withClosureProvider(
     client: any HTTPClient,
     getCurrentToken: @escaping @Sendable () async throws -> BearerTokenValue?,

@@ -14,7 +14,6 @@ import Security
 public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked Sendable {
   let securityConfiguration: SecurityConfiguration
 
-  /// Retains immutable pinning and TLS policies for concurrent delegate callbacks.
   public init(securityConfiguration: SecurityConfiguration) {
     self.securityConfiguration = securityConfiguration
     super.init()
@@ -22,7 +21,6 @@ public final class SSLPinningValidator: NSObject, URLSessionDelegate, @unchecked
 
   // MARK: - URLSessionDelegate
 
-  /// Evaluates every applicable pinning policy before accepting a server credential.
   public func urlSession(
     _ session: URLSession,
     didReceive challenge: URLAuthenticationChallenge,

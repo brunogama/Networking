@@ -2,20 +2,20 @@ import NetworkingCore
 
 /// The result of one request in a batch, identified by its original index.
 public struct BatchResult: Sendable {
-  /// Position in the input array.
+
   public let index: BatchRequestIndex
-  /// Original request.
+
   public let request: HTTPRequest
-  /// Response or failure from executing the request.
+
   public let result: Result<HTTPResponse, HTTPError>
-  /// Whether execution succeeded.
+
   public var isSuccess: RequestSuccessFlag { RequestSuccessFlag(response != nil) }
-  /// The successful response, if present.
+
   public var response: HTTPResponse? {
     guard case .success(let response) = result else { return nil }
     return response
   }
-  /// The execution error, if present.
+
   public var error: HTTPError? {
     guard case .failure(let error) = result else { return nil }
     return error
@@ -23,9 +23,7 @@ public struct BatchResult: Sendable {
 }
 
 extension HTTPClient {
-  /// Executes requests with bounded child tasks and returns started results in input order.
-  ///
-  /// Cancellation stops scheduling and cancels active tasks. Unstarted requests are omitted.
+
   public func executeBatch(
     _ requests: [HTTPRequest],
     configuration: BatchConfiguration = .default

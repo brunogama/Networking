@@ -12,7 +12,6 @@ public actor CachingMiddleware: CachedResponseProviding, HTTPRequestMiddleware,
   var generation = UUID()
   var pendingInvalidations = 0
 
-  /// Creates a cache using the supplied storage and client for explicit prefetch requests.
   public init(
     configuration: Configuration,
     storage: any HTTPResponseCacheStorage,
@@ -23,7 +22,6 @@ public actor CachingMiddleware: CachedResponseProviding, HTTPRequestMiddleware,
     self.client = client
   }
 
-  /// Adds validators to stale GET requests without changing their logical identity.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
     guard request.method == .get, configuration.useConditionalRequests.rawValue else {
       return request
@@ -51,7 +49,6 @@ public actor CachingMiddleware: CachedResponseProviding, HTTPRequestMiddleware,
     return response(accessed.response, for: request)
   }
 
-  /// Stores cacheable responses or resolves 304 revalidation using retained content.
   public func processResponse(
     _ response: HTTPResponse,
     for request: HTTPRequest
@@ -66,7 +63,6 @@ public actor CachingMiddleware: CachedResponseProviding, HTTPRequestMiddleware,
     return try await storeResponse(response, for: request, generation: generation)
   }
 
-  /// Returns a fresh cache entry for inspection.
   public func getCachedEntry(for request: HTTPRequest) async -> CacheEntry? {
     guard pendingInvalidations == 0 else { return nil }
     let observed = generation

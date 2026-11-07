@@ -9,7 +9,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
   private let diskCache: DiskCacheStorage
   private let memoryThreshold: StorageSizeBytes  // Entries larger than this go directly to disk
 
-  /// Creates a coherent memory front cache backed by persistent disk storage.
   public init(
     memorySizePolicy: CacheSizePolicy = .maxEntries(500),
     diskSizePolicy: CacheSizePolicy = .maxDiskSize(52_428_800),
@@ -27,7 +26,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     self.memoryThreshold = memoryThreshold
   }
 
-  /// Lists keys from both storage tiers.
   public func keys() async -> [CacheKey] {
     await operations.acquire()
     let memoryKeys = await memoryCache.keys()
@@ -36,7 +34,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     return Array(Set(memoryKeys).union(diskKeys))
   }
 
-  /// Returns a fresh entry, promoting small disk entries into memory.
   public func get(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     await operations.acquire()
     let result = await lookup(key)
@@ -60,7 +57,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     return nil
   }
 
-  /// Returns retained content and validators from either tier, including stale entries.
   public func getForRevalidation(_ key: CacheKey) async -> CachingMiddleware.CacheEntry? {
     await operations.acquire()
     var result = await memoryCache.getForRevalidation(key)
@@ -69,7 +65,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     return result
   }
 
-  /// Stores an entry in disk and, when small enough, memory.
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
     await operations.acquire()
     let responseSize = entry.response.cacheStorageSize
@@ -84,7 +79,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     await operations.release()
   }
 
-  /// Removes one entry from both tiers.
   public func remove(_ key: CacheKey) async {
     await operations.acquire()
     await memoryCache.remove(key)
@@ -92,7 +86,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     await operations.release()
   }
 
-  /// Clears both tiers before another operation begins.
   public func removeAll() async {
     await operations.acquire()
     await memoryCache.removeAll()
@@ -100,7 +93,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     await operations.release()
   }
 
-  /// Removes expired entries from both tiers.
   public func removeExpired() async {
     await operations.acquire()
     await memoryCache.removeExpired()
@@ -108,7 +100,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     await operations.release()
   }
 
-  /// Removes entries associated with any supplied tag.
   public func removeByTags(_ tags: [CacheTagName]) async {
     await operations.acquire()
     await memoryCache.removeByTags(tags)
@@ -116,7 +107,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     await operations.release()
   }
 
-  /// Removes whole keys matching a wildcard pattern.
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
     await operations.acquire()
     await memoryCache.removeByPattern(pattern)
@@ -124,7 +114,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     await operations.release()
   }
 
-  /// Removes the supplied keys from both tiers.
   public func removeByKeys(_ keys: [CacheKey]) async {
     await operations.acquire()
     await memoryCache.removeByKeys(keys)
@@ -132,7 +121,6 @@ public actor HybridCacheStorage: HTTPResponseCacheStorage {
     await operations.release()
   }
 
-  /// Returns combined cache metrics.
   public func getMetrics() async -> (memory: CacheMetrics, disk: StorageSizeBytes) {
     await operations.acquire()
     let memoryMetrics = await memoryCache.getMetrics()

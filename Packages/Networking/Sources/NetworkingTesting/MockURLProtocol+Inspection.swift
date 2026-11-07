@@ -3,19 +3,13 @@ import NetworkingCore
 import NetworkingRuntime
 
 extension MockURLProtocol {
-  /// Get all captured requests.
-  /// - Returns: Array of all requests that were handled by the mock
+
   public static func getCapturedRequests(
     contextID: MockContextIdentifier? = nil
   ) async -> [URLRequest] {
     mockState.getCapturedRequests(contextID: contextID)
   }
 
-  /// Get request count for a specific URL.
-  /// - Parameters:
-  ///   - url: The URL to check.
-  ///   - contextID: Limits inspection to a specific test session.
-  /// - Returns: Number of times requests were made to this URL
   public static func getRequestCount(
     for url: HTTPRequestURL,
     contextID: MockContextIdentifier? = nil
@@ -23,13 +17,6 @@ extension MockURLProtocol {
     mockState.getRequestCount(for: url, contextID: contextID)
   }
 
-  /// Verify that a request was made.
-  /// - Parameters:
-  ///   - url: The URL that should have been requested
-  ///   - method: Optional HTTP method to verify
-  ///   - count: Expected number of requests (default: at least 1)
-  ///   - contextID: Limits inspection to a specific test session.
-  /// - Returns: True if verification passes
   public static func verifyRequest(
     url: HTTPRequestURL,
     method: HTTPMethod? = nil,
@@ -46,20 +33,16 @@ extension MockURLProtocol {
     return MockPredicateMatchFlag(matchingRequests.count >= count.rawValue)
   }
 
-  /// Clear all stubs and captured requests.
   public static func clearAll(contextID: MockContextIdentifier? = nil) {
     mockState.clearAll(contextID: contextID)
   }
 
-  /// Get current stub count for testing/debugging.
   public static func getStubCount() async -> MockVerificationCount {
     mockState.getStubCount()
   }
 
   // MARK: - Convenience Methods
 
-  /// Create a URLSessionConfiguration configured with MockURLProtocol.
-  /// - Returns: URLSessionConfiguration ready for testing
   public static func createMockConfiguration(
     contextID: MockContextIdentifier? = nil
   ) -> URLSessionConfiguration {
@@ -76,8 +59,6 @@ extension MockURLProtocol {
     return config
   }
 
-  /// Create an HTTPClient configured with MockURLProtocol.
-  /// - Returns: HTTPClient instance ready for testing
   public static func createMockHTTPClient(contextID: MockContextIdentifier? = nil) -> HTTPClient {
     let config = createMockConfiguration(contextID: contextID)
     return NetworkClient(session: URLSession(configuration: config))

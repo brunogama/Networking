@@ -11,13 +11,11 @@ public actor MockNetworkClient: HTTPClient {
   private var recordsRequests: Bool
   let codec: JSONCodec
 
-  /// Creates an isolated mock with optional recording and a reusable JSON codec.
   public init(recordRequests: RequestRecordingEnabledFlag = true, codec: JSONCodec = JSONCodec()) {
     recordsRequests = recordRequests.rawValue
     self.codec = codec
   }
 
-  /// Registers matching rules, response, call limit, and capture behavior in one actor turn.
   public func expect(
     matching matchers: MockURLProtocol.RequestMatcher...,
     response: MockURLProtocol.MockResponse = .success(statusCode: 200, data: HTTPBody(Data())),
@@ -34,7 +32,6 @@ public actor MockNetworkClient: HTTPClient {
     )
   }
 
-  /// Records every matching expectation before performing the first matching response.
   public func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
     try Task.checkCancellation()
     if recordsRequests { requestHistory.append(request) }
@@ -57,13 +54,11 @@ public actor MockNetworkClient: HTTPClient {
     return response
   }
 
-  /// Clears this client's expectations and recorded requests.
   public func reset() {
     expectations.removeAll()
     requestHistory.removeAll()
   }
 
-  /// Enables or disables recording without changing expectations.
   public func setRequestRecording(enabled: RequestRecordingEnabledFlag) {
     recordsRequests = enabled.rawValue
   }

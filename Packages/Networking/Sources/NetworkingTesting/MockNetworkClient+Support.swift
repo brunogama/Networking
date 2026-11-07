@@ -6,8 +6,7 @@ import NetworkingCore
 import Testing
 
 extension MockNetworkClient {
-  /// Verifies expectations using the Swift Testing framework.
-  /// - Parameter sourceLocation: Source location for error reporting
+
   public func expectationsAreFulfilled(
     sourceLocation: SourceLocation = #_sourceLocation
   ) {
@@ -19,12 +18,6 @@ extension MockNetworkClient {
     )
   }
 
-  /// Asserts that a specific request was made.
-  /// - Parameters:
-  ///   - path: URL path that should have been requested
-  ///   - method: HTTP method
-  ///   - count: Expected number of requests
-  ///   - sourceLocation: Source location for error reporting
   public func expectRequest(
     path: MockRequestPath,
     method: HTTPMethod,

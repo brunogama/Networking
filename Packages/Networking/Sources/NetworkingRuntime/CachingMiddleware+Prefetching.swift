@@ -39,9 +39,6 @@ extension CachingMiddleware {
     )
   }
 
-  /// Fetches explicitly requested content in the caller's task; concurrent callers remain independent.
-  ///
-  /// Cancellation or an intervening invalidation prevents this operation from publishing an entry.
   public func prefetchSingle(request: HTTPRequest) async -> WarmCacheResult {
     let observed = generation
     let key = cacheKey(for: request)
@@ -58,9 +55,6 @@ extension CachingMiddleware {
     } catch { return .failure(request: request, error: error) }
   }
 
-  /// Prefetches only the supplied requests with bounded structured concurrency.
-  ///
-  /// Results retain input order; cancellation propagates to child requests and all children are joined.
   public func warmCache(
     requests: [HTTPRequest],
     concurrency: CachePreloadConcurrency = 4

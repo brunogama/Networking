@@ -3,7 +3,7 @@ import NetworkingCore
 #if canImport(Security)
 /// A token provider that uses Keychain for secure storage.
 public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider {
-  /// Exchanges a refresh credential for an access credential.
+
   public typealias RefreshHandler =
     @Sendable (RefreshTokenValue) async throws -> BearerTokenValue
 
@@ -12,7 +12,6 @@ public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider
   private let refreshTokenKey: KeychainItemKey?
   private let refreshHandler: RefreshHandler?
 
-  /// Reuses a keychain service without retaining credential values between reads.
   public init(
     keychainService: KeychainService,
     tokenKey: KeychainItemKey = "access_token",
@@ -25,7 +24,6 @@ public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider
     self.refreshHandler = refreshHandler
   }
 
-  /// Convenience initializer with service name.
   public convenience init(
     service: KeychainServiceName,
     tokenKey: KeychainItemKey = "access_token",
@@ -40,16 +38,12 @@ public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider
     )
   }
 
-  /// Reads the current access credential directly from the keychain.
   public func getCurrentToken() async throws -> BearerTokenValue? {
     try await keychainService.retrieveString(forKey: tokenKey).map {
       BearerTokenValue($0.rawValue)
     }
   }
 
-  /// Exchanges the stored refresh credential and persists it only while credentials are unchanged.
-  ///
-  /// Mutations through the shared keychain service invalidate the pending refresh.
   public func refreshToken() async throws -> BearerTokenValue {
     try Task.checkCancellation()
     guard let refreshTokenKey else {
@@ -74,12 +68,10 @@ public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider
     return token
   }
 
-  /// Stores an access token securely in the keychain.
   public func storeToken(_ token: BearerTokenValue) async throws {
     try await keychainService.store(KeychainStringValue(token.rawValue), forKey: tokenKey)
   }
 
-  /// Stores a refresh token securely in the keychain.
   public func storeRefreshToken(_ token: RefreshTokenValue) async throws {
     guard let refreshTokenKey else {
       throw HTTPError(category: .configuration("Refresh token key not configured"))
@@ -91,9 +83,6 @@ public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider
     )
   }
 
-  /// Deletes both credentials in one actor turn and invalidates pending refreshes.
-  ///
-  /// Keychain failures are propagated; this operation is not a system-wide storage transaction.
   public func clearTokens() async throws {
     try await keychainService.deleteTokens(tokenKey: tokenKey, refreshKey: refreshTokenKey)
   }
@@ -104,7 +93,7 @@ public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider
 }
 
 extension KeychainTokenProvider {
-  /// Factory method to create a token provider for OAuth2 flows.
+
   public static func oauth2(
     service: KeychainServiceName,
     clientId: OAuthClientIdentifier? = nil,
@@ -121,7 +110,6 @@ extension KeychainTokenProvider {
     )
   }
 
-  /// Factory method to create a token provider for API key authentication.
   public static func apiKey(
     service: KeychainServiceName,
     keyName: KeychainItemKey = "api_key"

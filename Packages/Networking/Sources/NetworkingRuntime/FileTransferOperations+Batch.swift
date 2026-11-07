@@ -1,12 +1,7 @@
 import NetworkingCore
 
 extension FileTransferOperations {
-  /// Uploads files with bounded concurrency and returns results in the input order.
-  ///
-  /// All upload and aggregate-progress tasks finish before this method returns. Failure or
-  /// cancellation cancels and joins the remaining uploads. Progress callbacks run serially.
-  /// `maxConcurrency` must be positive and limits simultaneous file reads and uploads.
-  /// - Throws: Invalid limits, a count mismatch, file validation, transport, or cancellation errors.
+
   public func uploadFiles(
     from fileURLs: [LocalFileURL],
     to destinationURLs: [RemoteTransferURL],

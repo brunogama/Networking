@@ -14,11 +14,6 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
 
   // MARK: - Initialization
 
-  /// Creates a new authentication middleware.
-  /// - Parameters:
-  ///   - configuration: The authentication configuration
-  ///   - tokenProvider: The token provider implementation
-  ///   - client: The HTTP client to use for requests
   public init(
     configuration: Configuration,
     tokenProvider: any TokenProvider,
@@ -31,7 +26,6 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
 
   // MARK: - HTTPRequestMiddleware
 
-  /// Adds a credential when eligible and no explicit authorization header exists.
   public func modifyRequest(_ request: HTTPRequest) async throws -> HTTPRequest {
     guard configuration.shouldAuthenticate(request).rawValue else {
       return request
@@ -52,7 +46,6 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
 
   // MARK: - HTTPErrorMiddleware
 
-  /// Refreshes eligible authentication failures and retries within the configured limit.
   public func handleError(
     _ error: HTTPError,
     for request: HTTPRequest

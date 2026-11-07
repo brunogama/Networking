@@ -29,6 +29,6 @@
 /// ```
 @globalActor
 public actor NetworkActor {
-  /// The shared instance of the network actor.
+
   public static let shared = NetworkActor()
 }

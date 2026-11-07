@@ -11,10 +11,8 @@ public struct NetworkInspector: View {
   @State private var traces: [HTTPTrace] = []
   @State private var search = ""
 
-  /// Creates an inspector for a recorder shared with the application's HTTP client.
   public init(diagnostics: NetworkDiagnostics) { self.diagnostics = diagnostics }
 
-  /// The searchable request list and request details.
   public var body: some View {
     NavigationStack {
       List(filteredTraces.reversed()) { trace in

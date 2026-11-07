@@ -9,7 +9,6 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
   private let client: any HTTPClient
   private let shouldRetry: @Sendable (HTTPRequest, HTTPError) -> Bool
 
-  /// Creates a retry stage with an explicit transport and replay predicate.
   public init(
     configuration: Configuration = .default,
     client: any HTTPClient,
@@ -20,7 +19,6 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
     self.shouldRetry = shouldRetry
   }
 
-  /// Performs at most the configured number of additional attempts, preserving cancellation.
   public func handleError(
     _ error: HTTPError,
     for request: HTTPRequest
@@ -63,7 +61,6 @@ public struct RetryMiddleware: HTTPErrorMiddleware {
     }
   }
 
-  /// Selects transient failures of methods whose HTTP semantics permit replay.
   public static func defaultShouldRetry(_ request: HTTPRequest, _ error: HTTPError) -> Bool {
     guard [HTTPMethod.get, .head, .put, .delete, .options].contains(request.method) else {
       return false

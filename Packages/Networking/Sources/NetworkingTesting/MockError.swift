@@ -4,16 +4,13 @@ import NetworkingCore
 ///
 /// Provides structured error reporting for mock expectations and stubbing issues.
 public enum MockError: Error, Equatable, CustomStringConvertible {
-  /// Thrown when a stubbed value is required but not set.
+
   case notStubbed(ExpectationDescriptionText)
 
-  /// Thrown when verification fails due to unexpected call count.
   case unexpectedCallCount(expected: MockVerificationCount, actual: MockVerificationCount)
 
-  /// Thrown when a mock receives an argument it doesn't expect.
   case unexpectedArgument(description: ExpectationDescriptionText)
 
-  /// Describes the failed mock expectation.
   public var description: String {
     switch self {
     case .notStubbed(let message):

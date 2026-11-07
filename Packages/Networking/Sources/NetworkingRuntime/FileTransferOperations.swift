@@ -20,7 +20,6 @@ public actor FileTransferOperations {
 
   // MARK: - Initialization
 
-  /// Creates a file transfer service with the given HTTP client and configuration.
   public init(
     httpClient: any HTTPClient,
     configuration: FileTransferConfiguration = .default
@@ -43,13 +42,6 @@ public actor FileTransferOperations {
 
   // MARK: - File Upload Operations
 
-  /// Uploads a file from a local path to a remote URL.
-  /// - Parameters:
-  ///   - fileURL: Local file URL to upload
-  ///   - destinationURL: Remote URL to upload to
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: A file validation or network error.
   public func uploadFile(
     from fileURL: LocalFileURL,
     to destinationURL: RemoteTransferURL,
@@ -91,15 +83,6 @@ public actor FileTransferOperations {
     )
   }
 
-  /// Uploads file data to a remote URL.
-  /// - Parameters:
-  ///   - data: File data to upload
-  ///   - fileName: Name of the file
-  ///   - destinationURL: Remote URL to upload to
-  ///   - mimeType: MIME type of the file
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: A file validation or network error.
   public func uploadData(
     _ data: HTTPBody,
     fileName: FileName,
@@ -133,13 +116,6 @@ public actor FileTransferOperations {
 
   // MARK: - File Download Operations
 
-  /// Downloads a file from a remote URL to a local path.
-  /// - Parameters:
-  ///   - sourceURL: Remote URL to download from
-  ///   - destinationURL: Local URL to save the file
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: A network or file error.
   public func downloadFile(
     from sourceURL: RemoteTransferURL,
     to destinationURL: LocalFileURL,
@@ -172,12 +148,6 @@ public actor FileTransferOperations {
     )
   }
 
-  /// Downloads a file and returns it as Data.
-  /// - Parameters:
-  ///   - sourceURL: Remote URL to download from
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: Downloaded file data and transfer result
-  /// - Throws: A network or file error.
   public func downloadData(
     from sourceURL: RemoteTransferURL,
     progressCallback: ProgressCallback? = nil
@@ -215,12 +185,6 @@ public actor FileTransferOperations {
 
   // MARK: - Resumable Transfer Operations
 
-  /// Resumes a previously interrupted transfer.
-  /// - Parameters:
-  ///   - resumeData: Resume data from previous transfer
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: An invalid resume data, cancellation, or transfer error.
   public func resumeTransfer(
     with resumeData: TransferResumeData,
     progressCallback: ProgressCallback? = nil
@@ -249,17 +213,12 @@ public actor FileTransferOperations {
     )
   }
 
-  /// Cancels an active transfer and returns resume data if available.
-  /// - Parameter transferId: The ID of the transfer to cancel
-  /// - Returns: Resume data for later resumption, if available
   public func cancelTransfer(_ transferId: TransferIdentifier) async -> TransferResumeData? {
     await backgroundTransfers.cancel(transferId)
   }
 
   // MARK: - Background Transfer Support
 
-  /// Configures background transfer capabilities.
-  /// - Parameter configuration: Background transfer configuration
   public func configureBackgroundTransfer(
     _ configuration: BackgroundTransferConfiguration
   ) async {

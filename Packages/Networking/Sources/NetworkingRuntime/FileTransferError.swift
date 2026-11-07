@@ -13,7 +13,6 @@ public enum FileTransferError: Error, LocalizedError {
   case backgroundTransferNotSupported
   case temporaryDirectoryUnavailable
 
-  /// A description of the rejected or failed transfer.
   public var errorDescription: String? {
     switch self {
     case .fileTooLarge(let size, let maxSize):

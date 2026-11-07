@@ -2,10 +2,7 @@ import Foundation
 import NetworkingCore
 
 extension NetworkClient {
-  /// Executes a declarative request and decodes its typed response.
-  ///
-  /// The request is materialized once before middleware runs, so diagnostics, caching, and
-  /// transport all observe the same immutable `HTTPRequest` value.
+
   public func send<Model: Request>(_ request: Model) async throws(HTTPError) -> Model.Response {
     let httpRequest = try materialize(request)
     let response = try await execute(httpRequest)
@@ -23,10 +20,6 @@ extension NetworkClient {
     }
   }
 
-  /// Executes heterogeneous declarative requests concurrently and returns their typed responses.
-  ///
-  /// Child requests are structured child tasks. Cancelling the caller cancels every unfinished
-  /// request, and a failure cancels the remaining children before this method returns.
   public func send<each Model: Request>(
     _ requests: repeat each Model
   ) async throws(HTTPError) -> (repeat (each Model).Response) {
