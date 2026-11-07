@@ -1,0 +1,1 @@
+typealias MacroDiagnosticText = MacroPluginBoundaryString<MacroDiagnosticTextTag>

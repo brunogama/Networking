@@ -1,8 +1,4 @@
 import SwiftSyntax
-import SwiftSyntaxBuilder
-import SwiftSyntaxMacros
-import SwiftDiagnostics
-import Foundation
 
 extension FunctionDeclSyntax {
   func detectBodyMacro() -> String? {
@@ -25,32 +21,14 @@ extension FunctionDeclSyntax {
     var headers: [ParsedHeader] = []
 
     for attribute in attributes {
-      guard let closure = HeaderMacroParser.closure(from: attribute) else {
-        continue
-      }
-
-      headers.append(contentsOf: HeaderMacroParser.parseHeaders(from: closure))
+      guard case .attribute(let node) = attribute,
+        node.attributeName.trimmedDescription == "Headers",
+        let parsedHeaders = HeaderMacroParser.parseHeaders(from: node)
+      else { continue }
+      headers.append(contentsOf: parsedHeaders)
     }
 
     return headers
   }
 
-  func usesOldMacroSyntax() -> Bool {
-    for attribute in attributes {
-      guard case .attribute(let attr) = attribute,
-        case .argumentList(let arguments) = attr.arguments
-      else {
-        continue
-      }
-
-      for argument in arguments {
-        if let label = argument.label?.text,
-          label == "body" || label == "headers"
-        {
-          return true
-        }
-      }
-    }
-    return false
-  }
 }

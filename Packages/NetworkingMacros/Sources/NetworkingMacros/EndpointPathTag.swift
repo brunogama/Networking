@@ -1,0 +1,1 @@
+enum EndpointPathTag: Sendable {}
