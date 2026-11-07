@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+# Managed by provision-swift-quality.sh. Format and lint gate for Swift files.
+# Optional: SWIFTLINT_CACHE_PATH=/path overrides SwiftLint's cache directory.
+set -euo pipefail
+
+fail() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  bash scripts/swift-style format file.swift [...]   (format only; used by the pre-commit hook)
+  bash scripts/swift-style fix file.swift [...]      (format, then strict checks)
+  bash scripts/swift-style check file.swift [...]
+  bash scripts/swift-style check --all
+
+Paths are relative to the repository root.
+
+Managed scopes:
+  Sources/     root .swiftlint.yml
+  Benchmarks/  root .swiftlint.yml
+  Tests/       Tests/.swiftlint.yml
+  Packages/*/Sources/  root .swiftlint.yml
+  Packages/*/Tests/    Tests/.swiftlint.yml
+EOF
+}
+
+ROOT="$(
+  git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel
+)"
+cd "$ROOT"
+
+if (( $# < 2 )); then
+  usage
+  exit 2
+fi
+
+mode="$1"
+shift
+
+case "$mode" in
+  format|fix|check) ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
+
+command -v swift >/dev/null 2>&1 ||
+  fail "Swift is not available."
+
+command -v swiftlint >/dev/null 2>&1 ||
+  fail "SwiftLint is not available."
+
+command -v xcodebuild >/dev/null 2>&1 ||
+  fail "Xcode command-line tools are not available."
+
+[[ -f .swift-format ]] ||
+  fail "Missing .swift-format."
+
+[[ -f .swiftlint.yml ]] ||
+  fail "Missing .swiftlint.yml."
+
+[[ -f .swift-style.env ]] ||
+  fail "Missing .swift-style.env."
+
+# Trusted, committed repository configuration.
+# shellcheck source=/dev/null
+source "$ROOT/.swift-style.env"
+
+: "${XCODE_VERSION:?Missing XCODE_VERSION}"
+: "${SWIFTLINT_VERSION:?Missing SWIFTLINT_VERSION}"
+
+actual_xcode="$(xcodebuild -version | awk '/^Xcode / {print $2}')"
+actual_swiftlint="$(swiftlint version)"
+
+[[ "$actual_xcode" == "$XCODE_VERSION" ]] ||
+  fail "Expected Xcode $XCODE_VERSION; found $actual_xcode."
+
+[[ "$actual_swiftlint" == "$SWIFTLINT_VERSION" ]] ||
+  fail "Expected SwiftLint $SWIFTLINT_VERSION; found $actual_swiftlint."
+
+swift format --help >/dev/null 2>&1 ||
+  fail "The selected toolchain does not provide swift format."
+
+files=()
+
+if [[ "${1:-}" == "--all" ]]; then
+  [[ "$mode" == "check" && $# -eq 1 ]] ||
+    fail "--all is supported only as: check --all"
+
+  while IFS= read -r -d '' file; do
+    [[ -f "$file" && "$file" == *.swift ]] || continue
+    files+=("$file")
+  done < <(
+    git ls-files \
+      --cached \
+      --others \
+      --exclude-standard \
+      --deduplicate \
+      -z \
+      -- Sources Benchmarks Tests 'Packages/*/Sources/*' 'Packages/*/Tests/*'
+  )
+else
+  for file in "$@"; do
+    while [[ "$file" == ./* ]]; do
+      file="${file#./}"
+    done
+
+    case "$file" in
+      /*|../*|*/../*|*/..)
+        fail "Use a repository-relative path without '..': $file"
+        ;;
+    esac
+
+    [[ "$file" == *.swift && -f "$file" && ! -L "$file" ]] ||
+      fail "Expected an existing, nonsymlink Swift file: $file"
+
+    case "$file" in
+      Sources/*|Benchmarks/*|Tests/*|Packages/*/Sources/*|Packages/*/Tests/*)
+        files+=("$file")
+        ;;
+      *)
+        fail "File is outside the managed Swift scope: $file"
+        ;;
+    esac
+  done
+fi
+
+(( ${#files[@]} > 0 )) ||
+  fail "No Swift files found in the selected scope."
+
+production_files=()
+test_files=()
+
+for file in "${files[@]}"; do
+  [[ ! -L "$file" ]] ||
+    fail "Symlinked Swift files are not supported: $file"
+
+  case "$file" in
+    Sources/*|Benchmarks/*|Packages/*/Sources/*)
+      production_files+=("$ROOT/$file")
+      ;;
+    Tests/*|Packages/*/Tests/*)
+      test_files+=("$ROOT/$file")
+      ;;
+  esac
+done
+
+if (( ${#test_files[@]} > 0 )); then
+  [[ -f Tests/.swiftlint.yml ]] ||
+    fail "Test files exist but Tests/.swiftlint.yml is missing."
+fi
+
+if [[ "$mode" == "fix" || "$mode" == "format" ]]; then
+  echo "Formatting ${#files[@]} Swift file(s)..."
+
+  swift format format \
+    --configuration "$ROOT/.swift-format" \
+    --in-place \
+    "${files[@]}"
+fi
+
+if [[ "$mode" == "format" ]]; then
+  exit 0
+fi
+
+status=0
+
+echo "Checking Swift formatting..."
+
+if ! swift format lint \
+  --configuration "$ROOT/.swift-format" \
+  --strict \
+  "${files[@]}"; then
+  status=1
+fi
+
+lint_files() (
+  working_directory="$1"
+  configuration="$2"
+  shift 2
+
+  cd "$working_directory"
+
+  # Set the count explicitly so inherited entries are not used.
+  export SCRIPT_INPUT_FILE_COUNT="$#"
+
+  index=0
+  for file in "$@"; do
+    export "SCRIPT_INPUT_FILE_${index}=$file"
+    index=$((index + 1))
+  done
+
+  cache_args=()
+  if [[ -n "${SWIFTLINT_CACHE_PATH:-}" ]]; then
+    cache_args=(--cache-path "$SWIFTLINT_CACHE_PATH")
+  fi
+
+  swiftlint lint \
+    --config "$configuration" \
+    --strict \
+    --force-exclude \
+    "${cache_args[@]+"${cache_args[@]}"}" \
+    --use-script-input-files
+)
+
+if (( ${#production_files[@]} > 0 )); then
+  echo "Checking production and benchmark SwiftLint rules..."
+
+  if ! lint_files \
+    "$ROOT" \
+    "$ROOT/.swiftlint.yml" \
+    "${production_files[@]}"; then
+    status=1
+  fi
+fi
+
+if (( ${#test_files[@]} > 0 )); then
+  echo "Checking test SwiftLint rules..."
+
+  if ! lint_files \
+    "$ROOT/Tests" \
+    "$ROOT/Tests/.swiftlint.yml" \
+    "${test_files[@]}"; then
+    status=1
+  fi
+fi
+
+if (( status != 0 )); then
+  echo "Swift style checks failed." >&2
+  exit "$status"
+fi
+
+echo "Swift style checks passed."

@@ -1,0 +1,10 @@
+# Test SwiftLint policy.
+# Inherits the root policy; add test-specific exceptions deliberately,
+# after reviewing real diagnostics.
+
+parent_config: ../.swiftlint.yml
+
+included:
+  - .
+
+allow_zero_lintable_files: false
