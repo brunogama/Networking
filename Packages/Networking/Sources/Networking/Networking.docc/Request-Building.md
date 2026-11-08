@@ -2,9 +2,13 @@
 
 Build HTTP requests using the fluent, declarative API.
 
+---
+
 ## Overview
 
-Networking provides a powerful request builder that uses Swift's result builder pattern to create HTTP requests in a readable, declarative manner. The request builder eliminates boilerplate and provides type safety while maintaining flexibility.
+`RequestBuilder` combines method, URL, header, body, and timeout components into an `HTTPRequest`.
+
+---
 
 ## Basic Request Building
 
@@ -47,6 +51,8 @@ let response = try await client.execute {
 }
 ```
 
+---
+
 ## HTTP Methods
 
 ### Method Components
@@ -77,6 +83,8 @@ let request = HTTPRequest(
     url: URL(string: "https://api.example.com/users/123")!
 )
 ```
+
+---
 
 ## URL and Path Building
 
@@ -109,6 +117,8 @@ let request = try RequestBuilder.build {
     GET(endpoint)
 }
 ```
+
+---
 
 ## Headers
 
@@ -155,6 +165,8 @@ RequestBasicAuth(username: "user", password: "pass")
 APIKey(key: "api-key", headerName: "X-API-Key")
 // Results in: X-API-Key: api-key
 ```
+
+---
 
 ## Request Body
 
@@ -208,6 +220,8 @@ let request = try RequestBuilder.build {
 }
 ```
 
+---
+
 ## Query Parameters
 
 ### Individual Query Parameters
@@ -259,6 +273,8 @@ let request = try RequestBuilder.build {
 }
 ```
 
+---
+
 ## Timeouts
 
 ### Request-Level Timeout
@@ -282,6 +298,8 @@ let client = NetworkClient {
     DefaultTimeout(30.0)
 }
 ```
+
+---
 
 ## Conditional Components
 
@@ -337,6 +355,8 @@ let request = try RequestBuilder.build {
     }
 }
 ```
+
+---
 
 ## Advanced Patterns
 
@@ -429,6 +449,8 @@ let request = try RequestBuilder.build {
 }
 ```
 
+---
+
 ## Request Operators
 
 ### Addition Operator
@@ -466,6 +488,8 @@ let request = try HTTPRequest(
 |> ContentType("application/json")
 ```
 
+---
+
 ## Cache Control
 
 ### Cache Headers
@@ -492,6 +516,8 @@ let request = try RequestBuilder.build {
     IfModifiedSince(lastModifiedDate)    // If-Modified-Since
 }
 ```
+
+---
 
 ## Error Handling
 
@@ -535,6 +561,8 @@ let request = try RequestBuilder.build {
     JSONBody(userData)
 }
 ```
+
+---
 
 ## Best Practices
 
@@ -604,9 +632,10 @@ struct StandardAPIHeaders: RequestComponent {
 }
 ```
 
+---
+
 ## Related Topics
 
 - <doc:Core-Networking>: HTTP primitives and concepts
 - <doc:Client-Configuration>: Client setup and configuration
-- <doc:Response-Processing>: Handling responses
 - <doc:Authentication>: Authentication patterns

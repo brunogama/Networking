@@ -1,10 +1,14 @@
 # Error Handling
 
-Comprehensive error handling strategies and recovery mechanisms.
+HTTP error categories and middleware recovery.
+
+---
 
 ## Overview
 
-Networking provides a sophisticated error handling system designed to help you build resilient networking applications. The framework categorizes errors by type and severity, provides actionable error information, and offers automatic recovery strategies.
+`HTTPError` records the error category and request context. Error middleware can recover a failed request or return the error to the caller.
+
+---
 
 ## HTTPError Structure
 
@@ -41,7 +45,7 @@ public enum NetworkError: Sendable, Hashable {
 
 ### Complete Error Information
 
-Each ``HTTPError`` includes comprehensive context:
+Each ``HTTPError`` can carry request context:
 
 ```swift
 public struct HTTPError: Error, Sendable, LocalizedError {
@@ -55,6 +59,8 @@ public struct HTTPError: Error, Sendable, LocalizedError {
     public let recoveryCategory: RecoveryCategory
 }
 ```
+
+---
 
 ## Basic Error Handling
 
@@ -101,6 +107,8 @@ do {
     return handleUnexpectedError(error)
 }
 ```
+
+---
 
 ## Network Error Handling
 
@@ -187,6 +195,8 @@ class NetworkErrorHandler {
     }
 }
 ```
+
+---
 
 ## HTTP Status Error Handling
 
@@ -334,6 +344,8 @@ func parseRetryAfterHeader(_ response: HTTPResponse?) -> TimeInterval? {
 }
 ```
 
+---
+
 ## Data Processing Errors
 
 ### JSON Decoding Errors
@@ -387,6 +399,8 @@ func formatDecodingError(_ error: DecodingError, data: Data) -> String {
     }
 }
 ```
+
+---
 
 ## Error Recovery Strategies
 
@@ -556,6 +570,8 @@ struct FallbackDataProvider {
 }
 ```
 
+---
+
 ## User-Facing Error Messages
 
 ### Localized Error Messages
@@ -677,6 +693,8 @@ class ErrorPresenter {
 }
 ```
 
+---
+
 ## Error Logging and Monitoring
 
 ### Structured Error Logging
@@ -725,9 +743,11 @@ struct ErrorLogger {
 }
 ```
 
+---
+
 ## Related Topics
 
 - <doc:Core-Networking>: HTTP primitives and error types
-- <doc:Middleware-System>: Error handling middleware
+- <doc:Middleware-Guide>: Error handling middleware
 - <doc:Client-Configuration>: Retry and error recovery configuration
 - <doc:Security-Features>: Security-related error handling

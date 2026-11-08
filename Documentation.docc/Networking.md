@@ -1,148 +1,66 @@
 # ``Networking``
 
-A modern, Swift 6 compliant networking framework built with async/await and structured concurrency.
+A Swift 6 HTTP client built on `URLSession`.
+
+---
 
 ## Overview
 
-Networking is a comprehensive HTTP client framework designed for modern Swift applications. It provides a declarative, type-safe API for network operations with powerful middleware support, advanced caching, security features, and comprehensive error handling.
+The `Networking` product reexports the core, runtime, request builder, runtime
+DSL, observability, server-sent event, and compatibility interceptor modules.
+Import `Networking` for the complete runtime API, or use individual products for
+a smaller target.
+API client macros are available through the separate `NetworkingMacros` product.
 
-### Key Features
+`NetworkClient` applies request middleware, checks for a cached response, and
+calls `URLSession` when needed. Response middleware processes the result, while
+error middleware can recover a failed request.
 
-- **Swift 6 Compliant**: Built with structured concurrency and modern Swift patterns
-- **Declarative DSL**: Fluent, readable API for constructing HTTP requests and client configurations  
-- **Macro-Based Code Generation**: Automatic API client generation with compile-time validation
-- **Comprehensive Middleware**: Request/response processing, authentication, retry logic, caching, and more
-- **Security-First**: SSL pinning, certificate validation, and security headers
-- **Observability**: Built-in metrics, logging, and monitoring capabilities
-- **Progress Tracking**: Real-time upload/download progress monitoring
-- **Advanced Caching**: Multi-level caching with intelligent invalidation strategies
-- **Error Recovery**: Actionable error information with automatic recovery strategies
+---
 
-## Getting Started
-
-### Quick Start
-
-Create a simple HTTP client and make requests:
+## Make a request
 
 ```swift
+import Foundation
 import Networking
 
-// Create a client with fluent configuration
-let client = NetworkClient {
-    BaseURL("https://api.example.com")
-    EnableLogging()
-    EnableRetry()
-    DefaultHeader("User-Agent", "MyApp/1.0")
-}
+func fetchUsers() async throws -> HTTPResponse {
+    guard let url = URL(string: "https://api.example.com/users") else {
+        throw URLError(.badURL)
+    }
 
-// Make requests using the request builder
-let response = try await client.execute {
-    GET("/users/123")
-    BearerAuth(token)
-    Timeout(15.0)
+    let request = HTTPRequest(method: .get, url: url)
+    return try await NetworkClient().execute(request)
 }
-
-// Decode response
-let user: User = try response.decode(User.self)
 ```
 
-### Generated API Clients
+Replace the example URL with an endpoint you control before calling the
+function. See <doc:GettingStarted> for installation.
 
-Use macros to generate type-safe API clients:
+---
 
-```swift
-@API(baseURL: "https://api.example.com")
-protocol UserAPI {
-    @GET("/users/{id}")
-    func getUser(@Path id: String) async throws -> User
-    
-    @POST("/users")
-    func createUser(@Body user: User) async throws -> User
-    
-    @PUT("/users/{id}")
-    @Cacheable(ttl: 300)
-    func updateUser(@Path id: String, @Body user: User) async throws -> User
-}
-
-let userAPI = UserAPIImplementation()
-let user = try await userAPI.getUser(id: "123")
-```
-
-## Topics
-
-### Essentials
-
-- <doc:GettingStarted>
-
-### Core Networking
+## Guides
 
 - <doc:HTTPPrimitives>
 - <doc:NetworkClient>
 - <doc:RequestBuilding>
-
-### Configuration & Client Setup
-
 - <doc:ClientConfiguration>
-
-### Request Building
-
 - <doc:HTTPMethods>
 - <doc:RequestComponents>
 - <doc:ConditionalRequests>
-
-### Middleware System
-
 - <doc:MiddlewareOverview>
 - <doc:MIDDLEWARE_DOCUMENTATION>
-
-### Advanced Features
-
 - <doc:ADVANCED_USAGE>
 - <doc:SWIFT_6_FEATURES>
-
-### Testing
-
 - <doc:TESTING_GUIDE>
-
-### Architecture & Migration
-
 - <doc:ARCHITECTURE_GUIDE>
 - <doc:MIGRATION_GUIDE>
-
-### API Reference
-
 - <doc:API_REFERENCE>
 - <doc:FLUENT_DSL_DOCUMENTATION>
 
-## Framework Architecture
+---
 
-### Core Components
+## Supported platforms
 
-1. **HTTP Layer**: Fundamental types (`HTTPRequest`, `HTTPResponse`, `HTTPError`)
-2. **Client Layer**: `NetworkClient` with middleware pipeline
-3. **Configuration Layer**: Declarative DSL components using result builders
-4. **Middleware Layer**: Pluggable request/response processing
-5. **Generation Layer**: Swift macro-based API client generation
-6. **Utility Layer**: Caching, security, metrics, and progress tracking
-
-### Design Principles
-
-- **Type Safety**: Extensive use of Swift's type system for compile-time safety
-- **Concurrency**: Full Swift 6 compliance with structured concurrency
-- **Composability**: Middleware and configuration components can be mixed and matched
-- **Extensibility**: Protocol-based design allows custom implementations
-- **Performance**: Minimal overhead with efficient caching and connection reuse
-
-## Requirements
-
-- iOS 16.0+ / macOS 13.0+ / tvOS 16.0+ / watchOS 9.0+
-- Swift 6.0+
-- Xcode 16.0+
-
-## See Also
-
-- ``HTTPClient``
-- ``NetworkClient`` 
-- ``HTTPRequest``
-- ``HTTPResponse``
-- ``RequestBuilder``
+The package manifest declares iOS 16, macOS 13, tvOS 16, and watchOS 9 as
+minimum deployment versions. The package uses Swift tools version 6.0.
