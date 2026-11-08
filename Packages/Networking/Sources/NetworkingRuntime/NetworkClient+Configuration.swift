@@ -77,7 +77,8 @@ extension NetworkClient {
       requestMiddlewares: middlewares.request,
       responseMiddlewares: middlewares.response,
       errorMiddlewares: middlewares.error,
-      defaultTimeout: config.timeout
+      defaultTimeout: config.timeout,
+      trafficRecorder: config.trafficRecorder
     )
   }
 
@@ -105,7 +106,8 @@ extension NetworkClient {
       requestMiddlewares: middlewares.request,
       responseMiddlewares: middlewares.response,
       errorMiddlewares: middlewares.error,
-      defaultTimeout: config.timeout
+      defaultTimeout: config.timeout,
+      trafficRecorder: config.trafficRecorder
     )
   }
 
@@ -165,7 +167,8 @@ extension NetworkClient {
       requestMiddlewares: [],
       responseMiddlewares: [],
       errorMiddlewares: [],
-      defaultTimeout: config.timeout
+      defaultTimeout: config.timeout,
+      trafficRecorder: config.trafficRecorder
     )
 
     // Apply authentication configuration

@@ -52,6 +52,35 @@ for the available modules and guides.
 
 ---
 
+## Traffic debugging
+
+Enable a recorder on the client to inspect data requests and URLSession timings:
+
+```swift
+func recordTraffic(for request: HTTPRequest) async throws {
+  let traffic = NetworkTrafficRecorder()
+  let client = try NetworkClient {
+    EnableTrafficDebugging(traffic)
+  }
+
+  _ = try await client.execute(request)
+
+  for attempt in await traffic.records() {
+    print(attempt.sequence, attempt.request.method, attempt.response?.statusCode as Any)
+    for transaction in attempt.transactions {
+      print(transaction.connectStart as Any, transaction.responseEnd as Any)
+    }
+  }
+}
+```
+
+The recorder captures physical attempts, including redirects and retries, and
+keeps records in request start order. By default, query values, header values,
+and bodies are omitted. Native file transfers, background transfers, and
+server-sent events use separate transport paths and are not recorded.
+
+---
+
 ## Build and test
 
 Run development checks against each package directory. The root `Package.swift`

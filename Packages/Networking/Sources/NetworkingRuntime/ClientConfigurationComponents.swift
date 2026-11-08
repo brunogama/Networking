@@ -155,6 +155,19 @@ public struct CustomSession: ConfigurationComponent {
   }
 }
 
+/// Enables bounded, privacy-filtered traffic recording for this client.
+public struct EnableTrafficDebugging: ConfigurationComponent {
+  private let recorder: NetworkTrafficRecorder
+
+  public init(_ recorder: NetworkTrafficRecorder) {
+    self.recorder = recorder
+  }
+
+  public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
+    configuration.trafficRecorder = recorder
+  }
+}
+
 public struct EnableSecurity: ConfigurationComponent {
   private let securityConfiguration: SecurityConfiguration
 
