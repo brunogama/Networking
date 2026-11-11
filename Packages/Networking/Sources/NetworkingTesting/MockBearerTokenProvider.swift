@@ -1,245 +1,83 @@
-import NetworkingRuntime
-import NetworkingInterceptorsCompat
-import NetworkingObservability
 import Foundation
+import NetworkingCore
+import NetworkingRuntime
 
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
-
-/// Mock implementation of BearerTokenProvider for testing
-///
-/// Provides stubbing and verification capabilities for bearer token authentication flows.
-/// Thread-safe via DispatchQueue with concurrent reads and barrier writes.
-///
-/// ## Usage Example
-/// ```swift
-/// let mock = MockBearerTokenProvider()
-/// mock.stubToken("access-token-123")
-/// mock.stubRefreshToken("refresh-token-456")
-///
-/// let token = try await mock.getCurrentToken()
-/// XCTAssertEqual(token, "access-token-123")
-///
-/// try mock.verifyTokenFetched(times: 1)
-/// try mock.verifyCalledOnce()
-/// ```
-///
-/// ## Error Stubbing
-/// ```swift
-/// mock.stubTokenFetchError(URLError(.notConnectedToInternet))
-/// do {
-///   _ = try await mock.getCurrentToken()
-///   XCTFail("Should have thrown")
-/// } catch {
-///   XCTAssert(error is URLError)
-/// }
-/// ```
-///
-/// - Note: `@unchecked Sendable` justification:
-///   1. Test-only code, not production
-///   2. Mutable state protected by `DispatchQueue.concurrent` with barrier writes
-///   3. All public methods synchronize access through concurrent queue
-///   4. Call count tracking uses atomic operations via queue
-///   5. Acceptable tradeoff for test ergonomics (same pattern as MockNetworkClient)
-public final class MockBearerTokenProvider: BearerTokenProvider,
-  MockVerifiable,
-  @unchecked Sendable
-{
-  // MARK: - Thread Safety
-
-  private let queue = DispatchQueue(label: "mock.bearer.token.provider", attributes: .concurrent)
-
-  // MARK: - State Tracking
-
-  private var stubbedToken: BearerTokenValue?
-  private var stubbedRefreshToken: BearerTokenValue?
-  private var tokenFetchError: Error?
-  private var refreshError: Error?
-  private var tokenFetchCount: Int = 0
-  private var refreshCount: Int = 0
-  private var capturedTokenRequests: [Date] = []
-  private var capturedRefreshRequests: [Date] = []
-
-  // MARK: - Initialization
+/// An isolated token provider with explicit stub configuration and call history.
+public actor MockBearerTokenProvider: AuthenticationMiddleware.TokenProvider, MockVerifiable {
+  private var token: BearerTokenValue?
+  private var refreshedToken: BearerTokenValue?
+  private var tokenError: (any Error)?
+  private var refreshError: (any Error)?
+  private var tokenRequests: [Date] = []
+  private var refreshRequests: [Date] = []
 
   public init() {}
 
-  // MARK: - BearerTokenProvider Protocol
-
-  /// Get the current bearer token
-  ///
-  /// Returns stubbed token or throws stubbed error if configured.
-  /// Increments token fetch count and captures request timestamp.
-  ///
-  /// - Returns: Stubbed token string, or nil if not stubbed
-  /// - Throws: Stubbed error if configured via `stubTokenFetchError(_:)`
-  public func getCurrentToken() async throws -> BearerTokenValue? {
-    queue.sync(flags: .barrier) {
-      tokenFetchCount += 1
-      capturedTokenRequests.append(Date())
-    }
-
-    // Check for stubbed error first
-    if let error = queue.sync(execute: { tokenFetchError }) {
-      throw error
-    }
-
-    return queue.sync { stubbedToken }
-  }
-
-  /// Refresh the bearer token
-  ///
-  /// Returns stubbed refresh token or throws stubbed error if configured.
-  /// Increments refresh count and captures request timestamp.
-  ///
-  /// - Returns: Stubbed refresh token string
-  /// - Throws: Stubbed error if configured, or `MockError.notStubbed` if no token stubbed
-  public func refreshToken() async throws -> BearerTokenValue {
-    queue.sync(flags: .barrier) {
-      refreshCount += 1
-      capturedRefreshRequests.append(Date())
-    }
-
-    // Check for stubbed error first
-    if let error = queue.sync(execute: { refreshError }) {
-      throw error
-    }
-
-    // Return stubbed refresh token or throw if not stubbed
-    guard let token = queue.sync(execute: { stubbedRefreshToken }) else {
-      throw MockError.notStubbed("refreshToken() called but no refresh token stubbed")
-    }
-
+  public func getCurrentToken() throws -> BearerTokenValue? {
+    tokenRequests.append(Date())
+    if let tokenError { throw tokenError }
     return token
   }
 
-  // MARK: - Stubbing Methods
+  public func refreshToken() throws -> BearerTokenValue {
+    refreshRequests.append(Date())
+    if let refreshError { throw refreshError }
+    guard let refreshedToken else {
+      throw MockError.notStubbed("No refresh token was configured")
+    }
+    return refreshedToken
+  }
 
-  /// Stub the token to be returned by `getCurrentToken()`
-  ///
-  /// - Parameter token: Token string to return
   public func stubToken(_ token: BearerTokenValue) {
-    queue.sync(flags: .barrier) {
-      stubbedToken = token
-    }
+    self.token = token
+    tokenError = nil
   }
 
-  /// Stub the token to be returned by `refreshToken()`
-  ///
-  /// - Parameter token: Refresh token string to return
   public func stubRefreshToken(_ token: BearerTokenValue) {
-    queue.sync(flags: .barrier) {
-      stubbedRefreshToken = token
-    }
+    refreshedToken = token
+    refreshError = nil
   }
 
-  /// Stub an error to be thrown by `getCurrentToken()`
-  ///
-  /// - Parameter error: Error to throw when token is fetched
-  public func stubTokenFetchError(_ error: Error) {
-    queue.sync(flags: .barrier) {
-      tokenFetchError = error
-    }
-  }
+  public func stubTokenFetchError(_ error: any Error) { tokenError = error }
 
-  /// Stub an error to be thrown by `refreshToken()`
-  ///
-  /// - Parameter error: Error to throw when token is refreshed
-  public func stubRefreshError(_ error: Error) {
-    queue.sync(flags: .barrier) {
-      refreshError = error
-    }
-  }
+  public func stubRefreshError(_ error: any Error) { refreshError = error }
 
-  /// Remove all stubbed values and errors
   public func reset() {
-    queue.sync(flags: .barrier) {
-      stubbedToken = nil
-      stubbedRefreshToken = nil
-      tokenFetchError = nil
-      refreshError = nil
-      tokenFetchCount = 0
-      refreshCount = 0
-      capturedTokenRequests.removeAll()
-      capturedRefreshRequests.removeAll()
-    }
+    token = nil
+    refreshedToken = nil
+    tokenError = nil
+    refreshError = nil
+    tokenRequests.removeAll()
+    refreshRequests.removeAll()
   }
 
-  // MARK: - MockVerifiable Protocol
-
-  /// Total number of calls made to this mock (token fetch + refresh)
-  ///
-  /// Conforms to `MockVerifiable` protocol for shared verification methods.
-  nonisolated public var callCount: MockVerificationCount {
-    get async { MockVerificationCount(queue.sync { tokenFetchCount + refreshCount }) }
+  public var callCount: MockVerificationCount {
+    MockVerificationCount(tokenRequests.count + refreshRequests.count)
   }
 
-  // MARK: - Verification Methods
-
-  /// Verify that `getCurrentToken()` was called a specific number of times
-  ///
-  /// - Parameter times: Expected number of token fetch calls (default: 1)
-  /// - Throws: `MockError.unexpectedCallCount` if actual count doesn't match
-  public func verifyTokenFetched(
-    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
-  ) throws {
-    let actual = MockVerificationCount(queue.sync { tokenFetchCount })
-    guard actual == times else {
-      throw MockError.unexpectedCallCount(expected: times, actual: actual)
-    }
+  public func verifyTokenFetched(times: MockVerificationCount = 1) throws(MockError) {
+    let actual = MockVerificationCount(tokenRequests.count)
+    guard actual == times else { throw .unexpectedCallCount(expected: times, actual: actual) }
   }
 
-  /// Verify that `refreshToken()` was called a specific number of times
-  ///
-  /// - Parameter times: Expected number of refresh calls (default: 1)
-  /// - Throws: `MockError.unexpectedCallCount` if actual count doesn't match
-  public func verifyRefreshed(
-    times: MockVerificationCount = MockVerificationCount(rawValue: 1)
-  ) throws {
-    let actual = MockVerificationCount(queue.sync { refreshCount })
-    guard actual == times else {
-      throw MockError.unexpectedCallCount(expected: times, actual: actual)
-    }
+  public func verifyRefreshed(times: MockVerificationCount = 1) throws(MockError) {
+    let actual = MockVerificationCount(refreshRequests.count)
+    guard actual == times else { throw .unexpectedCallCount(expected: times, actual: actual) }
   }
 
-  /// Verify that neither token fetch nor refresh was called
-  ///
-  /// - Throws: `MockError.unexpectedCallCount` if any calls were made
-  public func verifyNeverAccessed() async throws {
-    let total = await callCount
-    guard total == 0 else {
-      throw MockError.unexpectedCallCount(expected: 0, actual: total)
-    }
+  public func verifyNeverAccessed() throws(MockError) {
+    guard callCount == 0 else { throw .unexpectedCallCount(expected: 0, actual: callCount) }
   }
 
-  // MARK: - Request Inspection
+  public func getTokenFetchTimestamps() -> [Date] { tokenRequests }
 
-  /// Get the timestamps of all token fetch requests
-  ///
-  /// - Returns: Array of dates when `getCurrentToken()` was called
-  public func getTokenFetchTimestamps() -> [Date] {
-    queue.sync { capturedTokenRequests }
-  }
+  public func getRefreshTimestamps() -> [Date] { refreshRequests }
 
-  /// Get the timestamps of all refresh token requests
-  ///
-  /// - Returns: Array of dates when `refreshToken()` was called
-  public func getRefreshTimestamps() -> [Date] {
-    queue.sync { capturedRefreshRequests }
-  }
-
-  /// Get the count of token fetch requests
-  ///
-  /// - Returns: Number of times `getCurrentToken()` was called
   public func getTokenFetchCount() -> MockVerificationCount {
-    MockVerificationCount(queue.sync { tokenFetchCount })
+    MockVerificationCount(tokenRequests.count)
   }
 
-  /// Get the count of refresh token requests
-  ///
-  /// - Returns: Number of times `refreshToken()` was called
   public func getRefreshCount() -> MockVerificationCount {
-    MockVerificationCount(queue.sync { refreshCount })
+    MockVerificationCount(refreshRequests.count)
   }
 }

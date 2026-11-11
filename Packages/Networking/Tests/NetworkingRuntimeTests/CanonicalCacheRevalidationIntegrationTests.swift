@@ -1,6 +1,5 @@
 import Foundation
 @testable import NetworkingRuntime
-import NetworkingDSL
 import NetworkingTesting
 import Testing
 
@@ -22,7 +21,7 @@ struct CacheRevalidationIntegrationTests {
     defer { session.invalidateAndCancel() }
 
     let (client, middleware) = makeCanonicalCacheClient(session: session)
-    let request = try HTTPRequest { GET(url.absoluteString) }
+    let request = HTTPRequest(method: .get, url: url)
 
     let initialResponse = try await client.execute(request)
     #expect(initialResponse.body == cachedBody)
@@ -36,10 +35,10 @@ struct CacheRevalidationIntegrationTests {
   }
 
   @Test(
-    "DSL persistent storage revalidates across clients",
+    "Persistent storage revalidates across clients",
     arguments: PersistentCacheKind.allCases
   )
-  func dslPersistentStorageRevalidatesAcrossClients(kind: PersistentCacheKind) async throws {
+  func persistentStorageRevalidatesAcrossClients(kind: PersistentCacheKind) async throws {
     let contextID = MockContextIdentifier()
     MockURLProtocol.clearAll(contextID: contextID)
     defer { MockURLProtocol.clearAll(contextID: contextID) }
@@ -61,45 +60,23 @@ struct CacheRevalidationIntegrationTests {
       configuration: MockURLProtocol.createMockConfiguration(contextID: contextID)
     )
     defer { session.invalidateAndCancel() }
-    let storagePath = CacheStoragePath(rawValue: cacheDirectory.path)
-    let request = try HTTPRequest { GET(url.absoluteString) }
+    let request = HTTPRequest(method: .get, url: url)
 
-    try await assertPersistentRevalidations(
-      request: request,
-      body: cachedBody,
-      session: session,
-      storage: kind.storage(path: storagePath)
-    )
-  }
-
-  private func assertPersistentRevalidations(
-    request: HTTPRequest,
-    body: HTTPBody,
-    session: URLSession,
-    storage: CacheStorage
-  ) async throws {
-    let firstClient = try makeDSLClient(
-      session: session,
-      storage: storage
-    )
-    let initialResponse = try await firstClient.execute(request)
-    #expect(initialResponse.body == body)
-
-    let secondClient = try makeDSLClient(
-      session: session,
-      storage: storage
-    )
-    let firstRevalidation = try await secondClient.execute(request)
-    #expect(firstRevalidation.status == HTTPStatus.ok)
-    #expect(firstRevalidation.body == body)
-
-    let thirdClient = try makeDSLClient(
-      session: session,
-      storage: storage
-    )
-    let secondRevalidation = try await thirdClient.execute(request)
-    #expect(secondRevalidation.status == HTTPStatus.ok)
-    #expect(secondRevalidation.body == body)
+    for _ in 0..<3 {
+      let storage = try kind.storage(directory: cacheDirectory)
+      let cache = CachingMiddleware(
+        configuration: .init(defaultTTL: 0),
+        storage: storage,
+        client: NetworkClient(session: session)
+      )
+      let client = NetworkClient(
+        session: session,
+        middleware: HTTPMiddleware(request: [cache], response: [cache])
+      )
+      let response = try await client.execute(request)
+      #expect(response.status == .ok)
+      #expect(response.body == cachedBody)
+    }
   }
 
   private func makeCanonicalCacheClient(
@@ -116,17 +93,6 @@ struct CacheRevalidationIntegrationTests {
       responseMiddlewares: [middleware]
     )
     return (client, middleware)
-  }
-
-  private func makeDSLClient(session: URLSession, storage: CacheStorage) throws -> NetworkClient {
-    try NetworkClient {
-      CustomSession(session)
-      Caching {
-        Policy.standard()
-        Storage(storage)
-        Duration.ttl(0)
-      }
-    }
   }
 
   private func stubExpiredResponseRevalidation(
@@ -190,19 +156,5 @@ struct CacheRevalidationIntegrationTests {
       maxUsageCount: 1,
       contextID: contextID
     )
-  }
-}
-
-enum PersistentCacheKind: CaseIterable, Sendable {
-  case disk
-  case hybrid
-
-  func storage(path: CacheStoragePath) -> CacheStorage {
-    switch self {
-    case .disk:
-      return .disk(size: .MB(1), path: path)
-    case .hybrid:
-      return .hybrid(memorySize: .MB(1), diskSize: .MB(1), path: path)
-    }
   }
 }

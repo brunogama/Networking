@@ -14,7 +14,7 @@ extension APIMacro {
 
   static func endpointImplementations(
     in protocolDeclaration: ProtocolDeclSyntax,
-    accessLevel: String?,
+    accessLevel: APIAccessLevel?,
     context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
     var implementations: [DeclSyntax] = []
@@ -22,6 +22,7 @@ extension APIMacro {
       guard let function = member.decl.as(FunctionDeclSyntax.self) else {
         MacroHelpers.emitError(
           "@API protocols may only contain endpoint methods",
+          id: .apiRequiresEndpointMethods,
           node: member.decl,
           context: context
         )
@@ -40,13 +41,14 @@ extension APIMacro {
 
   private static func endpointImplementation(
     for function: FunctionDeclSyntax,
-    accessLevel: String?,
+    accessLevel: APIAccessLevel?,
     context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
     try MacroHelpers.validateSingleHTTPMethod(on: function, context: context)
     guard let (name, attribute) = endpointAttribute(on: function) else {
       MacroHelpers.emitError(
         "Method '\(function.name.text)' requires an HTTP method macro",
+        id: .missingHTTPMethod,
         node: function,
         context: context
       )

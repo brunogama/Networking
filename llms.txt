@@ -1,36 +1,48 @@
-# ModernNetworking - Swift HTTP Client Framework
+# Networking - Swift HTTP Client
 
-A production-grade Swift networking library featuring async/await, interceptors, macros, and multi-transport support.
+A Swift 6 URLSession library with request values, actor-owned middleware state,
+scoped cancellation, optional caching, diagnostics, and HTTP client macros.
+
+---
 
 ## Overview
 
-ModernNetworking MVP contains 3 Swift packages:
+The repository contains two Swift packages:
 
 | Package | Purpose |
 |---------|---------|
-| MacroTemplateKit | SwiftSyntax template DSL for macro code generation |
 | NetworkingMacros | Swift compiler plugin for HTTP client macros |
 | Networking | Core async/await HTTP client with middleware |
+
+---
 
 ## Quick Start
 
 ```swift
+import Foundation
 import Networking
 
-// Simple GET request
 let client = NetworkClient()
-let response = try await client.execute(HTTPRequest(url: URL(string: "https://api.example.com/users")!))
+guard let url = URL(string: "https://api.example.com/users") else {
+    throw URLError(.badURL)
+}
+let response = try await client.execute(HTTPRequest(method: .get, url: url))
+```
 
-// Using @API macro
-@API
+With the optional macro package and an application-defined `User: Decodable`:
+
+```swift
+import Networking
+import NetworkingMacros
+
+@API(baseURL: .absolute("https://api.example.com"))
 protocol UsersAPI {
-    @GET("/users")
+    @GET(.path("/users"))
     func getUsers() async throws -> [User]
-
-    @POST("/users")
-    func createUser(@Body user: User) async throws -> User
 }
 ```
+
+---
 
 ## Public API
 
@@ -38,62 +50,279 @@ protocol UsersAPI {
 ### NetworkingMacros
 
 **Structs:**
-- `CacheConfiguration`
-- `DefaultHeaderMap`
-- `HeaderBuilder`
-- `HeaderComponent`
-- `MacroBoundaryBool`
+
 - `MacroBoundaryString`
 
 **Enums:**
+
 - `APIBaseURLTag`
-- `CacheDuration`
-- `CacheRevalidationTag`
-- `CachingPolicy`
 - `EndpointPathTag`
-- `HTTPMethodNameTag`
-- `HeaderComponent.ValueSource`
 - `HeaderNameTag`
 - `HeaderValueReferenceTag`
-- `MacroDiagnosticTextTag`
-- `MacroFunctionNameTag`
-- `MacroTypeReferenceTag`
-- `MeasuredOperationNameTag`
 - `ParameterReferenceTag`
-- `QueryParameterNameTag`
-- `TemplateURLTag`
 
-**Classes:**
-- `Metrics`
+**Type aliases:**
 
-**Type Aliases:**
 - `APIBaseURL`
-- `CacheAgeLimit`
-- `CacheRevalidationFlag`
+- `DefaultHeaderMap`
 - `EndpointPath`
-- `HTTPMethodName`
 - `HeaderName`
 - `HeaderValueReference`
-- `MacroDiagnosticText`
-- `MacroFunctionName`
-- `MacroTypeReference`
-- `MeasuredDuration`
-- `MeasuredOperationName`
 - `ParameterReference`
-- `QueryParameterName`
-- `TemplateURL`
-- `TimeoutDuration`
 
+**Macros:**
+
+- `API(baseURL:)`
+- `Body(_:)`
+- `DELETE(_:queryParameters:)`
+- `DefaultHeaders(_:)`
+- `GET(_:queryParameters:)`
+- `Header(_:)`
+- `Headers(_:)`
+- `PATCH(_:queryParameters:)`
+- `POST(_:queryParameters:)`
+- `PUT(_:queryParameters:)`
+- `RequestModel(method:path:)`
+- `Timeout(_:)`
+
+
+### NetworkingCore
+
+
+### NetworkingRuntime
+
+**Structs:**
+
+- `AuthenticationMiddleware.Configuration`
+- `BackgroundTransferConfiguration`
+- `BatchConfiguration`
+- `BatchResult`
+- `CacheMetrics`
+- `CachingMiddleware.CacheEntry`
+- `CachingMiddleware.Configuration`
+- `CertificatePinningConfiguration`
+- `ClosureTokenProvider`
+- `ExpirationStrategy`
+- `FileMetadata`
+- `FileTransferConfiguration`
+- `FileTransferResult`
+- `HTTPMiddleware`
+- `HTTPTrace`
+- `HTTPTrace.Connection`
+- `HTTPTrace.Message`
+- `HTTPTracePrivacy`
+- `HeaderSecurityMiddleware`
+- `HeaderSecurityMiddleware.Configuration`
+- `KeychainService.Configuration`
+- `LoggingMiddleware`
+- `LoggingMiddleware.Configuration`
+- `NetworkClient.Configuration`
+- `NetworkDiagnostics.Logs`
+- `PublicKeyPinningConfiguration`
+- `RequestTicket`
+- `RetryMiddleware`
+- `RetryMiddleware.Configuration`
+- `SecurityConfiguration`
+- `SessionConfiguration`
+- `TLSConfiguration`
+- `TransferProgress`
+
+**Protocols:**
+
+- `AuthenticationMiddleware.TokenProvider`
+- `HTTPResponseCacheStorage`
+
+**Enums:**
+
+- `CachePolicy`
+- `CacheSizePolicy`
+- `CertificatePinningConfiguration.ValidationFailureAction`
+- `ChecksumAlgorithm`
+- `FileTransferError`
+- `HTTPTraceDomain`
+- `HeaderSecurity`
+- `HeaderSecurityError`
+- `KeychainError`
+- `KeychainService.KeychainAccessibility`
+- `NetworkDiagnostics.LogFormat`
+- `PublicKeyPinningConfiguration.ValidationFailureAction`
+- `RequestPending`
+- `RequestRunning`
+- `RequestTicketDomain`
+- `TLSConfiguration.TLSVersion`
+- `TransferPhase`
+- `WarmCacheResult`
+
+**Classes and actors:**
+
+- `AdvancedMemoryCacheStorage`
+- `AuthenticationMiddleware`
+- `CachingMiddleware`
+- `DiskCacheStorage`
+- `FileTransferOperations`
+- `HybridCacheStorage`
+- `KeychainService`
+- `KeychainTokenProvider`
+- `MemoryCacheStorage`
+- `MemoryTokenProvider`
+- `NetworkActor`
+- `NetworkClient`
+- `NetworkDiagnostics`
+- `ProgressAggregator`
+- `RequestCancellation`
+- `SSLPinningValidator`
+
+**Type aliases:**
+
+- `HTTPTraceID`
+- `KeychainTokenProvider.RefreshHandler`
+- `ProgressCallback`
+- `RequestTicketID`
+
+
+### NetworkingObservability
+
+**Structs:**
+
+- `HTTPRequestMetrics`
+- `NetworkInspector`
+- `TraceContext`
+- `TraceSpan.SpanEvent`
+- `TraceSpanSnapshot`
+
+**Protocols:**
+
+- `MetricsCollector`
+- `TraceExporter`
+
+**Enums:**
+
+- `HTTPRequestMetrics.Outcome`
+- `HTTPRequestMetrics.ValidationError`
+- `HTTPSemanticAttributes`
+- `TraceSpan.SpanStatus`
+
+**Classes and actors:**
+
+- `SimpleMetricsCollector`
+- `TraceSpan`
+- `TracingMiddleware`
+
+
+### NetworkingObservabilityOTLP
+
+**Structs:**
+
+- `OTLPConfiguration`
+- `OTLPResource`
+- `OTLPTraceExporter`
+
+**Enums:**
+
+- `OTLPConfigurationError`
+- `OTLPExportError`
+- `ResourceAttributes`
+
+**Classes and actors:**
+
+- `OTLPMetricsCollector`
+
+
+### NetworkingTesting
+
+**Structs:**
+
+- `AssertionError`
+- `HTTPRequestPredicate`
+- `MockURLRequestPredicate`
+- `MockURLRequestStub`
+
+**Protocols:**
+
+- `MockVerifiable`
+
+**Enums:**
+
+- `MockCallCountExpectation`
+- `MockError`
+- `MockURLProtocol.MockResponse`
+- `MockURLProtocol.RequestMatcher`
+
+**Classes and actors:**
+
+- `MockBearerTokenProvider`
+- `MockCacheStorage`
+- `MockHTTPErrorMiddleware`
+- `MockHTTPRequestMiddleware`
+- `MockHTTPResponseMiddleware`
+- `MockMetricsCollector`
+- `MockNetworkClient`
+- `MockTraceExporter`
+- `MockURLProtocol`
+
+
+### NetworkingSSE
+
+**Structs:**
+
+- `SSEConfiguration`
+- `SSEEvent`
+- `SSEReconnectPolicy`
+
+**Enums:**
+
+- `SSEAcceptHeaderTag`
+- `SSEConnectionEvent`
+- `SSEEventIDTag`
+- `SSEEventNameTag`
+- `SSEEventPayloadTag`
+- `SSELastEventIDTag`
+- `SSEReconnectAttemptLimitTag`
+- `SSEReconnectAttemptTag`
+- `SSEReconnectDelayTag`
+- `SSEReconnectMode`
+- `SSERespectServerRetryTag`
+- `SSEStreamError`
+
+**Classes and actors:**
+
+- `SSEClient`
+
+**Type aliases:**
+
+- `SSEAcceptHeader`
+- `SSEEventID`
+- `SSEEventName`
+- `SSEEventPayload`
+- `SSELastEventID`
+- `SSEReconnectAttempt`
+- `SSEReconnectAttemptLimit`
+- `SSEReconnectDelay`
+- `SSERespectServerRetry`
+
+
+### Networking
+
+**Type aliases:**
+
+- `HTTPResult`
+
+
+---
 
 ## Documentation
 
 - GitHub: https://github.com/brunogama/Networking
 - API Reference: https://brunogama.github.io/Networking/documentation/networking
 
+---
+
 ## Requirements
 
 - Swift 6.0+
 - iOS 16+, macOS 13+, tvOS 16+, watchOS 9+
+
+---
 
 ## License
 

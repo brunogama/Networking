@@ -1,0 +1,1 @@
+typealias MacroFunctionName = MacroPluginBoundaryString<MacroFunctionNameTag>

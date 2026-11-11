@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Managed by provision-swift-quality.sh. SwiftLint analyzer gate (needs a clean-build log).
+set -euo pipefail
+
+ROOT="$(
+  git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel
+)"
+
+if (( $# != 1 )); then
+  echo "Usage: bash scripts/swift-style-analyze compiler.log" >&2
+  exit 2
+fi
+
+log="$1"
+
+case "$log" in
+  /*) ;;
+  *) log="$PWD/$log" ;;
+esac
+
+cd "$ROOT"
+
+[[ -s "$log" ]] || {
+  echo "error: Compiler log is missing or empty: $log" >&2
+  exit 1
+}
+
+# Also verifies the pinned toolchain and ordinary style checks.
+bash scripts/swift-style check --all
+
+files=()
+
+while IFS= read -r -d '' file; do
+  [[ -f "$file" && "$file" == *.swift ]] || continue
+  files+=("$ROOT/$file")
+done < <(
+  git ls-files \
+    --cached \
+    --others \
+    --exclude-standard \
+    --deduplicate \
+    -z \
+    -- Sources 'Packages/*/Sources/*'
+)
+
+(( ${#files[@]} > 0 )) || {
+  echo "error: No production Swift files found for analysis." >&2
+  exit 1
+}
+
+export SCRIPT_INPUT_FILE_COUNT="${#files[@]}"
+
+index=0
+for file in "${files[@]}"; do
+  export "SCRIPT_INPUT_FILE_${index}=$file"
+  index=$((index + 1))
+done
+
+output="$(mktemp)"
+trap 'rm -f "$output"' EXIT
+
+status=0
+swiftlint analyze \
+  --config "$ROOT/.swiftlint.yml" \
+  --strict \
+  --compiler-log-path "$log" \
+  --use-script-input-files \
+  2>&1 | tee "$output" || status=$?
+
+# SwiftLint can exit 0 when SourceKit fails to index files, which would
+# silently skip analyzer rules. Treat that as a failed gate.
+if grep -qE "Could not index file|could not build (Objective-C )?module" "$output"; then
+  echo "error: analyzer could not index one or more files; analysis is incomplete." >&2
+  echo "Ensure the compiler log comes from a clean build of this checkout." >&2
+  exit 1
+fi
+
+exit "$status"

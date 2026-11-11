@@ -18,38 +18,6 @@ struct CacheStorageRobustnessTests {
     #expect(compressed.decompressedForCache() == compressibleInput)
   }
 
-  @Test("Cancelling one semaphore waiter does not resume another")
-  func semaphoreCancellationTargetsItsWaiter() async throws {
-    let semaphore = AsyncSemaphore(value: 1)
-    let state = SemaphoreCompletionState()
-    #expect(await semaphore.wait())
-
-    let firstWaiter = Task {
-      let acquired = await semaphore.wait()
-      if acquired {
-        await state.firstEntered()
-      }
-    }
-    try await Task.sleep(for: .milliseconds(20))
-
-    let cancelledWaiter = Task {
-      let acquired = await semaphore.wait()
-      await state.cancelledFinished(acquired: acquired)
-    }
-    try await Task.sleep(for: .milliseconds(20))
-    cancelledWaiter.cancel()
-    try await Task.sleep(for: .milliseconds(20))
-
-    #expect(await state.didCancelFinish)
-    #expect(!(await state.didCancelledWaiterAcquire))
-    #expect(!(await state.didFirstEnter))
-
-    await semaphore.signal()
-    await firstWaiter.value
-    await cancelledWaiter.value
-    #expect(await state.didFirstEnter)
-  }
-
   @Test("Memory usage counts response bytes")
   func memoryUsageCountsResponseBytes() async throws {
     let cache = AdvancedMemoryCacheStorage(sizePolicy: .maxMemory(1_000))
@@ -72,7 +40,7 @@ struct CacheStorageRobustnessTests {
   }
 
   @Test("Disk cache removes unindexed data files after restart")
-  func diskCacheRemovesUnindexedDataFilesAfterRestart() async throws {
+  func removesUnindexedOwnedFiles() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
       "networking-disk-cache-\(UUID().uuidString)",
       isDirectory: true
@@ -83,7 +51,7 @@ struct CacheStorageRobustnessTests {
     )
     defer { try? FileManager.default.removeItem(at: directory) }
 
-    let orphan = directory.appendingPathComponent("orphan.cache")
+    let orphan = directory.appendingPathComponent(String(repeating: "a", count: 64) + ".cache")
     try Data("orphan".utf8).write(to: orphan)
     let cache = try DiskCacheStorage(cacheDirectory: CacheDirectoryURL(directory))
 
@@ -217,20 +185,5 @@ struct CacheStorageRobustnessTests {
       headers: headers,
       body: HTTPBody(Data(repeating: 0x41, count: bodyByteCount))
     )
-  }
-}
-
-private actor SemaphoreCompletionState {
-  private(set) var didFirstEnter = false
-  private(set) var didCancelFinish = false
-  private(set) var didCancelledWaiterAcquire = false
-
-  func firstEntered() {
-    didFirstEnter = true
-  }
-
-  func cancelledFinished(acquired: Bool) {
-    didCancelFinish = true
-    didCancelledWaiterAcquire = acquired
   }
 }

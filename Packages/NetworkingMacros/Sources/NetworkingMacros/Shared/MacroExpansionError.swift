@@ -1,10 +1,4 @@
-import SwiftSyntax
-import SwiftSyntaxBuilder
-import SwiftSyntaxMacros
-import SwiftDiagnostics
-import Foundation
-
-public enum MacroExpansionError: Error, CustomStringConvertible, Sendable {
+enum MacroExpansionError: Error, CustomStringConvertible, Sendable {
   case parameterMismatch(
     path: EndpointPath,
     declared: [ParameterReference],
@@ -16,10 +10,8 @@ public enum MacroExpansionError: Error, CustomStringConvertible, Sendable {
   case multipleHTTPMethods(MacroFunctionName, found: [HTTPMethodName])
   case missingAsyncKeyword(MacroFunctionName)
   case missingThrowsKeyword(MacroFunctionName)
-  case nonDecodableReturnType(MacroTypeReference)
-  case nonEncodableBodyType(MacroTypeReference)
 
-  public var description: String {
+  var description: String {
     switch self {
     case .parameterMismatch(let path, let declared, let required):
       return """
@@ -58,11 +50,6 @@ public enum MacroExpansionError: Error, CustomStringConvertible, Sendable {
     case .missingThrowsKeyword(let function):
       return "Function '\(function)' must be marked 'throws'"
 
-    case .nonDecodableReturnType(let type):
-      return "Return type '\(type)' must conform to Decodable"
-
-    case .nonEncodableBodyType(let type):
-      return "Body parameter type '\(type)' must conform to Encodable"
     }
   }
 }

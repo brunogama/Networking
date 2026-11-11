@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - HTTP Method Macros
 
 /// Marks a method as an HTTP GET request.
@@ -81,7 +79,7 @@ import Foundation
 /// ## Return Type
 ///
 /// The return type must conform to `Decodable` for automatic JSON decoding.
-/// The generated `JSONDecoder` call lets the Swift compiler enforce that requirement.
+/// The generated codec call lets the Swift compiler enforce that requirement.
 ///
 /// Supported return types:
 /// - Custom types conforming to `Decodable`
@@ -111,7 +109,7 @@ import Foundation
 ///             .init(codingPath: [], debugDescription: "Response body is empty")
 ///         )
 ///     }
-///     return try JSONDecoder().decode(User.self, from: body.rawValue)
+///     return try codec.decode(User.self, from: body.rawValue)
 /// }
 /// ```
 ///
@@ -140,8 +138,8 @@ import Foundation
 /// ## See Also
 ///
 /// - ``API(baseURL:)``: Define the API protocol
-/// - ``POST(_:body:headers:queryParameters:)``: Create resources
-/// - ``PUT(_:body:headers:queryParameters:)``: Update resources
+/// - ``POST(_:queryParameters:)``: Create resources
+/// - ``PUT(_:queryParameters:)``: Update resources
 /// - ``DELETE(_:queryParameters:)``: Delete resources
 ///
 @attached(peer)
@@ -173,15 +171,11 @@ public macro GET(
 /// ## Parameters
 ///
 /// - Parameter path: The endpoint path relative to base URL
-/// - Parameter body: Name of the function parameter to use as request body
-/// - Parameter headers: Optional dictionary of custom headers for this request
 /// - Parameter queryParameters: Function parameters to include in the query string
 ///
 @attached(peer)
 public macro POST(
   _ path: EndpointPath,
-  body: ParameterReference? = nil,
-  headers: DefaultHeaderMap = [:],
   queryParameters: [ParameterReference] = []
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "POSTMacro")
 
@@ -200,15 +194,11 @@ public macro POST(
 /// ## Parameters
 ///
 /// - Parameter path: The endpoint path relative to base URL
-/// - Parameter body: Name of the function parameter to use as request body
-/// - Parameter headers: Optional dictionary of custom headers for this request
 /// - Parameter queryParameters: Function parameters to include in the query string
 ///
 @attached(peer)
 public macro PUT(
   _ path: EndpointPath,
-  body: ParameterReference? = nil,
-  headers: DefaultHeaderMap = [:],
   queryParameters: [ParameterReference] = []
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PUTMacro")
 
@@ -227,15 +217,11 @@ public macro PUT(
 /// ## Parameters
 ///
 /// - Parameter path: The endpoint path relative to base URL
-/// - Parameter body: Name of the function parameter to use as request body
-/// - Parameter headers: Optional dictionary of custom headers for this request
 /// - Parameter queryParameters: Function parameters to include in the query string
 ///
 @attached(peer)
 public macro PATCH(
   _ path: EndpointPath,
-  body: ParameterReference? = nil,
-  headers: DefaultHeaderMap = [:],
   queryParameters: [ParameterReference] = []
 ) = #externalMacro(module: "NetworkingMacrosPlugin", type: "PATCHMacro")
 

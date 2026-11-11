@@ -8,14 +8,21 @@ import FoundationNetworking
 extension SSEClient {
   func streamBytes(
     from bytes: URLSession.AsyncBytes,
-    parser: inout SSEParser,
+    maximumResponseBytes: Int?,
     state: inout SSEConnectionState,
     continuation: SSEContinuation
   ) async throws {
+    var parser = SSEParser()
     var buffer = Data()
     var sawCarriageReturn = false
+    var bytesRead = 0
 
     for try await byte in bytes {
+      if let maximumResponseBytes, bytesRead >= maximumResponseBytes {
+        bytes.task.cancel()
+        throw SSEStreamError.responseTooLarge
+      }
+      bytesRead += 1
       try consumeByte(
         byte,
         buffer: &buffer,
@@ -94,13 +101,12 @@ extension SSEClient {
     if let retryHint = result.retryHint {
       state.serverRetryHint = retryHint
     }
+    if let identifier = result.idUpdate {
+      state.lastEventID = identifier.isEmpty.rawValue ? nil : SSELastEventID(identifier.rawValue)
+    }
 
     guard let event = result.event else {
       return
-    }
-
-    if let eventID = event.id, !eventID.isEmpty {
-      state.lastEventID = SSELastEventID(eventID.rawValue)
     }
 
     try yieldEvent(.event(event), to: continuation)

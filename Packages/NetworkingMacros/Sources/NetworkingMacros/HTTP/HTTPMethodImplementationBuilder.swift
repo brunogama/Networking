@@ -1,24 +1,14 @@
 import SwiftSyntax
 
+/// Builds the concrete method body shared by every HTTP verb macro.
 enum HTTPMethodImplementationBuilder {
-  struct Input {
-    let function: FunctionDeclSyntax
-    let returnType: String
-    let pathCode: String
-    let method: String
-    let bodyParameter: String?
-    let queryParameters: [String]
-    let headers: [ParsedHeader]
-    let accessLevel: String?
-    let hasInterceptors: Bool
-  }
 
   static func generate(_ input: Input) -> DeclSyntax {
     let signature = FunctionSignatureAdapter.renderedSignature(
       for: input.function,
       renamedTo: input.function.name.text
     )
-    let accessPrefix = input.accessLevel.map { "\($0) " } ?? ""
+    let accessPrefix = input.accessLevel?.sourcePrefix ?? ""
     let body = statements(for: input).joined(separator: "\n")
 
     return DeclSyntax(
@@ -58,11 +48,7 @@ enum HTTPMethodImplementationBuilder {
     statements.append(contentsOf: headerStatements(input.headers))
     statements.append(contentsOf: queryStatements(input.queryParameters, in: input.function))
 
-    if input.hasInterceptors {
-      statements.append(
-        contentsOf: interceptorExecution(method: methodMember, returnType: input.returnType)
-      )
-    } else if isVoid(input.returnType) {
+    if isVoid(input.returnType) {
       statements.append("_ = try await client.execute(request)")
       statements.append("return")
     } else {
@@ -77,7 +63,7 @@ enum HTTPMethodImplementationBuilder {
   private static func bodyStatements(_ bodyParameter: String?) -> [String] {
     guard let bodyParameter else { return [] }
     return [
-      "request.setBody(HTTPBody(try JSONEncoder().encode(\(bodyParameter))))",
+      "request.setBody(HTTPBody(try codec.encode(\(bodyParameter))))",
       "request.addHeader(name: \"Content-Type\", value: \"application/json\")",
     ]
   }
@@ -101,7 +87,7 @@ enum HTTPMethodImplementationBuilder {
   ) -> [String] {
     queryParameters.map { parameter in
       let call =
-        "request.addQueryParameter(name: \(swiftLiteral(parameter)), value: \(parameter))"
+        "try request.addQueryParameter(name: \(swiftLiteral(parameter)), value: \(parameter))"
       if isOptionalParameter(named: parameter, in: function) {
         return """
           if let \(parameter) {
@@ -129,29 +115,6 @@ enum HTTPMethodImplementationBuilder {
       || parameter.type.trimmedDescription.hasPrefix("Optional<")
   }
 
-  private static func interceptorExecution(
-    method: String,
-    returnType: String
-  ) -> [String] {
-    let shortCircuit =
-      decodeStatements(response: "interceptedResponse", returnType: returnType)
-      .joined(separator: "\n")
-    let decodedResponse =
-      decodeStatements(response: "finalResponse", returnType: returnType)
-      .joined(separator: "\n")
-    return [
-      "let preparedRequest = request",
-      "var context = InterceptorContext(path: RequestPathPattern(rawValue: path), method: .\(method))",
-      """
-      while true {
-      \(indent(requestInterceptorStep(shortCircuit: shortCircuit)))
-      \(indent(responseInterceptorStep()))
-      \(indent(decodedResponse))
-      }
-      """,
-    ]
-  }
-
   private static func decodeStatements(response: String, returnType: String) -> [String] {
     guard !isVoid(returnType) else { return ["return"] }
     return [
@@ -162,7 +125,7 @@ enum HTTPMethodImplementationBuilder {
         )
       }
       """,
-      "return try JSONDecoder().decode(\(returnType).self, from: responseBody.rawValue)",
+      "return try codec.decode(\(returnType).self, from: responseBody.rawValue)",
     ]
   }
 
@@ -170,7 +133,7 @@ enum HTTPMethodImplementationBuilder {
     returnType == "Void" || returnType == "()"
   }
 
-  static func indent(_ source: String) -> String {
+  private static func indent(_ source: String) -> String {
     source.split(separator: "\n", omittingEmptySubsequences: false)
       .map { "  \($0)" }
       .joined(separator: "\n")

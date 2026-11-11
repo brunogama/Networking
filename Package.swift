@@ -1,278 +1,144 @@
 // swift-tools-version: 6.0
-// Monorepo manifest — all products and targets in one package.
-// Sub-package manifests under Packages/ are kept for standalone dev/CI.
+// Distribution manifest for the public Networking products.
 
-import CompilerPluginSupport
 import PackageDescription
 
-// swiftlint:disable file_length
-
-let strictConcurrencySettings: [SwiftSetting] = [
-  .unsafeFlags(["-warn-concurrency", "-enable-actor-data-race-checks"])
-]
-
-// MARK: - Dependency aliases
-
-let openTelemetryHTTPExporter: Target.Dependency = .product(
+private let networkingCore: Target.Dependency = .product(
+  name: "NetworkingCore",
+  package: "NetworkingCore"
+)
+private let openTelemetryHTTPExporter: Target.Dependency = .product(
   name: "OpenTelemetryProtocolExporterHTTP",
   package: "opentelemetry-swift"
 )
-let openTelemetrySDK: Target.Dependency = .product(
-  name: "OpenTelemetrySdk",
-  package: "opentelemetry-swift"
+private let premiseCore: Target.Dependency = .product(name: "PremiseCore", package: "Premise")
+private let premiseStrategies: Target.Dependency = .product(
+  name: "PremiseStrategies",
+  package: "Premise"
 )
-let swiftCheck: Target.Dependency = .product(name: "SwiftCheck", package: "SwiftCheck")
-
-// MARK: - Target dependency groups
-
-let networkingDependencies: [Target.Dependency] = [
-  "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
-  "NetworkingInterceptorsCompat", "NetworkingObservability", "NetworkingSSE",
-]
-let runtimeTestDependencies: [Target.Dependency] = [
-  "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL", "NetworkingTesting", swiftCheck,
-]
-let interceptorsCompatTestDependencies: [Target.Dependency] = [
-  "NetworkingInterceptorsCompat", "NetworkingRuntime", "NetworkingDSL", "NetworkingTesting",
-  swiftCheck,
-]
-let observabilityTestDependencies: [Target.Dependency] = [
-  "NetworkingObservability", "NetworkingObservabilityOTLP", "NetworkingRuntime", "NetworkingDSL",
-  "NetworkingTesting",
-]
-let testingTestDependencies: [Target.Dependency] = [
-  "NetworkingTesting", "NetworkingRuntime", "NetworkingObservability", "NetworkingDSL",
-  "NetworkingRuntimeDSL",
-]
-let sseTestDependencies: [Target.Dependency] = [
-  "NetworkingSSE"
-]
-
-// MARK: - Helpers
-
-func libraryTarget(
-  _ name: String,
-  dependencies: [Target.Dependency] = [],
-  path: String,
-  exclude: [String] = []
-) -> Target {
-  .target(
-    name: name,
-    dependencies: dependencies,
-    path: path,
-    exclude: exclude,
-    swiftSettings: strictConcurrencySettings
-  )
-}
-
-func testTarget(
-  _ name: String,
-  dependencies: [Target.Dependency],
-  path: String,
-  exclude: [String] = []
-) -> Target {
-  .testTarget(name: name, dependencies: dependencies, path: path, exclude: exclude)
-}
-
-// MARK: - Products
-
-let networkingLibraryProducts: [Product] = [
-  "Networking", "NetworkingCore", "NetworkingRuntime", "NetworkingDSL", "NetworkingRuntimeDSL",
-  "NetworkingInterceptorsCompat", "NetworkingObservability", "NetworkingObservabilityOTLP",
-  "NetworkingTesting", "NetworkingBDD", "NetworkingSSE",
-].map { Product.library(name: $0, targets: [$0]) }
-
-let macroProducts: [Product] = [
-  .library(name: "NetworkingMacros", targets: ["NetworkingMacros"])
-]
-
-// MARK: - Package
+private let premiseTesting: Target.Dependency = .product(name: "PremiseTesting", package: "Premise")
 
 let package = Package(
-  name: "ModernNetworking",
+  name: "Networking",
   platforms: [
     .iOS(.v16),
     .macOS(.v13),
     .tvOS(.v16),
     .watchOS(.v9),
   ],
-  products: networkingLibraryProducts + macroProducts,
+  products: [
+    .library(name: "Networking", targets: ["Networking"]),
+    .library(name: "NetworkingRuntime", targets: ["NetworkingRuntime"]),
+    .library(name: "NetworkingObservability", targets: ["NetworkingObservability"]),
+    .library(name: "NetworkingObservabilityOTLP", targets: ["NetworkingObservabilityOTLP"]),
+    .library(name: "NetworkingTesting", targets: ["NetworkingTesting"]),
+    .library(name: "NetworkingSSE", targets: ["NetworkingSSE"]),
+  ],
   dependencies: [
-    // OpenTelemetry for observability
+    .package(path: "Packages/NetworkingCore"),
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift.git",
       from: "1.10.1"
     ),
-    // Property-based testing
-    .package(url: "https://github.com/typelift/SwiftCheck.git", from: "0.12.0"),
-    // MacroTemplateKit - Type-safe templating for macro code generation
-    .package(
-      url: "https://github.com/brunogama/MacroTemplateKit.git",
-      exact: "0.0.7"
-    ),
-    // Swift Syntax for macro implementations
-    .package(
-      url: "https://github.com/swiftlang/swift-syntax.git",
-      from: "600.0.0"
-    ),
-    // Macro testing framework
-    .package(
-      url: "https://github.com/pointfreeco/swift-macro-testing.git",
-      from: "0.5.2"
-    ),
+    .package(url: "https://github.com/brunogama/Premise.git", from: "1.0.2"),
   ],
   targets: [
-    // ──────────────────────────────────────────────
-    // MARK: Networking library targets
-    // ──────────────────────────────────────────────
-    libraryTarget(
-      "Networking",
-      dependencies: networkingDependencies,
-      path: "Packages/Networking/Sources/Networking",
-      exclude: ["CLAUDE.md", "ValidatedResponse.swift.backup"]
-    ),
-    libraryTarget(
-      "NetworkingCore",
-      path: "Packages/Networking/Sources/NetworkingCore"
-    ),
-    libraryTarget(
-      "NetworkingRuntime",
-      dependencies: ["NetworkingCore"],
+    .target(
+      name: "NetworkingRuntime",
+      dependencies: [networkingCore],
       path: "Packages/Networking/Sources/NetworkingRuntime"
     ),
-    libraryTarget(
-      "NetworkingDSL",
-      dependencies: ["NetworkingCore"],
-      path: "Packages/Networking/Sources/NetworkingDSL"
-    ),
-    libraryTarget(
-      "NetworkingRuntimeDSL",
-      dependencies: ["NetworkingDSL", "NetworkingRuntime"],
-      path: "Packages/Networking/Sources/NetworkingRuntimeDSL"
-    ),
-    libraryTarget(
-      "NetworkingInterceptorsCompat",
-      dependencies: ["NetworkingRuntime"],
-      path: "Packages/Networking/Sources/NetworkingInterceptorsCompat"
-    ),
-    libraryTarget(
-      "NetworkingObservability",
-      dependencies: ["NetworkingRuntime"],
+    .target(
+      name: "NetworkingObservability",
+      dependencies: [networkingCore, "NetworkingRuntime"],
       path: "Packages/Networking/Sources/NetworkingObservability"
     ),
-    libraryTarget(
-      "NetworkingObservabilityOTLP",
+    .target(
+      name: "NetworkingObservabilityOTLP",
       dependencies: [
+        networkingCore,
         "NetworkingObservability",
         openTelemetryHTTPExporter,
-        openTelemetrySDK,
       ],
       path: "Packages/Networking/Sources/NetworkingObservabilityOTLP"
     ),
-    libraryTarget(
-      "NetworkingTesting",
+    .target(
+      name: "NetworkingTesting",
       dependencies: [
+        networkingCore,
         "NetworkingRuntime",
-        "NetworkingInterceptorsCompat",
         "NetworkingObservability",
       ],
       path: "Packages/Networking/Sources/NetworkingTesting",
       exclude: ["README.md"]
     ),
-    libraryTarget(
-      "NetworkingBDD",
-      dependencies: ["NetworkingRuntime", "NetworkingTesting"],
-      path: "Packages/Networking/Sources/NetworkingBDD"
-    ),
-    libraryTarget(
-      "NetworkingSSE",
-      dependencies: ["NetworkingCore", "NetworkingRuntime"],
+    .target(
+      name: "NetworkingSSE",
+      dependencies: [networkingCore, "NetworkingRuntime"],
       path: "Packages/Networking/Sources/NetworkingSSE"
     ),
-
-    // ──────────────────────────────────────────────
-    // MARK: Networking test targets
-    // ──────────────────────────────────────────────
-    testTarget(
-      "NetworkingCoreTests",
-      dependencies: ["NetworkingCore", "NetworkingTesting"],
-      path: "Packages/Networking/Tests/NetworkingCoreTests"
-    ),
-    testTarget(
-      "NetworkingRuntimeTests",
-      dependencies: runtimeTestDependencies,
-      path: "Packages/Networking/Tests/NetworkingRuntimeTests"
-    ),
-    testTarget(
-      "NetworkingDSLTests",
-      dependencies: [
-        "NetworkingDSL", "NetworkingRuntime", "NetworkingRuntimeDSL", "NetworkingTesting",
-      ],
-      path: "Packages/Networking/Tests/NetworkingDSLTests"
-    ),
-    testTarget(
-      "NetworkingInterceptorsCompatTests",
-      dependencies: interceptorsCompatTestDependencies,
-      path: "Packages/Networking/Tests/NetworkingInterceptorsCompatTests"
-    ),
-    testTarget(
-      "NetworkingObservabilityTests",
-      dependencies: observabilityTestDependencies,
-      path: "Packages/Networking/Tests/NetworkingObservabilityTests"
-    ),
-    testTarget(
-      "NetworkingTestingTests",
-      dependencies: testingTestDependencies,
-      path: "Packages/Networking/Tests/NetworkingTestingTests"
-    ),
-    testTarget(
-      "NetworkingBDDTests",
-      dependencies: ["NetworkingBDD", "NetworkingRuntime", "NetworkingTesting"],
-      path: "Packages/Networking/Tests/NetworkingBDDTests"
-    ),
-    testTarget(
-      "NetworkingSSETests",
-      dependencies: sseTestDependencies,
-      path: "Packages/Networking/Tests/NetworkingSSETests"
-    ),
-    testTarget(
-      "NetworkingTests",
-      dependencies: ["Networking", "NetworkingTesting", swiftCheck],
-      path: "Packages/Networking/Tests/NetworkingTests",
-      exclude: [".swiftlint.yml", "BDD/INTEGRATION_TEST_AUDIT.md", "CLAUDE.md"]
-    ),
-
-    // ──────────────────────────────────────────────
-    // MARK: Macro targets
-    // ──────────────────────────────────────────────
     .target(
-      name: "NetworkingMacros",
-      dependencies: ["NetworkingMacrosPlugin"],
-      path: "Packages/NetworkingMacros/Sources/NetworkingMacrosDeclarations",
-      swiftSettings: strictConcurrencySettings
-    ),
-    .macro(
-      name: "NetworkingMacrosPlugin",
+      name: "Networking",
       dependencies: [
-        .product(name: "MacroTemplateKit", package: "MacroTemplateKit"),
-        .product(name: "SwiftSyntax", package: "swift-syntax"),
-        .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
-        .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-        .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+        networkingCore,
+        "NetworkingRuntime",
+        "NetworkingObservability",
+        "NetworkingSSE",
       ],
-      path: "Packages/NetworkingMacros/Sources/NetworkingMacros"
+      path: "Packages/Networking/Sources/Networking",
+      exclude: [
+        "Documentation.docc",
+        "Networking.docc",
+        "ValidatedResponse.swift.backup",
+      ]
     ),
     .testTarget(
-      name: "NetworkingMacrosTests",
+      name: "NetworkingRuntimeTests",
       dependencies: [
-        "NetworkingMacros",
-        "NetworkingMacrosPlugin",
-        .product(name: "MacroTesting", package: "swift-macro-testing"),
-        .product(name: "SwiftParser", package: "swift-syntax"),
+        networkingCore,
+        "NetworkingRuntime",
+        "NetworkingTesting",
+        premiseCore,
+        premiseStrategies,
+        premiseTesting,
       ],
-      path: "Packages/NetworkingMacros/Tests/NetworkingMacrosTests"
+      path: "Packages/Networking/Tests/NetworkingRuntimeTests"
     ),
-  ]
+    .testTarget(
+      name: "NetworkingObservabilityTests",
+      dependencies: [
+        networkingCore,
+        "NetworkingObservability",
+        "NetworkingObservabilityOTLP",
+        "NetworkingRuntime",
+        "NetworkingTesting",
+        premiseCore,
+        premiseStrategies,
+        premiseTesting,
+      ],
+      path: "Packages/Networking/Tests/NetworkingObservabilityTests"
+    ),
+    .testTarget(
+      name: "NetworkingTestingTests",
+      dependencies: [
+        networkingCore,
+        "NetworkingTesting",
+        "NetworkingRuntime",
+        "NetworkingObservability",
+      ],
+      path: "Packages/Networking/Tests/NetworkingTestingTests"
+    ),
+    .testTarget(
+      name: "NetworkingSSETests",
+      dependencies: [networkingCore, "NetworkingSSE", "NetworkingRuntime"],
+      path: "Packages/Networking/Tests/NetworkingSSETests"
+    ),
+    .testTarget(
+      name: "NetworkingTests",
+      dependencies: ["Networking", "NetworkingTesting"],
+      path: "Packages/Networking/Tests/NetworkingTests",
+      exclude: [".swiftlint.yml", "BDD/INTEGRATION_TEST_AUDIT.md"]
+    ),
+  ],
+  swiftLanguageModes: [.v6]
 )
-
-// swiftlint:enable file_length

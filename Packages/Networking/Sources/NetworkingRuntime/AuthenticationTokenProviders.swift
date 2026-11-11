@@ -1,8 +1,18 @@
+import Foundation
 import NetworkingCore
+
+extension AuthenticationMiddleware.TokenProvider {
+
+  public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
+    if case .http(.unauthorized) = error.category { return true }
+    return false
+  }
+}
 
 /// A simple token provider that stores tokens in memory.
 public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
   private var accessToken: BearerTokenValue?
+  private var credentialRevision = UUID()
   private let refreshHandler: @Sendable () async throws -> BearerTokenValue
 
   public init(
@@ -18,8 +28,15 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
   }
 
   public func refreshToken() async throws -> BearerTokenValue {
+    try Task.checkCancellation()
+    let revision = credentialRevision
     let newToken = try await refreshHandler()
+    try Task.checkCancellation()
+    guard revision == credentialRevision else {
+      throw HTTPError(category: .custom("Authentication", "Credentials changed during refresh"))
+    }
     accessToken = newToken
+    credentialRevision = UUID()
     return newToken
   }
 
@@ -32,48 +49,13 @@ public actor MemoryTokenProvider: AuthenticationMiddleware.TokenProvider {
   }
 
   public func setToken(_ token: BearerTokenValue?) async {
+    credentialRevision = UUID()
     accessToken = token
   }
 }
 
-/// A token provider that uses closures for all operations.
-public struct ClosureTokenProvider: AuthenticationMiddleware.TokenProvider {
-  private let getCurrentHandler: @Sendable () async throws -> BearerTokenValue?
-  private let refreshHandler: @Sendable () async throws -> BearerTokenValue
-  private let shouldRefreshHandler: @Sendable (HTTPError) async -> AuthenticationDecision
-
-  public init(
-    getCurrentToken: @escaping @Sendable () async throws -> BearerTokenValue?,
-    refreshToken: @escaping @Sendable () async throws -> BearerTokenValue,
-    shouldRefreshToken: @escaping @Sendable (HTTPError) async -> AuthenticationDecision = {
-      error in
-      if case .http(let status) = error.category, status == .unauthorized {
-        return true
-      }
-
-      return false
-    }
-  ) {
-    self.getCurrentHandler = getCurrentToken
-    self.refreshHandler = refreshToken
-    self.shouldRefreshHandler = shouldRefreshToken
-  }
-
-  public func getCurrentToken() async throws -> BearerTokenValue? {
-    try await getCurrentHandler()
-  }
-
-  public func refreshToken() async throws -> BearerTokenValue {
-    try await refreshHandler()
-  }
-
-  public func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision {
-    await shouldRefreshHandler(error)
-  }
-}
-
 extension AuthenticationMiddleware {
-  /// Creates an authentication middleware with a memory-based token provider.
+
   public static func withMemoryProvider(
     client: any HTTPClient,
     initialToken: BearerTokenValue? = nil,
@@ -89,7 +71,6 @@ extension AuthenticationMiddleware {
     )
   }
 
-  /// Creates an authentication middleware with a closure-based token provider.
   public static func withClosureProvider(
     client: any HTTPClient,
     getCurrentToken: @escaping @Sendable () async throws -> BearerTokenValue?,

@@ -2,7 +2,8 @@ import NetworkingCore
 
 #if canImport(Security)
 /// A token provider that uses Keychain for secure storage.
-public final class KeychainTokenProvider: BearerTokenProvider {
+public final class KeychainTokenProvider: AuthenticationMiddleware.TokenProvider {
+
   public typealias RefreshHandler =
     @Sendable (RefreshTokenValue) async throws -> BearerTokenValue
 
@@ -23,7 +24,6 @@ public final class KeychainTokenProvider: BearerTokenProvider {
     self.refreshHandler = refreshHandler
   }
 
-  /// Convenience initializer with service name.
   public convenience init(
     service: KeychainServiceName,
     tokenKey: KeychainItemKey = "access_token",
@@ -45,11 +45,16 @@ public final class KeychainTokenProvider: BearerTokenProvider {
   }
 
   public func refreshToken() async throws -> BearerTokenValue {
+    try Task.checkCancellation()
     guard let refreshTokenKey else {
       throw missingRefreshTokenError()
     }
 
-    guard let refreshToken = try await keychainService.retrieveString(forKey: refreshTokenKey)
+    guard
+      let snapshot = try await keychainService.refreshCredential(
+        tokenKey: tokenKey,
+        refreshKey: refreshTokenKey
+      )
     else {
       throw missingRefreshTokenError()
     }
@@ -58,17 +63,15 @@ public final class KeychainTokenProvider: BearerTokenProvider {
       throw HTTPError(category: .configuration("A token refresh handler is required"))
     }
 
-    let token = try await refreshHandler(RefreshTokenValue(refreshToken.rawValue))
-    try await storeToken(token)
+    let token = try await refreshHandler(RefreshTokenValue(snapshot.refreshToken.rawValue))
+    try await keychainService.storeRefreshedToken(token, matching: snapshot)
     return token
   }
 
-  /// Stores an access token securely in the keychain.
   public func storeToken(_ token: BearerTokenValue) async throws {
     try await keychainService.store(KeychainStringValue(token.rawValue), forKey: tokenKey)
   }
 
-  /// Stores a refresh token securely in the keychain.
   public func storeRefreshToken(_ token: RefreshTokenValue) async throws {
     guard let refreshTokenKey else {
       throw HTTPError(category: .configuration("Refresh token key not configured"))
@@ -80,13 +83,8 @@ public final class KeychainTokenProvider: BearerTokenProvider {
     )
   }
 
-  /// Clears all stored tokens.
   public func clearTokens() async throws {
-    try await keychainService.delete(tokenKey)
-
-    if let refreshTokenKey {
-      try await keychainService.delete(refreshTokenKey)
-    }
+    try await keychainService.deleteTokens(tokenKey: tokenKey, refreshKey: refreshTokenKey)
   }
 
   private func missingRefreshTokenError() -> HTTPError {
@@ -95,7 +93,7 @@ public final class KeychainTokenProvider: BearerTokenProvider {
 }
 
 extension KeychainTokenProvider {
-  /// Factory method to create a token provider for OAuth2 flows.
+
   public static func oauth2(
     service: KeychainServiceName,
     clientId: OAuthClientIdentifier? = nil,
@@ -112,7 +110,6 @@ extension KeychainTokenProvider {
     )
   }
 
-  /// Factory method to create a token provider for API key authentication.
   public static func apiKey(
     service: KeychainServiceName,
     keyName: KeychainItemKey = "api_key"

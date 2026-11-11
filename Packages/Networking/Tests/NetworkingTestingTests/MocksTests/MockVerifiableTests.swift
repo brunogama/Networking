@@ -1,149 +1,124 @@
-import Foundation
 import Testing
 
 @testable import NetworkingTesting
-import NetworkingRuntime
-import NetworkingObservability
-import NetworkingDSL
-import NetworkingRuntimeDSL
 @Suite("MockVerifiable Protocol Tests")
 struct MockVerifiableTests {
-    // MARK: - Helper Mock
+  // MARK: - verifyCalledOnce() Tests
 
-    /// Simple mock implementation for testing MockVerifiable protocol
-    private final class SimpleMock: MockVerifiable, @unchecked Sendable {
-        private let queue = DispatchQueue(label: "test.mock", attributes: .concurrent)
-        private var _callCount: Int = 0
+  @Test("verifyCalledOnce succeeds when called exactly once")
+  func acceptsOneCall() async throws {
+    let mock = CountingMock()
+    await mock.recordCall()
 
-        var callCount: MockVerificationCount {
-            get async { MockVerificationCount(queue.sync { _callCount }) }
-        }
+    try await mock.verifyCalledOnce()
+  }
 
-        func recordCall() {
-            queue.sync(flags: .barrier) { _callCount += 1 }
-        }
+  @Test("verifyCalledOnce throws when called twice")
+  func rejectsTwoCalls() async {
+    let mock = CountingMock()
+    await mock.recordCall()
+    await mock.recordCall()
 
-        func reset() {
-            queue.sync(flags: .barrier) { _callCount = 0 }
-        }
+    await #expect(throws: MockError.self) {
+      try await mock.verifyCalledOnce()
     }
+  }
 
-    // MARK: - verifyCalledOnce() Tests
+  @Test("verifyCalledOnce throws when never called")
+  func rejectsMissingCall() async {
+    let mock = CountingMock()
 
-    @Test("verifyCalledOnce succeeds when called exactly once")
-    func verifyCalledOnce_succeeds_whenCalledOnce() async throws {
-        let mock = SimpleMock()
-        mock.recordCall()
-
-        try await mock.verifyCalledOnce()
+    await #expect(throws: MockError.self) {
+      try await mock.verifyCalledOnce()
     }
+  }
 
-    @Test("verifyCalledOnce throws when called twice")
-    func verifyCalledOnce_throws_whenCalledTwice() async {
-        let mock = SimpleMock()
-        mock.recordCall()
-        mock.recordCall()
+  // MARK: - verifyCalledExactly() Tests
 
-        await #expect(throws: MockError.self) {
-            try await mock.verifyCalledOnce()
-        }
+  @Test("verifyCalledExactly succeeds when count matches")
+  func acceptsExactCount() async throws {
+    let mock = CountingMock()
+    await mock.recordCall()
+    await mock.recordCall()
+    await mock.recordCall()
+
+    try await mock.verifyCalledExactly(3)
+  }
+
+  @Test("verifyCalledExactly throws when count differs")
+  func rejectsWrongCount() async {
+    let mock = CountingMock()
+    await mock.recordCall()
+
+    await #expect(throws: MockError.self) {
+      try await mock.verifyCalledExactly(2)
     }
+  }
 
-    @Test("verifyCalledOnce throws when never called")
-    func verifyCalledOnce_throws_whenNeverCalled() async {
-        let mock = SimpleMock()
+  // MARK: - verifyNeverCalled() Tests
 
-        await #expect(throws: MockError.self) {
-            try await mock.verifyCalledOnce()
-        }
+  @Test("verifyNeverCalled succeeds when never called")
+  func acceptsNoCalls() async throws {
+    let mock = CountingMock()
+
+    try await mock.verifyNeverCalled()
+  }
+
+  @Test("verifyNeverCalled throws when called once")
+  func verifyNeverCalled_throws_whenCalled() async {
+    let mock = CountingMock()
+    await mock.recordCall()
+
+    await #expect(throws: MockError.self) {
+      try await mock.verifyNeverCalled()
     }
+  }
 
-    // MARK: - verifyCalledExactly() Tests
+  // MARK: - verifyCalledAtLeast() Tests
 
-    @Test("verifyCalledExactly succeeds when count matches")
-    func verifyCalledExactly_succeeds_whenCountMatches() async throws {
-        let mock = SimpleMock()
-        mock.recordCall()
-        mock.recordCall()
-        mock.recordCall()
+  @Test("verifyCalledAtLeast succeeds when called enough times")
+  func acceptsMinimumCount() async throws {
+    let mock = CountingMock()
+    await mock.recordCall()
+    await mock.recordCall()
+    await mock.recordCall()
 
-        try await mock.verifyCalledExactly(3)
+    try await mock.verifyCalledAtLeast(2)
+  }
+
+  @Test("verifyCalledAtLeast throws when not called enough")
+  func rejectsInsufficientCount() async {
+    let mock = CountingMock()
+    await mock.recordCall()
+
+    await #expect(throws: MockError.self) {
+      try await mock.verifyCalledAtLeast(3)
     }
+  }
 
-    @Test("verifyCalledExactly throws when count differs")
-    func verifyCalledExactly_throws_whenCountDiffers() async {
-        let mock = SimpleMock()
-        mock.recordCall()
+  // MARK: - MockError Tests
 
-        await #expect(throws: MockError.self) {
-            try await mock.verifyCalledExactly(2)
-        }
-    }
+  @Test("MockError.notStubbed has descriptive message")
+  func describesMissingStub() {
+    let error = MockError.notStubbed("getCurrentToken")
 
-    // MARK: - verifyNeverCalled() Tests
+    #expect(error.description.contains("Not stubbed"))
+    #expect(error.description.contains("getCurrentToken"))
+  }
 
-    @Test("verifyNeverCalled succeeds when never called")
-    func verifyNeverCalled_succeeds_whenNeverCalled() async throws {
-        let mock = SimpleMock()
+  @Test("MockError.unexpectedCallCount shows expected and actual")
+  func describesUnexpectedCount() {
+    let error = MockError.unexpectedCallCount(expected: 3, actual: 1)
 
-        try await mock.verifyNeverCalled()
-    }
+    #expect(error.description.contains("Expected 3"))
+    #expect(error.description.contains("got 1"))
+  }
 
-    @Test("verifyNeverCalled throws when called once")
-    func verifyNeverCalled_throws_whenCalled() async {
-        let mock = SimpleMock()
-        mock.recordCall()
+  @Test("MockError.unexpectedArgument has descriptive message")
+  func describesUnexpectedArgument() {
+    let error = MockError.unexpectedArgument(description: "invalid URL")
 
-        await #expect(throws: MockError.self) {
-            try await mock.verifyNeverCalled()
-        }
-    }
-
-    // MARK: - verifyCalledAtLeast() Tests
-
-    @Test("verifyCalledAtLeast succeeds when called enough times")
-    func verifyCalledAtLeast_succeeds_whenCalledEnough() async throws {
-        let mock = SimpleMock()
-        mock.recordCall()
-        mock.recordCall()
-        mock.recordCall()
-
-        try await mock.verifyCalledAtLeast(2)
-    }
-
-    @Test("verifyCalledAtLeast throws when not called enough")
-    func verifyCalledAtLeast_throws_whenNotEnough() async {
-        let mock = SimpleMock()
-        mock.recordCall()
-
-        await #expect(throws: MockError.self) {
-            try await mock.verifyCalledAtLeast(3)
-        }
-    }
-
-    // MARK: - MockError Tests
-
-    @Test("MockError.notStubbed has descriptive message")
-    func mockError_notStubbed_hasDescriptiveMessage() {
-        let error = MockError.notStubbed("getCurrentToken")
-
-        #expect(error.description.contains("Not stubbed"))
-        #expect(error.description.contains("getCurrentToken"))
-    }
-
-    @Test("MockError.unexpectedCallCount shows expected and actual")
-    func mockError_unexpectedCallCount_showsExpectedAndActual() {
-        let error = MockError.unexpectedCallCount(expected: 3, actual: 1)
-
-        #expect(error.description.contains("Expected 3"))
-        #expect(error.description.contains("got 1"))
-    }
-
-    @Test("MockError.unexpectedArgument has descriptive message")
-    func mockError_unexpectedArgument_hasDescriptiveMessage() {
-        let error = MockError.unexpectedArgument(description: "invalid URL")
-
-        #expect(error.description.contains("Unexpected argument"))
-        #expect(error.description.contains("invalid URL"))
-    }
+    #expect(error.description.contains("Unexpected argument"))
+    #expect(error.description.contains("invalid URL"))
+  }
 }

@@ -1,0 +1,134 @@
+# Managed by provision-swift-quality.sh.
+name: Swift quality
+
+on:
+  pull_request:
+  push:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swift-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Swift quality / ${{ matrix.gate }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        gate:
+          - style
+          - analysis
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select pinned Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .swift-style.env
+
+          : "${XCODE_VERSION:?Missing XCODE_VERSION}"
+          : "${XCODE_APPLICATION_VERSION:?Missing XCODE_APPLICATION_VERSION}"
+          : "${SWIFTLINT_VERSION:?Missing SWIFTLINT_VERSION}"
+
+          developer_dir="/Applications/Xcode_${XCODE_APPLICATION_VERSION}.app/Contents/Developer"
+
+          if [[ ! -d "$developer_dir" ]]; then
+            echo "::error::Pinned Xcode is unavailable on this runner: $developer_dir"
+            echo "Available Xcode applications:"
+            find /Applications -maxdepth 1 -name 'Xcode*.app' -print
+            exit 1
+          fi
+
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+
+      - name: Install pinned SwiftLint
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .swift-style.env
+
+          package="$RUNNER_TEMP/SwiftLint.pkg"
+
+          curl \
+            --fail \
+            --location \
+            --retry 3 \
+            --output "$package" \
+            "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/SwiftLint.pkg"
+
+          sudo installer -pkg "$package" -target /
+
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+
+      - name: Show toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          swift --version
+          swiftlint version
+
+      - name: Validate script syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/swift-style
+          bash -n scripts/swift-style-analyze
+
+      - name: Check complete Swift style scope
+        if: matrix.gate == 'style'
+        shell: bash
+        run: bash scripts/swift-style check --all
+
+      - name: Clean build, test, and analyze Swift package
+        if: matrix.gate == 'analysis'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f Package.swift ]]; then
+            echo "::error::Replace this step with your Xcode project's clean build and test commands."
+            exit 1
+          fi
+
+          scratch="$RUNNER_TEMP/swift-analysis-build"
+          test_scratch="$RUNNER_TEMP/swift-analysis-tests"
+          log="$RUNNER_TEMP/swift-compiler.log"
+
+          swift build \
+            --scratch-path "$scratch" \
+            --verbose \
+            2>&1 | tee "$log"
+
+          swift test \
+            --scratch-path "$test_scratch" \
+            --verbose \
+            2>&1 | tee -a "$log"
+
+          bash scripts/swift-style-analyze "$log"
+
+      - name: Verify tracked files were not modified
+        shell: bash
+        run: git diff --exit-code
+
+      - name: Upload compiler log
+        if: always() && matrix.gate == 'analysis'
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-analysis-compiler-log
+          path: ${{ runner.temp }}/swift-compiler.log
+          if-no-files-found: ignore
+          retention-days: 7

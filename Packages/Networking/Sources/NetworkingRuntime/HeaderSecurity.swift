@@ -2,17 +2,12 @@ import Foundation
 import NetworkingCore
 
 extension HTTPError {
-  public enum SecurityError: Sendable {
-    case headerInjection
-    case maliciousContent
-    case suspiciousActivity
-    case rateLimitExceeded
-  }
 }
 
 extension HTTPError.Category {
+
   public static func security(
-    _ error: HTTPError.SecurityError,
+    _ error: HeaderSecurityError,
     message: HTTPErrorDetail? = nil
   ) -> Self {
     let defaultMessage: HTTPErrorDetail
@@ -34,20 +29,21 @@ extension HTTPError.Category {
   }
 }
 
-public struct HeaderSecurity {
-  /// Validates a header name according to RFC 7230.
-  public static func isValidHeaderName(_ name: HTTPHeaderName) -> HeaderValidationDecision {
-    guard !name.isEmpty else { return false }
+/// HTTP field-name and field-value validation utilities.
+public enum HeaderSecurity {
 
-    let tokenCharacters = CharacterSet.alphanumerics
-      .union(CharacterSet(charactersIn: "!#$%&'*+-.^_`|~"))
+  public static func isValidHeaderName(_ name: HTTPHeaderName) -> HeaderValidationDecision {
+    guard !name.rawValue.isEmpty else { return false }
+
+    let tokenCharacters = CharacterSet(
+      charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
+    )
 
     return HeaderValidationDecision(
       name.rawValue.rangeOfCharacter(from: tokenCharacters.inverted) == nil
     )
   }
 
-  /// Validates a header value according to RFC 7230.
   public static func isValidHeaderValue(_ value: HTTPHeaderValue) -> HeaderValidationDecision {
     for char in value.rawValue.unicodeScalars {
       let code = char.value
@@ -70,7 +66,6 @@ public struct HeaderSecurity {
     return true
   }
 
-  /// Sanitizes a header value by removing invalid characters.
   public static func sanitizeHeaderValue(_ value: HTTPHeaderValue) -> HTTPHeaderValue {
     HTTPHeaderValue(
       String(
@@ -89,7 +84,6 @@ public struct HeaderSecurity {
     )
   }
 
-  /// Checks if a string contains header injection patterns.
   public static func containsInjectionAttempt(_ value: HTTPHeaderValue) -> HeaderValidationDecision
   {
     let injectionPatterns = [
@@ -98,7 +92,7 @@ public struct HeaderSecurity {
       "\\r\\n", "\\n", "\\r",
     ]
 
-    let lowercaseValue = value.lowercased()
+    let lowercaseValue = value.rawValue.lowercased()
     return HeaderValidationDecision(injectionPatterns.contains { lowercaseValue.contains($0) })
   }
 }

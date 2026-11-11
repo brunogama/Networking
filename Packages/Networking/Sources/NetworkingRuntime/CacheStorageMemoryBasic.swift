@@ -2,12 +2,10 @@ import Foundation
 import NetworkingCore
 
 /// A basic in-memory cache storage implementation.
-public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
+public actor MemoryCacheStorage: HTTPResponseCacheStorage {
   private var cache: [CacheKey: CachingMiddleware.CacheEntry] = [:]
   private let maxSize: CacheEntryLimit?
 
-  /// Creates a new memory cache storage.
-  /// - Parameter maxSize: Maximum number of entries to store.
   public init(maxSize: CacheEntryLimit? = CacheEntryLimit(rawValue: 100)) {
     self.maxSize = maxSize
   }
@@ -36,7 +34,8 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
     await removeExpired()
 
-    if let maxSize = maxSize, cache.count >= maxSize.rawValue {
+    if let maxSize, maxSize.rawValue <= 0 { return }
+    if cache[key] == nil, let maxSize, cache.count >= maxSize.rawValue {
       let oldestKey = cache.min { lhs, rhs in
         lhs.value.cachedAt < rhs.value.cachedAt
       }?.key
@@ -65,27 +64,16 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func removeByTags(_ tags: [CacheTagName]) async {
-    _ = tags
-    // Basic memory cache does not retain tag metadata.
+    let requested = Set(tags)
+    cache = cache.filter { requested.isDisjoint(with: $0.value.tags) }
   }
 
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
-    let regex: NSRegularExpression?
-    do {
-      let regexPattern =
-        pattern.rawValue
-        .replacingOccurrences(of: "*", with: ".*")
-        .replacingOccurrences(of: "?", with: ".")
-      regex = try NSRegularExpression(pattern: regexPattern, options: [])
-    } catch {
-      return
-    }
-
-    guard let regex = regex else { return }
+    let regex = cachePatternRegex(pattern)
 
     let keysToRemove = cache.keys.filter { key in
       let range = NSRange(location: 0, length: key.rawValue.utf16.count)
-      return regex.firstMatch(in: key.rawValue, options: [], range: range) != nil
+      return regex?.firstMatch(in: key.rawValue, options: [], range: range) != nil
     }
 
     for key in keysToRemove {
@@ -99,7 +87,6 @@ public actor MemoryCacheStorage: CachingMiddleware.CacheStorage {
     }
   }
 
-  /// Returns the current cache size.
   public var size: CacheEntryCount {
     get async { CacheEntryCount(cache.count) }
   }

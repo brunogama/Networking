@@ -1,0 +1,1 @@
+enum HTTPMethodNameTag: Sendable {}

@@ -4,12 +4,17 @@ import CryptoKit
 
 // MARK: - Supporting Types
 
-/// Cache performance metrics
+/// Cache performance metrics.
 public struct CacheMetrics: Sendable {
+
   public let size: CacheEntryCount
+
   public let hitCount: CacheHitCount
+
   public let missCount: CacheMissCount
+
   public let evictionCount: CacheEvictionCount
+
   public let hitRatio: CacheHitRatioMetric
 
   public init(
@@ -24,42 +29,6 @@ public struct CacheMetrics: Sendable {
     self.missCount = missCount
     self.evictionCount = evictionCount
     self.hitRatio = hitRatio
-  }
-}
-
-/// Serializable version of HTTPResponse for disk storage.
-struct SerializableHTTPResponse: Codable {
-  let statusCode: Int
-  let headers: [String: String]
-  let body: Data?
-  let requestURL: String
-
-  init(from response: HTTPResponse) {
-    self.statusCode = response.status.rawValue.rawValue
-    self.headers = response.headers.rawValue
-    self.body = response.body?.rawValue
-    self.requestURL = response.request.url.absoluteString
-  }
-
-  func toHTTPResponse() -> HTTPResponse? {
-    guard let url = URL(string: requestURL) else {
-      return nil
-    }
-
-    let request = HTTPRequest(
-      method: .get,
-      url: HTTPRequestURL(url),
-      headers: [:],
-      body: nil,
-      timeout: 30.0
-    )
-
-    return HTTPResponse(
-      request: request,
-      status: HTTPStatus(rawValue: statusCode),
-      headers: HTTPHeaders(headers),
-      body: body.map { HTTPBody($0) }
-    )
   }
 }
 

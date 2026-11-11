@@ -42,7 +42,6 @@ public enum KeychainError: Error, LocalizedError {
     }
   }
 
-  /// Creates a KeychainError from an OSStatus.
   public static func from(status: KeychainStatusCode) -> Self {
     knownStatuses[status.rawValue] ?? .operationFailed(status)
   }

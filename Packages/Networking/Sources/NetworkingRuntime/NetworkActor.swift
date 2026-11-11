@@ -1,6 +1,3 @@
-import Foundation
-import NetworkingCore
-
 /// A global actor for serializing access to shared networking state.
 ///
 /// `NetworkActor` provides a dedicated execution context for networking operations
@@ -32,6 +29,6 @@ import NetworkingCore
 /// ```
 @globalActor
 public actor NetworkActor {
-  /// The shared instance of the network actor.
+
   public static let shared = NetworkActor()
 }

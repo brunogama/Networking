@@ -1,150 +1,97 @@
-# Networking Framework Testing Utilities
+# NetworkingTesting
 
-Add the `NetworkingTesting` product to your test target and import it alongside `Networking`.
+Add `NetworkingTesting` as an explicit dependency of your test target. Import it
+alongside `Networking` and Swift Testing. The product is not automatically added
+by debug compilation or by importing the umbrella library.
 
-## Available Testing Tools
+---
 
-### MockURLProtocol
+## Exercise the real client with an isolated transport
 
-URLProtocol-based mock for comprehensive request/response simulation.
+Use `MockURLProtocol` when testing request preparation, middleware ordering, or
+response handling through `NetworkClient`. Give every parallel test a distinct
+`MockContextIdentifier` and use it for registration, configuration, inspection,
+and cleanup.
 
 ```swift
+import Foundation
 import Networking
 import NetworkingTesting
-
-// Set up mock responses
-MockURLProtocol.stub(
-  matching: .url("https://api.example.com/users/123"),
-  response: .success(statusCode: 200, data: userData)
-)
-
-// Configure URLSession with mock
-let config = URLSessionConfiguration.ephemeral
-config.protocolClasses = [MockURLProtocol.self]
-let client = NetworkClient(session: URLSession(configuration: config))
-
-// Execute test
-let response = try await client.execute(request)
-```
-
-**Features:**
-- Response stubbing with flexible matching
-- Error simulation with network conditions  
-- Request verification and capture
-- Streaming response simulation
-- Performance testing with delays
-- Thread-safe operation for concurrent testing
-
-### MockNetworkClient
-
-Expectation-based mock network client for declarative testing.
-
-```swift
-import Networking
-import NetworkingTesting
-
-let mockClient = MockNetworkClient()
-
-// Set up expectations
-mockClient.expectGET("/users/123")
-  .andReturn(.success(statusCode: 200, data: userData))
-  .once()
-
-// Execute test
-let response = try await mockClient.execute(request)
-
-// Verify expectations
-mockClient.expectationsAreFulfilled()
-```
-
-**Features:**
-- Declarative request/response expectations
-- Automatic request verification
-- Flexible response stubbing
-- Request history tracking
-- Performance measurement integration
-
-### AsyncExpectation
-
-Testing utility for async/await code.
-
-```swift
-import Networking
-
-let expectation = AsyncExpectation("Network request completed")
-
-Task {
-  let response = try await client.execute(request)
-  expectation.fulfill()
-}
-
-// Wait for expectation...
-```
-
-## Integration with Testing Frameworks
-
-### Swift Testing
-
-The utilities integrate seamlessly with Swift Testing:
-
-```swift
 import Testing
-import Networking
 
-@Test func testUserAPI() async throws {
+@Test func returnsStubbedResponse() async throws {
+  let context = MockContextIdentifier()
+  let url = HTTPRequestURL(try #require(URL(string: "https://api.example.com/users")))
+  defer { MockURLProtocol.clearAll(contextID: context) }
   MockURLProtocol.stub(
-    matching: .url("https://api.example.com/users/123"),
-    response: .success(statusCode: 200, data: userData)
+    matching: .url(url),
+    response: .success(statusCode: 200, data: HTTPBody(Data("[]".utf8))),
+    contextID: context
   )
-  
-  let client = MockURLProtocol.createMockHTTPClient()
-  let response = try await client.execute(request)
-  
-  #expect(response.status.isSuccess)
-  await MockURLProtocol.expectRequest(
-    url: "https://api.example.com/users/123",
-    count: 1
+  let session = URLSession(
+    configuration: MockURLProtocol.createMockConfiguration(contextID: context)
   )
+  defer { session.invalidateAndCancel() }
+  let client = NetworkClient(session: session)
+  let response = try await client.execute(HTTPRequest(method: .get, url: url))
+  #expect(response.status == .ok)
+  #expect(response.body == HTTPBody(Data("[]".utf8)))
+  #expect(await MockURLProtocol.getRequestCount(for: url, contextID: context) == 1)
 }
 ```
 
-### XCTest
+`stubSequential(url:responses:contextID:)` supplies successive responses, such as
+a 401 followed by a successful refresh retry. `getCapturedRequests(contextID:)`
+returns the intercepted requests for assertions. URLProtocol stubs exercise
+client behavior but do not establish real DNS, TLS, connection reuse, or socket
+cancellation behavior.
 
-Also works with traditional XCTest:
+---
+
+## Substitute a client for application tests
+
+Use `MockNetworkClient` for code that depends on `HTTPClient` and does not need
+to exercise URLSession or the real middleware pipeline.
 
 ```swift
-import XCTest
-import Networking
-
-class NetworkTests: XCTestCase {
-  func testUserAPI() async throws {
-    let mockClient = MockNetworkClient()
-    
-    mockClient.expectGET("/users/123")
-      .andReturn(.success(statusCode: 200, data: userData))
-      .once()
-    
-    let response = try await mockClient.execute(request)
-    
-    XCTAssertTrue(response.status.isSuccess)
-    mockClient.expectationsAreFulfilled()
-  }
+@Test func fulfillsClientExpectation() async throws {
+  let client = MockNetworkClient()
+  await client.expect(
+    matching: .method(.get), .path("/users"),
+    response: .success(statusCode: 200, data: HTTPBody(Data("[]".utf8))),
+    calls: .exactly(1)
+  )
+  let url = try #require(URL(string: "https://api.example.com/users"))
+  let response = try await client.execute(HTTPRequest(method: .get, url: url))
+  #expect(response.status == .ok)
+  try await client.verifyExpectations()
 }
 ```
 
-## Best Practices
+Registration, request recording, and verification belong to the mock actor. Each
+`expect` call installs its matching rules, response, call count, and optional
+capture closure atomically. Configure expectations before starting concurrent
+work, await that work, then verify and discard the mock. A reset clears only that
+client's expectations and history. Already selected responses retain their
+configuration and respect cancellation during a delay.
 
-1. **Use MockURLProtocol for integration testing** - When you want to test the full networking stack
-2. **Use MockNetworkClient for unit testing** - When you want to test business logic with mocked responses
-3. **Clear mocks between tests** - Use `MockURLProtocol.clearAll()` in tearDown
-4. **Verify expectations** - Always call `expectationsAreFulfilled()` to ensure tests are robust
-5. **Use realistic data** - Mock responses should match your actual API responses
+`stubGET` and `stubPOST` are async setup conveniences. Pass a `JSONCodec` into the
+client initializer when JSON stubs need the same date or key conventions as the
+code under test. An expectation verifies requests and call counts; use the real
+client with isolated transport to exercise its middleware pipeline.
 
-## Availability
+---
 
-These testing utilities are automatically available when:
-- Building in DEBUG mode
-- Running tests (TESTING or TEST flags)
-- Importing the Networking framework
+## Test asynchronous behavior deliberately
 
-In production builds, the testing utilities are not included to keep the framework lightweight.
+Use Swift Testing's `@Test`, `#expect`, and `#require`. Keep test state local and
+avoid global cleanup that can remove another parallel test's stubs. For
+cancellation and actor reentrancy, use a controlled suspension point and an
+explicit arrival signal, force the relevant interleaving, and await completion.
+A configured delay or sleep alone is not evidence that a race was exercised.
+
+Do not use live credentials or external services. Test middleware through a real
+`NetworkClient` plus isolated transport when its ordering or recovery is the
+behavior under test. Use a purpose-built controlled client for task-lifetime
+assertions; the general URLProtocol mock is not a substitute for cancellation
+verification at the native transport boundary.

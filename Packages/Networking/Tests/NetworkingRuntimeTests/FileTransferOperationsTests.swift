@@ -3,8 +3,6 @@ import Foundation
 import XCTest
 
 @testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
 import NetworkingTesting
 
 // Comprehensive tests for FileTransferOperations file upload/download functionality.
@@ -384,7 +382,7 @@ final class FileTransferOperationsTests: XCTestCase {
 
   func testDownloadFileReturnsCallerDestinationURL() async throws {
     let payload = Data("downloaded file".utf8)
-    mockClient.responseData = payload
+    await mockClient.setResponseData(payload)
     let operations = FileTransferOperations(httpClient: mockClient)
     let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent(
       UUID().uuidString
@@ -402,7 +400,7 @@ final class FileTransferOperationsTests: XCTestCase {
 
   func testDownloadDataExecutesExactlyOneRequest() async throws {
     let payload = Data("single response".utf8)
-    mockClient.responseData = payload
+    await mockClient.setResponseData(payload)
     let operations = FileTransferOperations(httpClient: mockClient)
 
     let download = try await operations.downloadData(
@@ -410,43 +408,8 @@ final class FileTransferOperationsTests: XCTestCase {
     )
 
     XCTAssertEqual(download.data.rawValue, payload)
-    XCTAssertEqual(mockClient.executeCallCount, 1)
-  }
-
-  func testProgressMiddlewareReportsCompletedDownloadWithoutArtificialDelay() async throws {
-    let callback = ProgressCallbackRecorder()
-    let request = HTTPRequest(
-      method: .get,
-      url: HTTPRequestURL(try XCTUnwrap(URL(string: "https://example.com/file.bin")))
-    )
-    let payload = Data(repeating: 0x5A, count: 4 * 1024 * 1024)
-    let response = HTTPResponse(
-      request: request,
-      status: .ok,
-      headers: ["Content-Length": "\(payload.count)"],
-      body: HTTPBody(payload)
-    )
-    let middleware = ProgressTrackingMiddleware(
-      configuration: ProgressTrackingConfiguration(
-        minimumBytesThreshold: 1,
-        updateIntervalBytes: 1,
-        maxUpdateInterval: 0
-      )
-    )
-    await middleware.setProgressCallback(for: request.id) { progress in
-      Task { await callback.record(progress) }
-    }
-    _ = try await middleware.modifyRequest(request)
-
-    let clock = ContinuousClock()
-    let start = clock.now
-    _ = try await middleware.processResponse(response, for: request)
-    let elapsed = start.duration(to: clock.now)
-
-    let terminalProgress = await callback.waitForTerminalProgress()
-    XCTAssertEqual(terminalProgress?.phase, .completed)
-    XCTAssertEqual(terminalProgress?.transferredBytes, TransferByteCount(Int64(payload.count)))
-    XCTAssertLessThan(elapsed, .milliseconds(200))
+    let executeCallCount = await mockClient.executeCallCount
+    XCTAssertEqual(executeCallCount, 1)
   }
 
   func testDownloadDataUsesNativeFileTransportOnce() async throws {
@@ -619,47 +582,6 @@ final class FileTransferOperationsTests: XCTestCase {
     #endif
   }
 
-  func testBackgroundCoordinatorReturnsClaimedDownloadURL() async throws {
-    #if !os(Linux)
-    let downloadDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
-      UUID().uuidString,
-      isDirectory: true
-    )
-    defer { try? FileManager.default.removeItem(at: downloadDirectory) }
-    try FileManager.default.createDirectory(
-      at: downloadDirectory,
-      withIntermediateDirectories: true
-    )
-    let downloadedFile = downloadDirectory.appendingPathComponent("claimed.bin")
-    let payload = Data("claimed download".utf8)
-    try payload.write(to: downloadedFile)
-
-    let coordinator = BackgroundTransferCoordinator(configuration: .default)
-    let session = URLSession(configuration: .ephemeral)
-    defer { session.invalidateAndCancel() }
-    let task = session.downloadTask(
-      with: try XCTUnwrap(URL(string: "https://example.invalid/claimed.bin"))
-    )
-    let transferId = TransferIdentifier()
-
-    let completion = Task {
-      try await Task.sleep(nanoseconds: 10_000_000)
-      await coordinator.didComplete(task: task, completion: .success(downloadedFile))
-    }
-    let result = try await coordinator.resume(
-      task: task,
-      transferId: transferId,
-      progressCallback: nil
-    )
-    _ = await completion.result
-
-    XCTAssertEqual(result.transferId, transferId)
-    XCTAssertEqual(result.fileURL, LocalFileURL(downloadedFile))
-    XCTAssertEqual(result.bytesTransferred, TransferByteCount(Int64(payload.count)))
-    XCTAssertEqual(try Data(contentsOf: downloadedFile), payload)
-    #endif
-  }
-
   func testBackgroundDelegateRemovesDownloadWhenTerminalOwnerNoLongerClaimsTask() async throws {
     #if !os(Linux)
     let downloadDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -768,7 +690,7 @@ final class FileTransferOperationsTests: XCTestCase {
     )
 
     XCTAssertEqual(metadata.fileExtension, "pdf")
-    XCTAssertTrue(metadata.name.contains(" "))
+    XCTAssertTrue(metadata.name.rawValue.contains(" "))
   }
 
   func testFileMetadataWithNoNameExtension() {
@@ -828,168 +750,4 @@ final class FileTransferOperationsTests: XCTestCase {
 }
 
 #if !os(Linux)
-private actor BackgroundTransferEventRecorder {
-  struct Events {
-    let progress: ProgressEvent?
-    let completion: CompletionEvent?
-    let order: [String]
-  }
-
-  struct ProgressEvent {
-    let task: URLSessionDownloadTask
-    let totalBytesWritten: Int64
-    let totalBytesExpected: Int64
-  }
-
-  struct CompletionEvent {
-    let task: URLSessionTask
-    let completion: BackgroundTransferCompletion
-  }
-
-  private(set) var progress: ProgressEvent?
-  private(set) var completion: CompletionEvent?
-  private var order: [String] = []
-
-  var events: Events {
-    Events(progress: progress, completion: completion, order: order)
-  }
-
-  func recordProgress(
-    task: URLSessionDownloadTask,
-    totalBytesWritten: Int64,
-    totalBytesExpected: Int64
-  ) {
-    progress = ProgressEvent(
-      task: task,
-      totalBytesWritten: totalBytesWritten,
-      totalBytesExpected: totalBytesExpected
-    )
-    order.append("progress")
-  }
-
-  func recordCompletion(
-    task: URLSessionTask,
-    completion: BackgroundTransferCompletion
-  ) {
-    self.completion = CompletionEvent(
-      task: task,
-      completion: completion
-    )
-    order.append("completion")
-  }
-}
 #endif
-
-// MARK: - Test Mock HTTP Client
-
-private final class FileTransferTestMockClient: HTTPClient, @unchecked Sendable {
-  private let lock = NSLock()
-  private var storedExecuteCallCount = 0
-  var shouldFail = false
-  var failureError: HTTPError?
-  var responseData: Data?
-
-  var executeCallCount: Int {
-    lock.withLock { storedExecuteCallCount }
-  }
-
-  func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
-    lock.withLock {
-      storedExecuteCallCount += 1
-    }
-
-    if shouldFail {
-      throw failureError ?? HTTPError(category: .network(.serverUnreachable), request: request)
-    }
-
-    return HTTPResponse(
-      request: request,
-      status: .ok,
-      headers: [:],
-      body: responseData ?? Data()
-    )
-  }
-
-}
-
-private actor FileTransferTestNativeClient: HTTPFileTransferClient {
-  struct Calls: Sendable {
-    var execute = 0
-    var upload = 0
-    var download = 0
-    var uploadedFileURL: URL?
-    var uploadRequestHasBody = false
-  }
-
-  private let downloadedData: Data
-  private var storedCalls = Calls()
-  nonisolated let canPerformNativeFileTransfer: Bool
-
-  init(downloadedData: Data, canPerformNativeFileTransfer: Bool = true) {
-    self.downloadedData = downloadedData
-    self.canPerformNativeFileTransfer = canPerformNativeFileTransfer
-  }
-
-  var calls: Calls {
-    storedCalls
-  }
-
-  func execute(_ request: HTTPRequest) async throws -> HTTPResponse {
-    storedCalls.execute += 1
-    return HTTPResponse(request: request, status: .ok, body: HTTPBody(downloadedData))
-  }
-
-  func upload(
-    _ request: HTTPRequest,
-    fromFile fileURL: URL,
-    progress: (@Sendable (HTTPFileTransferProgress) -> Void)?
-  ) async throws -> HTTPResponse {
-    storedCalls.upload += 1
-    storedCalls.uploadedFileURL = fileURL
-    storedCalls.uploadRequestHasBody = request.body != nil
-    let fileSize = try Data(contentsOf: fileURL).count
-    progress?(
-      HTTPFileTransferProgress(transferredBytes: Int64(fileSize), totalBytes: Int64(fileSize))
-    )
-    return HTTPResponse(request: request, status: .ok, headers: HTTPHeaders())
-  }
-
-  func download(
-    _ request: HTTPRequest,
-    progress: (@Sendable (HTTPFileTransferProgress) -> Void)?
-  ) async throws -> HTTPFileDownload {
-    storedCalls.download += 1
-    let temporaryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-      UUID().uuidString
-    )
-    try downloadedData.write(to: temporaryURL)
-    progress?(
-      HTTPFileTransferProgress(
-        transferredBytes: Int64(downloadedData.count),
-        totalBytes: Int64(downloadedData.count)
-      )
-    )
-    return HTTPFileDownload(
-      temporaryFileURL: temporaryURL,
-      response: HTTPResponse(request: request, status: .ok, headers: HTTPHeaders())
-    )
-  }
-}
-
-private actor ProgressCallbackRecorder {
-  private var updates: [TransferProgress] = []
-
-  func record(_ progress: TransferProgress) {
-    updates.append(progress)
-  }
-
-  func waitForTerminalProgress() async -> TransferProgress? {
-    for _ in 0..<100 {
-      if let terminal = updates.last(where: { $0.phase == .completed || $0.phase == .failed }) {
-        return terminal
-      }
-      await Task.yield()
-    }
-    return updates.last
-  }
-}

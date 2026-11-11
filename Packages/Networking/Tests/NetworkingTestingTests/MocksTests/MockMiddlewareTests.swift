@@ -2,18 +2,15 @@ import Foundation
 import Testing
 
 @testable import NetworkingTesting
-import NetworkingRuntime
-import NetworkingObservability
-import NetworkingDSL
-import NetworkingRuntimeDSL
+import NetworkingCore
 @Suite("Mock Middleware Tests")
 struct MockMiddlewareTests {
   // MARK: - MockHTTPRequestMiddleware Tests
 
   @Test("MockHTTPRequestMiddleware applies transform when stubbed")
-  func requestMiddleware_appliesTransform_whenStubbed() async throws {
+  func transformsRequests() async throws {
     let mock = MockHTTPRequestMiddleware()
-    mock.stubAddHeader("X-Custom", value: "test-value")
+    await mock.stubAddHeader("X-Custom", value: "test-value")
 
     let request = HTTPRequest(
       method: .get,
@@ -23,10 +20,11 @@ struct MockMiddlewareTests {
     let processed = try await mock.modifyRequest(request)
 
     #expect(processed.headers["X-Custom"] == "test-value")
+    #expect(processed.id == request.id)
   }
 
   @Test("MockHTTPRequestMiddleware passes through when no stub")
-  func requestMiddleware_passesThrough_whenNoStub() async throws {
+  func passesRequestsThrough() async throws {
     let mock = MockHTTPRequestMiddleware()
 
     let request = HTTPRequest(
@@ -41,9 +39,9 @@ struct MockMiddlewareTests {
   }
 
   @Test("MockHTTPRequestMiddleware throws when stub failure")
-  func requestMiddleware_throws_whenStubFailure() async {
+  func throwsConfiguredRequestFailure() async {
     let mock = MockHTTPRequestMiddleware()
-    mock.stubFailure(URLError(.badURL))
+    await mock.stubFailure(URLError(.badURL))
 
     let request = HTTPRequest(
       method: .get,
@@ -56,7 +54,7 @@ struct MockMiddlewareTests {
   }
 
   @Test("MockHTTPRequestMiddleware captures all requests")
-  func requestMiddleware_capturesAllRequests() async throws {
+  func capturesRequests() async throws {
     let mock = MockHTTPRequestMiddleware()
 
     let request1 = HTTPRequest(method: .get, url: URL(string: "https://example.com/1")!)
@@ -65,19 +63,19 @@ struct MockMiddlewareTests {
     _ = try await mock.modifyRequest(request1)
     _ = try await mock.modifyRequest(request2)
 
-    let captured = mock.getCapturedRequests()
+    let captured = await mock.getCapturedRequests()
     #expect(captured.count == 2)
-    #expect(captured[0].url.path == "/1")
-    #expect(captured[1].url.path == "/2")
+    #expect(captured[0].url.rawValue.path == "/1")
+    #expect(captured[1].url.rawValue.path == "/2")
   }
 
   // MARK: - MockHTTPResponseMiddleware Tests
 
   @Test("MockHTTPResponseMiddleware applies transform when stubbed")
-  func responseMiddleware_appliesTransform_whenStubbed() async throws {
+  func transformsResponses() async throws {
     let mock = MockHTTPResponseMiddleware()
     let newBody = HTTPBody(Data("transformed".utf8))
-    mock.stubReplaceBody(newBody)
+    await mock.stubReplaceBody(newBody)
 
     let request = HTTPRequest(method: .get, url: URL(string: "https://example.com")!)
     let response = HTTPResponse(
@@ -91,7 +89,7 @@ struct MockMiddlewareTests {
   }
 
   @Test("MockHTTPResponseMiddleware passes through when no stub")
-  func responseMiddleware_passesThrough_whenNoStub() async throws {
+  func passesResponsesThrough() async throws {
     let mock = MockHTTPResponseMiddleware()
 
     let request = HTTPRequest(method: .get, url: URL(string: "https://example.com")!)
@@ -103,7 +101,7 @@ struct MockMiddlewareTests {
   }
 
   @Test("MockHTTPResponseMiddleware captures all responses")
-  func responseMiddleware_capturesAllResponses() async throws {
+  func capturesResponses() async throws {
     let mock = MockHTTPResponseMiddleware()
 
     let request = HTTPRequest(method: .get, url: URL(string: "https://example.com")!)
@@ -113,7 +111,7 @@ struct MockMiddlewareTests {
     _ = try await mock.processResponse(response1, for: request)
     _ = try await mock.processResponse(response2, for: request)
 
-    let captured = mock.getCapturedResponses()
+    let captured = await mock.getCapturedResponses()
     #expect(captured.count == 2)
     #expect(captured[0].response.status == .ok)
     #expect(captured[1].response.status == .created)
@@ -124,7 +122,7 @@ struct MockMiddlewareTests {
   @Test("MockHTTPErrorMiddleware tracks call count")
   func errorMiddleware_tracksCallCount() async throws {
     let mock = MockHTTPErrorMiddleware()
-    mock.stubSwallow()
+    await mock.stubSwallow()
 
     let count = await mock.callCount
     #expect(count == 0)

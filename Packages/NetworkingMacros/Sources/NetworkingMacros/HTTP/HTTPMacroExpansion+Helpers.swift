@@ -1,23 +1,5 @@
-import MacroTemplateKit
 import SwiftSyntax
 import SwiftSyntaxMacros
-
-struct HTTPMacroEndpointInput {
-  let function: FunctionDeclSyntax
-  let node: AttributeSyntax
-  let path: String
-  let usesOldSyntax: Bool
-  let bodyParameter: String?
-  let headers: [ParsedHeader]
-  let accessLevel: String?
-}
-
-private struct HTTPMacroEndpointComponents {
-  let bodyParameter: String?
-  let queryParameters: [String]
-  let headers: [ParsedHeader]
-  let returnType: String
-}
 
 extension HTTPMacroExpansion {
   static func expandWithHelpers(
@@ -33,7 +15,6 @@ extension HTTPMacroExpansion {
       from: input.node,
       context: context
     )
-    let headers = extractHeaders(input, context: context)
     try validateParameters(input, queryParameters: queryParameters, context: context)
 
     guard let returnType = extractReturnType(input.function, context: context) else {
@@ -42,7 +23,7 @@ extension HTTPMacroExpansion {
     let components = HTTPMacroEndpointComponents(
       bodyParameter: bodyParameter,
       queryParameters: queryParameters,
-      headers: headers,
+      headers: input.headers,
       returnType: returnType
     )
     return [generateImplementation(input, components: components)]
@@ -55,31 +36,15 @@ extension HTTPMacroExpansion {
     if let bodyParameter = input.bodyParameter {
       return bodyParameter
     }
-    if input.usesOldSyntax {
-      return ArgumentExtractors.extractBodyParameter(from: input.node, context: context)
-    }
     if config.requiresBody {
       MacroHelpers.emitError(
         "@\(config.method) requires a body parameter. Use @Body(\"paramName\") macro.",
+        id: .missingBodyParameter,
         node: input.node,
         context: context
       )
     }
     return nil
-  }
-
-  private static func extractHeaders(
-    _ input: HTTPMacroEndpointInput,
-    context: some MacroExpansionContext
-  ) -> [ParsedHeader] {
-    if !input.headers.isEmpty {
-      return input.headers
-    }
-    if input.usesOldSyntax {
-      return ArgumentExtractors.extractHeaders(from: input.node, context: context)
-        .map { ParsedHeader(name: $0.key, valueSource: .literal($0.value)) }
-    }
-    return []
   }
 
   private static func validateParameters(
@@ -112,6 +77,7 @@ extension HTTPMacroExpansion {
       }
       MacroHelpers.emitError(
         "@\(config.method) requires a return type",
+        id: .missingReturnType,
         node: Syntax(function),
         context: context
       )
@@ -125,9 +91,6 @@ extension HTTPMacroExpansion {
     components: HTTPMacroEndpointComponents
   ) -> DeclSyntax {
     let pathCode = PathTemplateParser(template: input.path).generatePathSubstitution()
-    let hasInterceptors =
-      findParentProtocol(input.function)
-      .map { InterceptorsMacro.hasInterceptors(from: $0) } ?? false
     return HTTPMethodImplementationBuilder.generate(
       HTTPMethodImplementationBuilder.Input(
         function: input.function,
@@ -137,20 +100,9 @@ extension HTTPMacroExpansion {
         bodyParameter: components.bodyParameter,
         queryParameters: components.queryParameters,
         headers: components.headers,
-        accessLevel: input.accessLevel,
-        hasInterceptors: hasInterceptors
+        accessLevel: input.accessLevel
       )
     )
   }
 
-  private static func findParentProtocol(_ function: FunctionDeclSyntax) -> ProtocolDeclSyntax? {
-    var currentNode: Syntax? = Syntax(function)
-    while let node = currentNode {
-      if let protocolDeclaration = node.as(ProtocolDeclSyntax.self) {
-        return protocolDeclaration
-      }
-      currentNode = node.parent
-    }
-    return nil
-  }
 }

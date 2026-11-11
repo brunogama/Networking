@@ -9,14 +9,23 @@ import FoundationNetworking
 import Network
 #endif
 
+/// URLSession transport settings applied before optional TLS and pinning policies.
 public struct SessionConfiguration: Sendable {
+
   public let timeout: SessionRequestTimeout
+
   public let allowsCellularAccess: SessionAllowsCellularAccess
+
   public let allowsExpensiveNetworkAccess: SessionAllowsExpensiveNetworkAccess
+
   public let allowsConstrainedNetworkAccess: SessionAllowsConstrainedNetworkAccess
+
   public let waitsForConnectivity: SessionWaitsForConnectivity
+
   public let httpMaximumConnectionsPerHost: HostConnectionLimit
+
   public let requestCachePolicy: URLRequest.CachePolicy
+
   public let protocolClasses: [AnyClass]?
 
   public init(
@@ -103,11 +112,11 @@ public struct SessionConfiguration: Sendable {
   #if canImport(Network)
   private func tlsProtocolVersion(
     for version: TLSConfiguration.TLSVersion
-  ) -> tls_protocol_version_t {
+  ) -> Network.tls_protocol_version_t {
     switch version {
-    case .v1_2:
+    case .tls12:
       return .TLSv12
-    case .v1_3:
+    case .tls13:
       return .TLSv13
     }
   }

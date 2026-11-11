@@ -33,7 +33,7 @@ concurrency:
 jobs:
   detect-api-changes:
     name: Detect Framework API Changes
-    runs-on: macos-15
+    runs-on: macos-latest
     outputs:
       has_changes: ${{ steps.diff.outputs.has_changes }}
       new_count: ${{ steps.diff.outputs.new_count }}
@@ -44,8 +44,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+      - name: Select pinned Xcode
+        run: |
+          set -euo pipefail
+          source .swift-style.env
+          developer_dir="/Applications/Xcode_${XCODE_APPLICATION_VERSION}.app/Contents/Developer"
+          test -d "$developer_dir"
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
 
       - name: Install jq
         run: brew install jq

@@ -1,7 +1,5 @@
-import MacroTemplateKit
 import SwiftSyntax
 import SwiftSyntaxMacros
-import SwiftDiagnostics
 
 /// Macro implementation for @GET HTTP method.
 ///
@@ -13,7 +11,7 @@ import SwiftDiagnostics
 /// func getUser(id: String) async throws -> User
 /// ```
 public struct GETMacro: PeerMacro, HTTPMacroExpansion {
-  public static let config = HTTPMethodConfig.get
+  static let config = HTTPMethodConfig.get
 
   public static func expansion(
     of node: AttributeSyntax,

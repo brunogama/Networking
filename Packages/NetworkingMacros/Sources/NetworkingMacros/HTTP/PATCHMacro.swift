@@ -1,7 +1,5 @@
-import MacroTemplateKit
 import SwiftSyntax
 import SwiftSyntaxMacros
-import SwiftDiagnostics
 
 /// Macro implementation for @PATCH HTTP method.
 ///
@@ -14,7 +12,7 @@ import SwiftDiagnostics
 /// func patchUser(id: String, updates: UserPatch) async throws -> User
 /// ```
 public struct PATCHMacro: PeerMacro, HTTPMacroExpansion {
-  public static let config = HTTPMethodConfig.patch
+  static let config = HTTPMethodConfig.patch
 
   public static func expansion(
     of node: AttributeSyntax,

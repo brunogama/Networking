@@ -1,159 +1,107 @@
 # Testing Guide
 
-Learn how to test networking code with the dedicated `NetworkingTesting` package and the
-framework's supported fake seams.
+Use Swift Testing with real request values and a test double at the boundary under test.
+Add `NetworkingTesting` explicitly to your test target alongside `Networking`.
 
-## Testing Strategy
+---
 
-The framework intentionally keeps most production APIs concrete. Testing is built around narrow,
-supported seams rather than protocolizing every value type.
+## Choose the boundary
 
-Prefer this order of operations in user tests:
+Use `MockURLProtocol` with a real `NetworkClient` to exercise request preparation,
+middleware order, response handling, and recovery. Give each parallel test a distinct
+`MockContextIdentifier`; use it consistently for setup, session configuration, inspection,
+and cleanup. This transport does not establish real DNS, TLS, or socket behavior.
 
-1. Use real value types like `HTTPRequest`, `HTTPResponse`, and `NetworkClient` configuration.
-2. Add `NetworkingTesting` when you need a fake or mock seam.
-3. Mock only approved runtime boundaries such as `HTTPClient`, auth providers, middleware, cache
-   storage, time, tracing, and metrics.
-4. Prefer middleware-oriented tests for new runtime behavior. Interceptor mocks remain available for
-   compatibility scenarios only.
-
-## Module Imports
-
-For most app and package tests:
+Use `MockNetworkClient` when application code depends on `HTTPClient` and does not need
+URLSession or the real middleware pipeline. It is an actor: await setup and inspection.
+Register a complete expectation in one call before starting concurrent requests.
 
 ```swift
+import Foundation
 import Networking
 import NetworkingTesting
-```
-
-For package-local tests inside the split modules, import only the package under test plus the test
-helpers you need:
-
-```swift
-@testable import NetworkingRuntime
-import NetworkingDSL
-import NetworkingRuntimeDSL
-import NetworkingTesting
-```
-
-## Supported Fake Seams
-
-`NetworkingTesting` provides concrete test doubles for the approved seams:
-
-- `MockNetworkClient` / `MockHTTPClient`
-- `MockBearerTokenProvider`
-- `MockCustomAuthProvider`
-- `MockHTTPRequestMiddleware`
-- `MockHTTPResponseMiddleware`
-- `MockHTTPErrorMiddleware`
-- `MockCacheStorage`
-- `MockTimeProvider`
-- `MockMetricsCollector`
-- `MockTraceExporter`
-- `MockURLProtocol`
-- `SequentialMock`
-
-All mock objects expose consistent verification helpers through `MockVerifiable`.
-
-## Example: End-To-End Request Stubbing
-
-```swift
 import Testing
-import Networking
-import NetworkingTesting
 
-@Test
-func fetchProfile_usesMockURLProtocol() async throws {
-  let contextID = UUID().uuidString
-  let data = #"{"id": 42}"#.data(using: .utf8)!
-
-  MockURLProtocol.clearAll(contextID: contextID)
-  MockURLProtocol.stubSuccess(
-    url: "https://api.example.com/profile",
-    statusCode: 200,
-    data: data,
-    headers: ["Content-Type": "application/json"],
-    contextID: contextID
+@Test func fulfillsClientExpectation() async throws {
+  let client = MockNetworkClient()
+  await client.expect(
+    matching: .method(.get), .path("/profile"),
+    response: .success(statusCode: 200, data: HTTPBody(Data(#"{"id":42}"#.utf8))),
+    calls: .exactly(1)
   )
-
-  let client = MockURLProtocol.createMockHTTPClient(contextID: contextID)
-  let request = try HTTPRequest {
-    GET("https://api.example.com/profile")
-  }
-
-  let response = try await client.execute(request)
+  let url = try #require(URL(string: "https://api.example.com/profile"))
+  let response = try await client.execute(HTTPRequest(method: .get, url: url))
   #expect(response.status == .ok)
+  try await client.verifyExpectations()
 }
 ```
 
-## Example: Auth Provider Verification
+An optional `capture` closure observes matching requests after their call counts are
+recorded. Each request uses the first matching response and records every matching
+expectation. Reset clears this client's registrations and history without affecting
+other clients or URLProtocol sessions.
+
+---
+
+## Available test doubles
+
+The mutable test doubles own their state in actors:
+
+- `MockNetworkClient` registers expectations and records request history.
+- `MockBearerTokenProvider` configures access tokens and refresh results.
+- `MockHTTPRequestMiddleware`, `MockHTTPResponseMiddleware`, and
+  `MockHTTPErrorMiddleware` configure transformations or recovery and record calls.
+- `MockCacheStorage` records cache operations and provides in-memory entries.
+- `MockTraceExporter` captures spans or injects export failures.
+- `MockMetricsCollector` captures request measurements.
+
+`MockURLProtocol` remains a synchronized Foundation protocol subclass because URLSession
+requires synchronous setup and lifecycle callbacks. Its asynchronous response task is
+owned by the protocol instance and cancelled by `stopLoading`.
+
+---
+
+## Verify authentication and middleware
 
 ```swift
-import Testing
-import Networking
-import NetworkingTesting
-
-@Test
-func authentication_fetchesBearerToken() async throws {
-  let tokenProvider = MockBearerTokenProvider()
-  tokenProvider.stubToken("test-token")
-
-  _ = try await tokenProvider.getCurrentToken()
-
-  try tokenProvider.verifyTokenFetched(times: 1)
-  try await tokenProvider.verifyCalledOnce()
+@Test func recordsTokenAccess() async throws {
+  let provider = MockBearerTokenProvider()
+  await provider.stubToken("test-token")
+  _ = try await provider.getCurrentToken()
+  try await provider.verifyTokenFetched(times: 1)
+  try await provider.verifyCalledOnce()
 }
-```
 
-## Example: Middleware Isolation
-
-```swift
-import Testing
-import NetworkingRuntime
-import NetworkingTesting
-
-@Test
-func requestMiddleware_addsHeader() async throws {
+@Test func preservesRequestIdentity() async throws {
   let middleware = MockHTTPRequestMiddleware()
-  middleware.stubAddHeader("X-Test", value: "true")
-
-  let request = HTTPRequest(method: .get, url: URL(string: "https://example.com")!)
+  await middleware.stubAddHeader("X-Test", value: "true")
+  let url = try #require(URL(string: "https://example.com"))
+  let request = HTTPRequest(method: .get, url: url)
   let processed = try await middleware.modifyRequest(request)
-
+  #expect(processed.id == request.id)
   #expect(processed.headers["X-Test"] == "true")
   try await middleware.verifyCalledOnce()
 }
 ```
 
-## Verification Helpers
+The token, middleware, cache, tracing, and metrics mocks conform to `MockVerifiable`.
+Use `verifyCalledOnce`, `verifyCalledExactly`, `verifyCalledAtLeast`, or `verifyNeverCalled`.
+`MockNetworkClient` verifies its individual expectations with `verifyExpectations`.
+All actor inspection and verification requires `await`.
 
-Verification remains async so the helpers stay Swift 6-safe:
+---
 
-```swift
-try await mock.verifyCalledOnce()
-try await mock.verifyCalledExactly(3)
-try await mock.verifyCalledAtLeast(2)
-try await mock.verifyNeverCalled()
-```
+## Control asynchronous interleavings
 
-Mock-specific helpers remain available where they add signal:
+Keep test state local. For actor reentrancy and cancellation, use an explicit arrival
+signal and controlled suspension point, perform the competing operation, then release
+and await the work. A sleep alone does not establish that an interleaving occurred.
+Await all child work before checking final state or discarding a mock.
 
-```swift
-try mock.verifyTokenFetched(times: 1)
-try await mockCache.verifySet("profile", times: 1)
-try await mockTraceExporter.verifySpanExported(withName: "fetch_profile")
-```
+Middleware mocks select their configured transformation before suspending. Reset clears
+recorded calls without restoring them when an already selected operation resumes.
+A mock client captures its response before a delay, and cancellation ends that delay.
+Use a controlled client or native transport regression test for task lifetime guarantees.
 
-## Best Practices
-
-- Use real request/response models first. Do not create mocks for builders or configuration values.
-- Reset shared mocks between tests when you intentionally reuse them.
-- Prefer actor-backed helpers like `MockCacheStorage` and `MockTraceExporter` for state-heavy tests.
-- Keep interceptor-specific tests confined to `NetworkingInterceptorsCompat` compatibility scenarios.
-
-## See Also
-
-- <doc:Module-Migration>
-- ``MockVerifiable``
-- ``MockURLProtocol``
-- ``MockNetworkClient``
+Use a shared configured `JSONCodec` for JSON stubs when the consumer uses custom date or
+key conversion. Avoid live credentials and external services in tests.

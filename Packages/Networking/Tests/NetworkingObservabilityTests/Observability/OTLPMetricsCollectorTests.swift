@@ -1,177 +1,92 @@
-@testable import NetworkingObservability
-import NetworkingRuntime
-import NetworkingDSL
-import NetworkingObservabilityOTLP
-@testable import NetworkingTesting
+import Foundation
+import NetworkingObservability
+import OpenTelemetryProtocolExporterCommon
 import Testing
+@testable import NetworkingObservabilityOTLP
 
-@Suite("OTLP Metrics Collector Tests")
+@Suite("OTLP measured duration export")
 struct OTLPMetricsCollectorTests {
-  // MARK: - Test Helpers
-
-  private func createTestPerformanceMetrics()
-    -> NetworkObservabilityMiddleware.PerformanceMetrics
-  {
-    NetworkObservabilityMiddleware.PerformanceMetrics(
-      timestamp: Date(),
-      totalRequests: 100,
-      successfulRequests: 95,
-      failedRequests: 5,
-      averageResponseTime: 0.250,
-      p50ResponseTime: 0.200,
-      p95ResponseTime: 0.500,
-      p99ResponseTime: 1.000,
-      errorRate: 0.05,
-      throughput: 10.0,
-      activeConnections: 5,
-      cacheHitRate: 0.75,
-      retryRate: 0.02,
-      topErrors: ["timeout": 3, "server_error": 2],
-      topSlowEndpoints: [
-        NetworkObservabilityMiddleware.PerformanceMetrics.SlowEndpoint(
-          endpoint: "/api/slow",
-          averageResponseTime: 0.800
-        )
-      ],
-      networkHealth: NetworkObservabilityMiddleware.PerformanceMetrics.NetworkHealth(
-        status: .good,
-        latencyGrade: .a,
-        reliabilityGrade: .b,
-        throughputGrade: .a,
-        overallGrade: .b
-      )
+  @Test("Duration uses a real histogram observation with count, sum, and outcome")
+  func encodesMeasuredDuration() async throws {
+    let fixture = try OTLPTestFixture()
+    let collector = try OTLPMetricsCollector(
+      configuration: fixture.configuration,
+      session: fixture.session
     )
+    let sample = try HTTPRequestMetrics(
+      timestamp: Date(timeIntervalSince1970: 2),
+      duration: 0.25,
+      outcome: .failure
+    )
+    let decoded = try Opentelemetry_Proto_Collector_Metrics_V1_ExportMetricsServiceRequest(
+      serializedBytes: await collector.payload(sample)
+    )
+    let metric = try #require(decoded.resourceMetrics.first?.scopeMetrics.first?.metrics.first)
+    let point = try #require(metric.histogram.dataPoints.first)
+    #expect(metric.name == "http.client.request.duration")
+    #expect(metric.histogram.aggregationTemporality == .cumulative)
+    #expect(point.count == 1)
+    #expect(point.sum == 0.25)
+    #expect(point.bucketCounts == [1])
+    #expect(point.explicitBounds.isEmpty)
+    #expect(point.attributes.first?.value.stringValue == "failure")
   }
 
-  // MARK: - Initialization Tests
-
-  @Test("Creates collector with valid configuration")
-  func initWithValidConfig() async throws {
-    let config = OTLPConfiguration(
-      endpoint: URL(string: "http://localhost:4318")!,
-      resource: OTLPResource(serviceName: "test-service")
+  @Test("Concurrent request durations accumulate without overlapping delta intervals")
+  func cumulativeMeasurements() async throws {
+    let fixture = try OTLPTestFixture()
+    let collector = try OTLPMetricsCollector(
+      configuration: fixture.configuration,
+      session: fixture.session
     )
-
-    let collector = try OTLPMetricsCollector(configuration: config)
-    // Collector created successfully (non-optional actor)
-
-    await collector.shutdown()
+    let first = try HTTPRequestMetrics(
+      timestamp: Date(timeIntervalSince1970: 2),
+      duration: 0.25,
+      outcome: .success
+    )
+    let second = try HTTPRequestMetrics(
+      timestamp: Date(timeIntervalSince1970: 3),
+      duration: 1,
+      outcome: .success
+    )
+    _ = try await collector.payload(first)
+    let decoded = try Opentelemetry_Proto_Collector_Metrics_V1_ExportMetricsServiceRequest(
+      serializedBytes: await collector.payload(second)
+    )
+    let point = try #require(
+      decoded.resourceMetrics.first?.scopeMetrics.first?.metrics.first?.histogram.dataPoints.first
+    )
+    #expect(point.count == 2)
+    #expect(point.sum == 1.25)
+    #expect(point.startTimeUnixNano == 1_750_000_000)
+    #expect(point.timeUnixNano == 3_000_000_000)
   }
 
-  @Test("Throws on invalid configuration")
-  func initThrowsOnInvalidConfig() {
-    let config = OTLPConfiguration(
-      endpoint: URL(string: "ftp://invalid:4318")!
+  @Test("Metrics delivery reaches the metrics endpoint with protobuf")
+  func deliversProtobuf() async throws {
+    let fixture = try OTLPTestFixture()
+    fixture.stub(signal: "metrics", status: 200)
+    let collector = try OTLPMetricsCollector(
+      configuration: fixture.configuration,
+      session: fixture.session
     )
-
-    #expect(throws: OTLPConfigurationError.self) {
-      _ = try OTLPMetricsCollector(configuration: config)
-    }
+    try await collector.record(HTTPRequestMetrics(duration: 0.1, outcome: .success))
+    let request = try #require(await fixture.requests().first)
+    #expect(request.url?.path == "/v1/metrics")
+    #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-protobuf")
   }
 
-  // MARK: - Record Event Tests
-
-  @Test("Records event without throwing")
-  func recordEvent() async throws {
-    let config = OTLPConfiguration(
-      endpoint: URL(string: "http://localhost:4318")!
+  @Test("Collector partial rejection is a visible error")
+  func surfacesPartialRejection() async throws {
+    let fixture = try OTLPTestFixture()
+    var response = Opentelemetry_Proto_Collector_Metrics_V1_ExportMetricsServiceResponse()
+    response.partialSuccess.rejectedDataPoints = 1
+    fixture.stub(signal: "metrics", status: 200, body: try response.serializedData())
+    let collector = try OTLPMetricsCollector(
+      configuration: fixture.configuration,
+      session: fixture.session
     )
-
-    let collector = try OTLPMetricsCollector(configuration: config)
-
-    let requestContext = NetworkObservabilityMiddleware.RequestContext(
-      from: HTTPRequest(
-        method: .get,
-        url: URL(string: "https://api.example.com/users")!
-      )
-    )
-
-    let event = NetworkObservabilityMiddleware.ObservabilityEvent.requestStarted(requestContext)
-
-    // Should not throw
-    await collector.recordEvent(event)
-
-    await collector.shutdown()
-  }
-
-  // MARK: - Record Performance Metrics Tests
-
-  @Test("Records performance metrics without throwing")
-  func recordPerformanceMetrics() async throws {
-    let config = OTLPConfiguration(
-      endpoint: URL(string: "http://localhost:4318")!
-    )
-
-    let collector = try OTLPMetricsCollector(configuration: config)
-    let metrics = createTestPerformanceMetrics()
-
-    // Should not throw
-    await collector.recordPerformanceMetrics(metrics)
-
-    await collector.shutdown()
-  }
-
-  // MARK: - MetricsCollector Protocol Conformance
-
-  @Test("Conforms to MetricsCollector protocol")
-  func conformsToProtocol() async throws {
-    let config = OTLPConfiguration(
-      endpoint: URL(string: "http://localhost:4318")!
-    )
-
-    let collector = try OTLPMetricsCollector(configuration: config)
-
-    // Verify protocol conformance via type constraint
-    let _: any MetricsCollector = collector
-
-    await collector.shutdown()
-  }
-
-  // MARK: - Metric Conversion Tests
-
-  @Test("OTLPMetricConverter produces expected data points")
-  func metricConversion() {
-    let resource = OTLPResource(
-      serviceName: "test-service",
-      serviceVersion: "1.0.0"
-    )
-    let converter = OTLPMetricConverter(resource: resource)
-
-    let metrics = NetworkObservabilityMiddleware.PerformanceMetrics(
-      timestamp: Date(),
-      totalRequests: 100,
-      successfulRequests: 95,
-      failedRequests: 5,
-      averageResponseTime: 0.250,
-      p50ResponseTime: 0.200,
-      p95ResponseTime: 0.500,
-      p99ResponseTime: 1.000,
-      errorRate: 0.05,
-      throughput: 10.0,
-      activeConnections: 5,
-      cacheHitRate: 0.75,
-      retryRate: 0.02,
-      topErrors: [:],
-      topSlowEndpoints: [],
-      networkHealth: NetworkObservabilityMiddleware.PerformanceMetrics.NetworkHealth(
-        status: .good,
-        latencyGrade: .a,
-        reliabilityGrade: .a,
-        throughputGrade: .a,
-        overallGrade: .a
-      )
-    )
-
-    let dataPoints = converter.convert(metrics)
-
-    // Verify expected metrics are produced
-    #expect(dataPoints.count >= 5)
-
-    let metricNames = dataPoints.map { $0.name }
-    #expect(metricNames.contains(MetricSemanticNames.httpClientRequestTotal))
-    #expect(metricNames.contains(MetricSemanticNames.httpClientErrorRate))
-    #expect(metricNames.contains(MetricSemanticNames.httpClientThroughput))
-    #expect(metricNames.contains(MetricSemanticNames.httpClientActiveRequests))
-    #expect(metricNames.contains(MetricSemanticNames.httpClientCacheHitRate))
+    let sample = try HTTPRequestMetrics(duration: 0.1, outcome: .success)
+    await #expect(throws: OTLPExportError.partialRejection) { try await collector.record(sample) }
   }
 }

@@ -1,14 +1,23 @@
 import NetworkingCore
 
 extension HeaderSecurityMiddleware {
+  /// Header validation limits and optional filtering policy.
   public struct Configuration: Sendable {
+
     public let validateHeaderNames: HeaderNameValidationFlag
+
     public let validateHeaderValues: HeaderValueValidationFlag
+
     public let sanitizeHeaders: HeaderSanitizationFlag
+
     public let maxHeaderValueLength: HeaderValueLengthLimit
+
     public let maxHeaderCount: HeaderCountLimit
+
     public let removeDangerousHeaders: DangerousHeaderRemovalFlag
+
     public let dangerousHeaders: Set<DangerousHeaderName>
+
     public let customValidator:
       (@Sendable (HTTPHeaderName, HTTPHeaderValue) -> HeaderValidationDecision)?
 
@@ -63,7 +72,7 @@ extension HeaderSecurityMiddleware {
 }
 
 extension HeaderSecurityMiddleware.Configuration {
-  /// Configuration for API clients that need to be extra secure.
+
   public static let api = Self(
     validateHeaderNames: true,
     validateHeaderValues: true,
@@ -73,7 +82,6 @@ extension HeaderSecurityMiddleware.Configuration {
     removeDangerousHeaders: true
   )
 
-  /// Configuration for web clients that need more flexibility.
   public static let web = Self(
     validateHeaderNames: true,
     validateHeaderValues: true,
@@ -82,10 +90,4 @@ extension HeaderSecurityMiddleware.Configuration {
     maxHeaderCount: 40,
     removeDangerousHeaders: false
   )
-}
-
-extension HeaderSecurityMiddleware: ConfigurationComponent {
-  public func apply(to configuration: inout NetworkClientBuilder.Configuration) {
-    configuration.requestMiddlewares.append(self)
-  }
 }

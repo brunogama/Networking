@@ -20,7 +20,6 @@ public actor FileTransferOperations {
 
   // MARK: - Initialization
 
-  /// Creates a file transfer service with the given HTTP client and configuration.
   public init(
     httpClient: any HTTPClient,
     configuration: FileTransferConfiguration = .default
@@ -43,13 +42,6 @@ public actor FileTransferOperations {
 
   // MARK: - File Upload Operations
 
-  /// Uploads a file from a local path to a remote URL.
-  /// - Parameters:
-  ///   - fileURL: Local file URL to upload
-  ///   - destinationURL: Remote URL to upload to
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: A file validation or network error.
   public func uploadFile(
     from fileURL: LocalFileURL,
     to destinationURL: RemoteTransferURL,
@@ -91,15 +83,6 @@ public actor FileTransferOperations {
     )
   }
 
-  /// Uploads file data to a remote URL.
-  /// - Parameters:
-  ///   - data: File data to upload
-  ///   - fileName: Name of the file
-  ///   - destinationURL: Remote URL to upload to
-  ///   - mimeType: MIME type of the file
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: A file validation or network error.
   public func uploadData(
     _ data: HTTPBody,
     fileName: FileName,
@@ -133,13 +116,6 @@ public actor FileTransferOperations {
 
   // MARK: - File Download Operations
 
-  /// Downloads a file from a remote URL to a local path.
-  /// - Parameters:
-  ///   - sourceURL: Remote URL to download from
-  ///   - destinationURL: Local URL to save the file
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: A network or file error.
   public func downloadFile(
     from sourceURL: RemoteTransferURL,
     to destinationURL: LocalFileURL,
@@ -154,7 +130,7 @@ public actor FileTransferOperations {
     )
 
     if let transferClient = httpClient as? any HTTPFileTransferClient,
-      transferClient.canPerformNativeDownload
+      transferClient.canPerformNativeFileTransfer
     {
       return try await performFileDownload(
         client: transferClient,
@@ -172,12 +148,6 @@ public actor FileTransferOperations {
     )
   }
 
-  /// Downloads a file and returns it as Data.
-  /// - Parameters:
-  ///   - sourceURL: Remote URL to download from
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: Downloaded file data and transfer result
-  /// - Throws: A network or file error.
   public func downloadData(
     from sourceURL: RemoteTransferURL,
     progressCallback: ProgressCallback? = nil
@@ -191,7 +161,7 @@ public actor FileTransferOperations {
     )
 
     if let transferClient = httpClient as? any HTTPFileTransferClient,
-      transferClient.canPerformNativeDownload
+      transferClient.canPerformNativeFileTransfer
     {
       return try await performDataDownload(
         client: transferClient,
@@ -207,7 +177,7 @@ public actor FileTransferOperations {
       destinationURL: nil
     )
     guard let data = transfer.response.body else {
-      throw FileTransferError.fileNotFound(path: FileSystemPath(sourceURL.absoluteString))
+      throw FileTransferError.fileNotFound(path: FileSystemPath(sourceURL.rawValue.absoluteString))
     }
 
     return (data: data, result: transfer.result)
@@ -215,12 +185,6 @@ public actor FileTransferOperations {
 
   // MARK: - Resumable Transfer Operations
 
-  /// Resumes a previously interrupted transfer.
-  /// - Parameters:
-  ///   - resumeData: Resume data from previous transfer
-  ///   - progressCallback: Optional callback for progress updates
-  /// - Returns: File transfer result
-  /// - Throws: An invalid resume data, cancellation, or transfer error.
   public func resumeTransfer(
     with resumeData: TransferResumeData,
     progressCallback: ProgressCallback? = nil
@@ -230,7 +194,7 @@ public actor FileTransferOperations {
     }
 
     // Validate resume data
-    guard !resumeData.isEmpty else {
+    guard !resumeData.isEmpty.rawValue else {
       throw FileTransferError.resumeDataCorrupted
     }
 
@@ -249,17 +213,12 @@ public actor FileTransferOperations {
     )
   }
 
-  /// Cancels an active transfer and returns resume data if available.
-  /// - Parameter transferId: The ID of the transfer to cancel
-  /// - Returns: Resume data for later resumption, if available
   public func cancelTransfer(_ transferId: TransferIdentifier) async -> TransferResumeData? {
     await backgroundTransfers.cancel(transferId)
   }
 
   // MARK: - Background Transfer Support
 
-  /// Configures background transfer capabilities.
-  /// - Parameter configuration: Background transfer configuration
   public func configureBackgroundTransfer(
     _ configuration: BackgroundTransferConfiguration
   ) async {
@@ -284,13 +243,7 @@ public actor FileTransferOperations {
   }
 
   private func validateFileTransfer(metadata: FileMetadata) throws {
-    // Check file size
-    if metadata.size.rawValue > configuration.maxFileSize.rawValue {
-      throw FileTransferError.fileTooLarge(
-        size: metadata.size,
-        maxSize: configuration.maxFileSize
-      )
-    }
+    try validateTransferSize(metadata.size.rawValue)
 
     // Check MIME type
     if let supportedTypes = configuration.supportedMimeTypes,
@@ -355,31 +308,12 @@ public actor FileTransferOperations {
     return HTTPRequest(
       method: .post,
       url: HTTPRequestURL(destinationURL),
-      headers: HTTPHeaders(headers),
+      headers: HTTPHeaders(rawValue: headers),
       body: body,
       timeout: RequestTimeout(
         configuration.backgroundTransferConfiguration.timeoutIntervalForResource.rawValue
       )
     )
-  }
-
-  private enum TransferDirection: Sendable {
-    case upload
-    case download
-
-    var activePhase: TransferPhase {
-      switch self {
-      case .upload:
-        return .uploading
-      case .download:
-        return .downloading
-      }
-    }
-  }
-
-  private struct BufferedTransfer: Sendable {
-    let response: HTTPResponse
-    let result: FileTransferResult
   }
 
   private func performBufferedTransfer(
@@ -410,20 +344,20 @@ public actor FileTransferOperations {
 
     do {
       let response = try await httpClient.execute(request)
-      try write(response.body, to: destinationURL)
-
       let bytesTransferred: Int64
       switch direction {
       case .upload:
         bytesTransferred = Int64(request.body?.count.rawValue ?? 0)
       case .download:
         bytesTransferred = Int64(response.body?.count.rawValue ?? 0)
+        try validateTransferSize(bytesTransferred)
       }
-
+      try Task.checkCancellation()
       try validateChecksum(
         for: direction == .upload ? request.body : response.body,
         expectedChecksum: metadata?.checksum
       )
+      try write(response.body, to: destinationURL)
 
       let result = makeResult(
         transferId: transferId,
@@ -500,8 +434,10 @@ public actor FileTransferOperations {
     do {
       let download = try await client.download(request, progress: nativeProgress)
       defer { try? FileManager.default.removeItem(at: download.temporaryFileURL) }
+      let bytesTransferred = try fileSize(at: download.temporaryFileURL)
+      try validateTransferSize(bytesTransferred)
+      try Task.checkCancellation()
       try installDownloadedFile(from: download.temporaryFileURL, to: destinationURL)
-      let bytesTransferred = try fileSize(at: destinationURL)
       let result = makeResult(
         transferId: transferId,
         startTime: startTime,
@@ -538,6 +474,8 @@ public actor FileTransferOperations {
     do {
       let download = try await client.download(request, progress: nativeProgress)
       defer { try? FileManager.default.removeItem(at: download.temporaryFileURL) }
+      try validateTransferSize(fileSize(at: download.temporaryFileURL))
+      try Task.checkCancellation()
       let data = HTTPBody(try Data(contentsOf: download.temporaryFileURL))
       let bytesTransferred = Int64(data.count.rawValue)
       let result = makeResult(
@@ -572,9 +510,7 @@ public actor FileTransferOperations {
       let speed = duration > 0 ? Double(progress.transferredBytes) / duration : 0
       callback(
         TransferProgress(
-          totalBytes: (progress.totalBytes ?? expectedBytes).map {
-            TransferByteCount(rawValue: $0)
-          },
+          totalBytes: (progress.totalBytes ?? expectedBytes).map { TransferByteCount($0) },
           transferredBytes: TransferByteCount(progress.transferredBytes),
           phase: direction.activePhase,
           bytesPerSecond: TransferSpeed(speed)
@@ -637,7 +573,7 @@ public actor FileTransferOperations {
     guard let data else {
       throw FileTransferError.fileNotFound(path: FileSystemPath(destinationURL.path))
     }
-    try data.write(to: destinationURL)
+    try data.rawValue.write(to: destinationURL)
   }
 
   private func installDownloadedFile(from temporaryURL: URL, to destinationURL: URL) throws {
@@ -658,7 +594,19 @@ public actor FileTransferOperations {
 
   private func fileSize(at fileURL: URL) throws -> Int64 {
     let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-    return (attributes[.size] as? NSNumber)?.int64Value ?? 0
+    guard let size = attributes[.size] as? NSNumber else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
+    return size.int64Value
+  }
+
+  private func validateTransferSize(_ bytes: Int64) throws {
+    guard bytes <= configuration.maxFileSize.rawValue else {
+      throw FileTransferError.fileTooLarge(
+        size: FileSize(bytes),
+        maxSize: configuration.maxFileSize
+      )
+    }
   }
 
   private func validateChecksum(

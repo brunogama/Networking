@@ -1,96 +1,20 @@
-import Foundation
 import NetworkingCore
 
-public enum SSEReconnectDelayTag: Sendable {}
-public enum SSEReconnectAttemptLimitTag: Sendable {}
-public enum SSEReconnectAttemptTag: Sendable {}
-public enum SSERespectServerRetryTag: Sendable {}
-public enum SSELastEventIDTag: Sendable {}
-public enum SSEAcceptHeaderTag: Sendable {}
-public enum SSEEventIDTag: Sendable {}
-public enum SSEEventNameTag: Sendable {}
-public enum SSEEventPayloadTag: Sendable {}
-
+/// A server-sent event retry delay in seconds.
 public typealias SSEReconnectDelay = BoundaryDuration<SSEReconnectDelayTag>
+/// Maximum number of stream reconnect attempts.
 public typealias SSEReconnectAttemptLimit = BoundaryInt<SSEReconnectAttemptLimitTag>
+/// The ordinal number of a stream reconnect attempt.
 public typealias SSEReconnectAttempt = BoundaryInt<SSEReconnectAttemptTag>
+/// Whether server retry hints influence reconnect delays.
 public typealias SSERespectServerRetry = BoundaryBool<SSERespectServerRetryTag>
+/// The reconnect cursor sent in the Last-Event-ID header.
 public typealias SSELastEventID = BoundaryString<SSELastEventIDTag>
+/// The Accept header value used for event streams.
 public typealias SSEAcceptHeader = BoundaryString<SSEAcceptHeaderTag>
+/// An identifier received in an event id field.
 public typealias SSEEventID = BoundaryString<SSEEventIDTag>
+/// The name received in an event field.
 public typealias SSEEventName = BoundaryString<SSEEventNameTag>
+/// Joined data fields in a server-sent event.
 public typealias SSEEventPayload = BoundaryString<SSEEventPayloadTag>
-
-public struct SSEReconnectPolicy: Sendable, Equatable {
-  public var initialDelay: SSEReconnectDelay
-  public var maxDelay: SSEReconnectDelay
-  public var maxAttempts: SSEReconnectAttemptLimit?
-
-  public init(
-    initialDelay: SSEReconnectDelay = 3.0,
-    maxDelay: SSEReconnectDelay = 30.0,
-    maxAttempts: SSEReconnectAttemptLimit? = nil
-  ) {
-    self.initialDelay = initialDelay
-    self.maxDelay = maxDelay
-    self.maxAttempts = maxAttempts
-  }
-}
-
-public enum SSEReconnectMode: Sendable, Equatable {
-  case disabled
-  case automatic(SSEReconnectPolicy)
-}
-
-public struct SSEConfiguration: Sendable, Equatable {
-  public var reconnectMode: SSEReconnectMode
-  public var respectServerRetry: SSERespectServerRetry
-  public var lastEventID: SSELastEventID?
-  public var acceptHeader: SSEAcceptHeader
-  /// Maximum events waiting for a consumer before the stream fails.
-  public var maxBufferedEvents: Int
-
-  public init(
-    reconnectMode: SSEReconnectMode = .automatic(.init()),
-    respectServerRetry: SSERespectServerRetry = true,
-    lastEventID: SSELastEventID? = nil,
-    acceptHeader: SSEAcceptHeader = "text/event-stream",
-    maxBufferedEvents: Int = 256
-  ) {
-    self.reconnectMode = reconnectMode
-    self.respectServerRetry = respectServerRetry
-    self.lastEventID = lastEventID
-    self.acceptHeader = acceptHeader
-    self.maxBufferedEvents = max(1, maxBufferedEvents)
-  }
-}
-
-public enum SSEStreamError: Error, Sendable {
-  case bufferOverflow
-}
-
-public struct SSEEvent: Sendable, Equatable {
-  public let id: SSEEventID?
-  public let event: SSEEventName?
-  public let data: SSEEventPayload
-  public let retry: SSEReconnectDelay?
-
-  public init(
-    id: SSEEventID? = nil,
-    event: SSEEventName? = nil,
-    data: SSEEventPayload,
-    retry: SSEReconnectDelay? = nil
-  ) {
-    self.id = id
-    self.event = event
-    self.data = data
-    self.retry = retry
-  }
-}
-
-public enum SSEConnectionEvent: Sendable, Equatable {
-  case open
-  case event(SSEEvent)
-  case reconnecting(attempt: SSEReconnectAttempt, delay: SSEReconnectDelay)
-  case closed
-}

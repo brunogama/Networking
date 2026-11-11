@@ -1,31 +1,4 @@
-import NetworkingRuntime
-
-public struct HTTPRequestPredicate: Sendable {
-  private let evaluator: @Sendable (HTTPRequest) -> MockPredicateMatchFlag
-
-  public init(_ evaluator: @escaping @Sendable (HTTPRequest) -> MockPredicateMatchFlag) {
-    self.evaluator = evaluator
-  }
-
-  func matches(_ request: HTTPRequest) -> Bool {
-    evaluator(request).rawValue
-  }
-}
-
-// MARK: - Error Types
-
-/// Error thrown when expectations are not fulfilled
-public struct AssertionError: Error, CustomStringConvertible {
-  public let message: UserMessageText
-
-  public init(_ message: UserMessageText) {
-    self.message = message
-  }
-
-  public var description: String {
-    message.rawValue
-  }
-}
+import NetworkingCore
 
 // MARK: - Swift Testing Integration
 
@@ -33,8 +6,7 @@ public struct AssertionError: Error, CustomStringConvertible {
 import Testing
 
 extension MockNetworkClient {
-  /// Verify expectations using Swift Testing framework
-  /// - Parameter sourceLocation: Source location for error reporting
+
   public func expectationsAreFulfilled(
     sourceLocation: SourceLocation = #_sourceLocation
   ) {
@@ -46,12 +18,6 @@ extension MockNetworkClient {
     )
   }
 
-  /// Assert that a specific request was made
-  /// - Parameters:
-  ///   - path: URL path that should have been requested
-  ///   - method: HTTP method
-  ///   - count: Expected number of requests
-  ///   - sourceLocation: Source location for error reporting
   public func expectRequest(
     path: MockRequestPath,
     method: HTTPMethod,
@@ -60,7 +26,9 @@ extension MockNetworkClient {
   ) {
     let matchingRequests = getRequests(
       matching: HTTPRequestPredicate { request in
-        MockPredicateMatchFlag(request.url.path == path.rawValue && request.method == method)
+        MockPredicateMatchFlag(
+          request.url.rawValue.path == path.rawValue && request.method == method
+        )
       }
     )
     #expect(

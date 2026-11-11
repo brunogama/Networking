@@ -5,43 +5,8 @@ import NetworkingCore
 
 // MARK: - Enhanced Memory Cache Storage
 
-// swiftlint:disable type_body_length
 /// Advanced in-memory cache storage with sophisticated eviction policies
-public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
-  // MARK: - Cache Entry Wrapper
-
-  /// Internal wrapper for cache entries with access metadata
-  private struct MemoryCacheEntry: Sendable {
-    let cacheEntry: CachingMiddleware.CacheEntry
-    let accessCount: Int
-    let lastAccessTime: Date
-    let tags: Set<CacheTagName>
-    let storageSize: StorageSizeBytes
-
-    init(
-      cacheEntry: CachingMiddleware.CacheEntry,
-      accessCount: Int = 0,
-      lastAccessTime: Date = Date(),
-      tags: Set<CacheTagName> = [],
-      storageSize: StorageSizeBytes
-    ) {
-      self.cacheEntry = cacheEntry
-      self.accessCount = accessCount
-      self.lastAccessTime = lastAccessTime
-      self.tags = tags
-      self.storageSize = storageSize
-    }
-
-    func incrementAccess() -> MemoryCacheEntry {
-      MemoryCacheEntry(
-        cacheEntry: cacheEntry,
-        accessCount: accessCount + 1,
-        lastAccessTime: Date(),
-        tags: tags,
-        storageSize: storageSize
-      )
-    }
-  }
+public actor AdvancedMemoryCacheStorage: HTTPResponseCacheStorage {
 
   // MARK: - Properties
 
@@ -50,7 +15,6 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   private let policy: CachePolicy
   private let sizePolicy: CacheSizePolicy
   private let expirationStrategy: ExpirationStrategy
-  private let queue = DispatchQueue(label: "AdvancedMemoryCacheStorage", qos: .utility)
 
   // MARK: - Metrics
 
@@ -123,10 +87,9 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry) async {
-    await set(key, entry: entry, tags: [])
+    await set(key, entry: entry, tags: entry.tags)
   }
 
-  /// Enhanced set method with tag support
   public func set(_ key: CacheKey, entry: CachingMiddleware.CacheEntry, tags: [CacheTagName]) async
   {
     let tagSet = Set(tags)
@@ -192,22 +155,11 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
   }
 
   public func removeByPattern(_ pattern: CacheInvalidationPattern) async {
-    let regex: NSRegularExpression?
-    do {
-      let regexPattern =
-        pattern.rawValue
-        .replacingOccurrences(of: "*", with: ".*")
-        .replacingOccurrences(of: "?", with: ".")
-      regex = try NSRegularExpression(pattern: regexPattern, options: [])
-    } catch {
-      return
-    }
-
-    guard let regex = regex else { return }
+    let regex = cachePatternRegex(pattern)
 
     let keysToRemove = cache.keys.filter { key in
       let range = NSRange(location: 0, length: key.rawValue.utf16.count)
-      return regex.firstMatch(in: key.rawValue, options: [], range: range) != nil
+      return regex?.firstMatch(in: key.rawValue, options: [], range: range) != nil
     }
 
     for key in keysToRemove {
@@ -273,17 +225,18 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     let extensionTime = originalTTL * expirationStrategy.extensionFactor.rawValue
     let newTTL = min(originalTTL + extensionTime, expirationStrategy.maxTTL.rawValue)
 
-    return CachingMiddleware.CacheEntry(
+    var extended = CachingMiddleware.CacheEntry(
       response: entry.response,
       ttl: CacheMaxAge(newTTL - currentAge.rawValue),
       etag: entry.etag,
       lastModified: entry.lastModified
     )
+    extended.tags = entry.tags
+    return extended
   }
 
   // MARK: - Metrics and Debugging
 
-  /// Returns cache performance metrics
   public func getMetrics() async -> CacheMetrics {
     CacheMetrics(
       size: CacheEntryCount(cache.count),
@@ -296,12 +249,10 @@ public actor AdvancedMemoryCacheStorage: CachingMiddleware.CacheStorage {
     )
   }
 
-  /// Returns estimated memory usage in bytes
   public var estimatedMemoryUsage: StorageSizeBytes {
     get async { estimateMemoryUsage() }
   }
 }
-// swiftlint:enable type_body_length
 
 private extension AdvancedMemoryCacheStorage {
   private typealias MemoryCacheComparator = (

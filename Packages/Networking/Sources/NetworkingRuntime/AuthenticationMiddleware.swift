@@ -1,53 +1,8 @@
-import Foundation
 import NetworkingCore
 
-/// Authentication middleware that handles token-based authentication with automatic refresh
+/// Authentication middleware that handles token-based authentication with automatic refresh.
 /// and retry functionality for expired tokens.
 public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddleware {
-  // MARK: - Token Provider Protocol
-
-  /// Protocol for providing authentication tokens
-  public protocol TokenProvider: Sendable {
-    /// Returns the current access token
-    func getCurrentToken() async throws -> BearerTokenValue?
-
-    /// Refreshes the access token and returns the new token
-    func refreshToken() async throws -> BearerTokenValue
-
-    /// Determines if a token refresh should be attempted for the given error
-    func shouldRefreshToken(for error: HTTPError) async -> AuthenticationDecision
-  }
-
-  // MARK: - Configuration
-
-  /// Configuration for authentication middleware
-  public struct Configuration: Sendable {
-    /// The header name for the authorization token
-    public let authorizationHeaderName: HTTPHeaderName
-
-    /// The token prefix (e.g., "Bearer ")
-    public let tokenPrefix: AuthorizationTokenPrefix
-
-    /// Maximum number of refresh attempts
-    public let maxRefreshAttempts: RetryAttemptCount
-
-    /// Predicate to determine if authentication should be applied to a request
-    public let shouldAuthenticate: @Sendable (HTTPRequest) -> AuthenticationDecision
-
-    public init(
-      authorizationHeaderName: HTTPHeaderName = "Authorization",
-      tokenPrefix: AuthorizationTokenPrefix = "Bearer ",
-      maxRefreshAttempts: RetryAttemptCount = 1,
-      shouldAuthenticate: @escaping @Sendable (HTTPRequest) -> AuthenticationDecision = { _ in
-        true
-      }
-    ) {
-      self.authorizationHeaderName = authorizationHeaderName
-      self.tokenPrefix = tokenPrefix
-      self.maxRefreshAttempts = maxRefreshAttempts
-      self.shouldAuthenticate = shouldAuthenticate
-    }
-  }
 
   // MARK: - Properties
 
@@ -55,16 +10,10 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
   private let tokenProvider: any TokenProvider
   private let client: any HTTPClient
 
-  // State for managing concurrent token refreshes
-  private var refreshTask: Task<BearerTokenValue, any Error>?
+  private var refreshState: AuthenticationRefreshState = .idle
 
   // MARK: - Initialization
 
-  /// Creates a new authentication middleware
-  /// - Parameters:
-  ///   - configuration: The authentication configuration
-  ///   - tokenProvider: The token provider implementation
-  ///   - client: The HTTP client to use for requests
   public init(
     configuration: Configuration,
     tokenProvider: any TokenProvider,
@@ -128,7 +77,8 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
       url: request.url,
       headers: headers,
       body: request.body,
-      timeout: request.timeoutOverride
+      timeout: request.timeoutOverride,
+      id: request.id
     )
   }
 
@@ -136,46 +86,49 @@ public actor AuthenticationMiddleware: HTTPRequestMiddleware, HTTPErrorMiddlewar
     _ request: HTTPRequest,
     originalError: HTTPError
   ) async throws -> HTTPResponse {
-    let newToken = try await getRefreshedToken()
-
-    // Retry the request with the new token
-    let authenticatedRequest = addAuthorizationHeader(to: request, token: newToken)
-
-    do {
-      return try await client.execute(authenticatedRequest)
-    } catch let retryError as HTTPError {
-      // If the retry also fails with an auth error, throw the original error
-      if await tokenProvider.shouldRefreshToken(for: retryError).rawValue {
-        throw originalError
+    var failure = originalError
+    for _ in 0..<max(0, configuration.maxRefreshAttempts.rawValue) {
+      let token = try await getRefreshedToken()
+      try Task.checkCancellation()
+      do {
+        return try await client.execute(addAuthorizationHeader(to: request, token: token))
+      } catch let error as HTTPError {
+        guard await tokenProvider.shouldRefreshToken(for: error).rawValue else { throw error }
+        failure = error
       }
-      throw retryError
-    } catch {
-      throw HTTPError(
-        category: .network(.serverUnreachable),
-        request: request,
-        underlyingError: error
-      )
     }
+    throw failure
   }
 
-  // REENTRANCY-SAFE: in-flight tracking pattern
-  // Multiple concurrent calls share single refresh task
   private func getRefreshedToken() async throws -> BearerTokenValue {
-    // Check if there's already a refresh task in progress - join existing
-    if let existingTask = refreshTask {
-      return try await existingTask.value
-    }
-
-    // Start new refresh - store task reference BEFORE await
-    let task = Task<BearerTokenValue, any Error> {
-      try await tokenProvider.refreshToken()
-    }
-    refreshTask = task
-
-    // Clean up after completion (success or failure)
-    defer { refreshTask = nil }
-
-    let newToken = try await task.value
+    try Task.checkCancellation()
+    let flight = refreshFlight()
+    defer { complete(flight) }
+    let newToken = try await flight.task.value
+    try Task.checkCancellation()
     return newToken
+  }
+
+  private func refreshFlight() -> AuthenticationRefreshFlight {
+    if case .refreshing(let flight) = refreshState { return flight }
+
+    let provider = tokenProvider
+    // The actor owns this shared flight. It is cancelled only when the actor is released, rather
+    // than by an individual waiter, so one cancelled request cannot abort another refresh.
+    let flight = AuthenticationRefreshFlight(
+      task: Task { try await provider.refreshToken() }
+    )
+    refreshState = .refreshing(flight)
+    return flight
+  }
+
+  private func complete(_ flight: borrowing AuthenticationRefreshFlight) {
+    guard case .refreshing(let current) = refreshState, current.isSame(as: flight) else { return }
+    refreshState = .idle
+  }
+
+  deinit {
+    guard case .refreshing(let flight) = refreshState else { return }
+    flight.cancel()
   }
 }
