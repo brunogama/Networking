@@ -1,0 +1,18 @@
+{
+	servers {
+		protocols h1 h2 h3
+	}
+	skip_install_trust
+	auto_https disable_redirects
+}
+
+http://localhost:18181 {
+	bind 127.0.0.1
+	reverse_proxy 127.0.0.1:8181
+}
+
+https://localhost:18443 {
+	bind 127.0.0.1
+	tls internal
+	reverse_proxy 127.0.0.1:8181
+}
