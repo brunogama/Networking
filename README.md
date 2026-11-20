@@ -10,9 +10,30 @@ its state; scoped request tickets provide cancellation and a single result.
 iOS 16, macOS 13, tvOS 16, and watchOS 9 or later. The package requires Swift 6.
 The native traffic inspector is available on iOS and macOS.
 
-Add the repository as a Swift package and select the `Networking` product.
-The optional macro package lives at `Packages/NetworkingMacros`; its remote
-distribution is not independently published.
+Add `https://github.com/brunogama/Networking.git` as a Swift package dependency
+from version `2.0.0`, then link the `Networking` product to your target:
+
+```swift
+dependencies: [
+  .package(
+    url: "https://github.com/brunogama/Networking.git",
+    from: "2.0.0"
+  ),
+],
+targets: [
+  .target(
+    name: "YourApp",
+    dependencies: [
+      .product(name: "Networking", package: "networking"),
+    ]
+  ),
+]
+```
+
+Place the package in your manifest's `dependencies` and the product in your
+application target's `dependencies`. In Xcode, add the same repository URL,
+select version `2.0.0`, and link the `Networking` product. The optional macro
+package lives at `Packages/NetworkingMacros`; it is not independently published.
 
 ---
 
