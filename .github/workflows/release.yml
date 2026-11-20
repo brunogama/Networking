@@ -69,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
-          tagged_commit="$(git show -s --format=%H "refs/tags/$TAG")"
+          tagged_commit="$(git rev-list -n 1 "refs/tags/$TAG")"
           checked_out_commit="$(git show -s --format=%H HEAD)"
           if [[ "$tagged_commit" != "$checked_out_commit" ]]; then
             echo "Tag $TAG does not point to the checked-out commit." >&2

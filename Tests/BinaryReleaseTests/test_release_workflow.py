@@ -28,6 +28,10 @@ class BinaryReleaseWorkflowTests(unittest.TestCase):
         self.assertIn(command, ci_workflow)
         self.assertIn(command, release_workflow)
 
+    def test_annotated_tag_verification_resolves_to_a_commit(self):
+        workflow = WORKFLOW.read_text()
+        self.assertIn('git rev-list -n 1 "refs/tags/$TAG"', workflow)
+
     def test_release_stays_draft_until_assets_are_uploaded(self):
         workflow = WORKFLOW.read_text()
         release_creation = workflow.index("gh release create")
