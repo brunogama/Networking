@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -73,7 +73,7 @@ let package = Package(
       url: "https://github.com/open-telemetry/opentelemetry-swift.git",
       from: "1.10.1"
     ),
-    .package(url: "https://github.com/brunogama/Premise.git", from: "1.0.2"),
+    .package(url: "https://github.com/brunogama/Premise.git", from: "2.0.0"),
   ],
   targets: [
     libraryTarget(
