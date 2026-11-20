@@ -5,7 +5,7 @@ let package = Package(
   name: "ExtensionConsumer",
   platforms: [.macOS(.v13)],
   dependencies: [
-    .package(path: "../.."),
+    .package(path: "../../Packages/Networking"),
     .package(path: "../../Packages/NetworkingMacros"),
   ],
   targets: [
