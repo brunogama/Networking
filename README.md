@@ -35,6 +35,15 @@ application target's `dependencies`. In Xcode, add the same repository URL,
 select version `2.0.0`, and link the `Networking` product. The optional macro
 package lives at `Packages/NetworkingMacros`; it is not independently published.
 
+### Opt-in binary distribution
+
+A release also provides `Package.binary.swift` and XCFramework ZIP assets for
+`NetworkingCore`, `NetworkingRuntime`, `NetworkingObservability`,
+`NetworkingSSE`, and `Networking`. To opt in, download
+`Package.binary.swift`, save it as `Package.swift` in a separate local package,
+and add it by path. SwiftPM downloads and checksum-verifies the referenced ZIPs.
+`NetworkingTesting` and `NetworkingObservabilityOTLP` remain source-only.
+
 ---
 
 ## Requests and shared configuration
