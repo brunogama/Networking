@@ -8,9 +8,20 @@ REQUEST_BODY = b"r" * 1024
 DOWNLOAD_BODY = b"d" * (1024 * 1024)
 EVENT_COUNT = 1_000
 EVENT_LINE = b"data: 0123456789abcdef0123456789abcdef\n\n"
+UPLOAD_BODY_SIZE = 64 * 1024
+BATCH_UPLOAD_BODY_SIZE = 8 * 1024 * 1024
+UPLOAD_BODY_BYTE = b"\x5a"  # Matches BenchmarkFiles.create's fixture.
 UPLOAD_CHUNK_SIZE = 128 * 1024
 # Throttle only batch uploads so URLSession emits multiple progress updates.
 UPLOAD_CHUNK_DELAY_SECONDS = 0.001
+
+
+def is_valid_upload_payload(payload: bytes, expected_size: int) -> bool:
+    """Return whether the body matches the repeated-byte upload fixture."""
+    return (
+        len(payload) == expected_size
+        and payload.count(UPLOAD_BODY_BYTE) == expected_size
+    )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -39,26 +50,45 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(b"not found", 404)
 
     def do_POST(self):
-        body_size = int(self.headers.get("Content-Length", "0"))
+        try:
+            body_size = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.reject_upload()
+            return
+        if body_size < 0:
+            self.reject_upload()
+            return
         if self.path == "/batch-upload":
-            if not self.consume_slowly(body_size):
-                self.respond(b"incomplete upload", 400)
+            if body_size != BATCH_UPLOAD_BODY_SIZE or not self.consume_slowly(
+                body_size
+            ):
+                self.reject_upload()
                 return
             self.respond(b"ok")
             return
+        if self.path != "/upload" or body_size != UPLOAD_BODY_SIZE:
+            self.reject_upload()
+            return
         body = self.rfile.read(body_size)
-        self.respond(body)
+        if not is_valid_upload_payload(body, UPLOAD_BODY_SIZE):
+            self.reject_upload()
+            return
+        self.respond(b"ok")
 
     def consume_slowly(self, body_size):
         remaining = body_size
         while remaining:
             chunk_size = min(UPLOAD_CHUNK_SIZE, remaining)
             chunk = self.rfile.read(chunk_size)
-            if not chunk:
+            if not is_valid_upload_payload(chunk, chunk_size):
                 return False
             remaining -= len(chunk)
             time.sleep(UPLOAD_CHUNK_DELAY_SECONDS)
         return True
+
+    def reject_upload(self):
+        self.close_connection = True
+        self.respond(b"invalid upload body", 400)
 
     def respond(self, body, status=200):
         self.send_response(status)
@@ -71,6 +101,7 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
-with ThreadingHTTPServer(("127.0.0.1", 8181), Handler) as server:
-    print("benchmark origin listening on 127.0.0.1:8181", flush=True)
-    server.serve_forever()
+if __name__ == "__main__":
+    with ThreadingHTTPServer(("127.0.0.1", 8181), Handler) as server:
+        print("benchmark origin listening on 127.0.0.1:8181", flush=True)
+        server.serve_forever()
