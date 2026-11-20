@@ -76,6 +76,9 @@ jobs:
       - name: Test macro extension consumer
         run: swift test --package-path Fixtures/ExtensionConsumer -j 1
 
+      - name: Test binary release scripts
+        run: python3 -m unittest discover -s Tests/BinaryReleaseTests -v
+
       - name: Summary
         run: |
           echo "## Build Results" >> $GITHUB_STEP_SUMMARY
