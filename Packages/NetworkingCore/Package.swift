@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 
 import PackageDescription
 
@@ -14,7 +14,7 @@ let package = Package(
     .library(name: "NetworkingCore", targets: ["NetworkingCore"])
   ],
   dependencies: [
-    .package(url: "https://github.com/brunogama/Premise.git", from: "1.0.2")
+    .package(url: "https://github.com/brunogama/Premise.git", from: "2.0.0")
   ],
   targets: [
     .target(name: "NetworkingCore"),

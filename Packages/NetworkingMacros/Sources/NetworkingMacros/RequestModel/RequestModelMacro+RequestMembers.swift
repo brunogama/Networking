@@ -14,10 +14,15 @@ extension RequestModelMacro {
     )
   }
 
-  static func headerDictionary(for properties: [RequestModelProperty]) -> DictionaryExprSyntax {
+  static func headerDictionary(
+    for properties: [RequestModelProperty]
+  ) -> DictionaryExprSyntax {
     DictionaryExprSyntax {
       for property in properties {
-        DictionaryElementSyntax(key: headerName(property), value: headerValue(property))
+        DictionaryElementSyntax(
+          key: headerName(property),
+          value: headerValue(property)
+        )
       }
     }
   }
@@ -27,7 +32,9 @@ extension RequestModelMacro {
       RequestModelSyntaxFactory.call(
         ExprSyntax(RequestModelSyntaxFactory.identifier("HTTPHeaderName")),
         arguments: LabeledExprListSyntax {
-          LabeledExprSyntax(expression: StringLiteralExprSyntax(content: property.key))
+          LabeledExprSyntax(
+            expression: StringLiteralExprSyntax(content: property.key)
+          )
         }
       )
     )
@@ -44,7 +51,9 @@ extension RequestModelMacro {
     )
   }
 
-  static func descriptiveValue(for property: RequestModelProperty) -> ExprSyntax {
+  static func descriptiveValue(
+    for property: RequestModelProperty
+  ) -> ExprSyntax {
     ExprSyntax(
       RequestModelSyntaxFactory.call(
         ExprSyntax(RequestModelSyntaxFactory.identifier("String")),
@@ -62,12 +71,16 @@ extension RequestModelMacro {
     )
   }
 
-  static func bodyFunction(access: DeclModifierListSyntax) -> FunctionDeclSyntax {
+  static func bodyFunction(
+    access: DeclModifierListSyntax
+  ) -> FunctionDeclSyntax {
     FunctionDeclSyntax(
       modifiers: access,
       name: .identifier("body"),
       signature: bodySignature(),
-      body: RequestModelSyntaxFactory.codeBlock(StmtSyntax(bodyReturnStatement()))
+      body: RequestModelSyntaxFactory.codeBlock(
+        StmtSyntax(bodyReturnStatement())
+      )
     )
   }
 
@@ -87,7 +100,9 @@ extension RequestModelMacro {
         throwsClause: ThrowsClauseSyntax(throwsSpecifier: .keyword(.throws))
       ),
       returnClause: ReturnClauseSyntax(
-        type: OptionalTypeSyntax(wrappedType: RequestModelSyntaxFactory.namedType("HTTPBody"))
+        type: OptionalTypeSyntax(
+          wrappedType: RequestModelSyntaxFactory.namedType("HTTPBody")
+        )
       )
     )
   }
@@ -116,7 +131,9 @@ extension RequestModelMacro {
         ),
         arguments: LabeledExprListSyntax {
           LabeledExprSyntax(
-            expression: DeclReferenceExprSyntax(baseName: RequestModelStorage.payload.identifier)
+            expression: DeclReferenceExprSyntax(
+              baseName: RequestModelStorage.payload.identifier
+            )
           )
         }
       )
@@ -152,44 +169,19 @@ extension RequestModelMacro {
     )
   }
 
-  static func initializerBody(for properties: [RequestModelProperty]) -> CodeBlockSyntax {
+  static func initializerBody(
+    for properties: [RequestModelProperty]
+  ) -> CodeBlockSyntax {
     CodeBlockSyntax(
       statements: CodeBlockItemListSyntax {
         if !properties.headers.isEmpty {
           assignment(storage: .headerValues, properties: properties.headers)
         }
-        if !properties.body.isEmpty { assignment(storage: .payload, properties: properties.body) }
+        if !properties.body.isEmpty {
+          assignment(storage: .payload, properties: properties.body)
+        }
       }
     )
   }
 
-  static func assignment(
-    storage: RequestModelStorage,
-    properties: [RequestModelProperty]
-  ) -> CodeBlockItemSyntax {
-    CodeBlockItemSyntax(
-      item: .expr(
-        ExprSyntax(
-          SequenceExprSyntax(
-            elements: ExprListSyntax {
-              RequestModelSyntaxFactory.member(.keyword(.self), storage.identifier)
-              AssignmentExprSyntax()
-              RequestModelSyntaxFactory.call(
-                ExprSyntax(RequestModelSyntaxFactory.identifier(storage.typeName)),
-                arguments: LabeledExprListSyntax {
-                  for property in properties {
-                    LabeledExprSyntax(
-                      label: property.name,
-                      colon: .colonToken(),
-                      expression: DeclReferenceExprSyntax(baseName: property.name)
-                    )
-                  }
-                }
-              )
-            }
-          )
-        )
-      )
-    )
-  }
 }

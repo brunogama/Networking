@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 // Networking products and targets. Macro declarations live in their own package.
 
 import PackageDescription
@@ -81,12 +81,11 @@ let package = Package(
   products: networkingLibraryProducts,
   dependencies: [
     .package(path: "Packages/NetworkingCore"),
-    // OpenTelemetry for observability
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift.git",
       from: "1.10.1"
     ),
-    .package(url: "https://github.com/brunogama/Premise.git", from: "1.0.2"),
+    .package(url: "https://github.com/brunogama/Premise.git", from: "2.0.0"),
   ],
   targets: [
     // ──────────────────────────────────────────────
