@@ -13,7 +13,7 @@ let openTelemetryHTTPExporter: Target.Dependency = .product(
 let premiseCore: Target.Dependency = .product(name: "PremiseCore", package: "Premise")
 let premiseTesting: Target.Dependency = .product(name: "PremiseTesting", package: "Premise")
 let premiseStrategies: Target.Dependency = .product(name: "PremiseStrategies", package: "Premise")
-let networkingCore: Target.Dependency = .product(name: "NetworkingCore", package: "NetworkingCore")
+let networkingCore: Target.Dependency = "NetworkingCore"
 
 // MARK: - Target dependency groups
 
@@ -63,7 +63,7 @@ func testTarget(
 // MARK: - Products
 
 let networkingLibraryProducts: [Product] = [
-  "Networking", "NetworkingRuntime", "NetworkingObservability",
+  "NetworkingCore", "Networking", "NetworkingRuntime", "NetworkingObservability",
   "NetworkingObservabilityOTLP", "NetworkingTesting", "NetworkingSSE",
 ].map { Product.library(name: $0, targets: [$0]) }
 
@@ -80,7 +80,6 @@ let package = Package(
   ],
   products: networkingLibraryProducts,
   dependencies: [
-    .package(path: "Packages/NetworkingCore"),
     .package(
       url: "https://github.com/open-telemetry/opentelemetry-swift.git",
       from: "1.10.1"
@@ -88,6 +87,19 @@ let package = Package(
     .package(url: "https://github.com/brunogama/Premise.git", from: "2.0.0"),
   ],
   targets: [
+    // Remote SwiftPM clients cannot resolve nested local package dependencies.
+    libraryTarget(
+      "NetworkingCore",
+      dependencies: [],
+      path: "Packages/NetworkingCore/Sources/NetworkingCore"
+    ),
+    testTarget(
+      "NetworkingCoreTests",
+      dependencies: [
+        networkingCore, premiseCore, premiseStrategies, premiseTesting,
+      ],
+      path: "Packages/NetworkingCore/Tests/NetworkingCoreTests"
+    ),
     // ──────────────────────────────────────────────
     // MARK: Networking library targets
     // ──────────────────────────────────────────────
