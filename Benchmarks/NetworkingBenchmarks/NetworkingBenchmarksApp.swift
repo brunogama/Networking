@@ -1,6 +1,7 @@
 #if os(macOS)
-import AppKit
+import Darwin
 #endif
+import Foundation
 import NetworkingBenchmarksCore
 import SwiftUI
 
@@ -43,7 +44,7 @@ private struct BenchmarkView: View {
       baseURL: $baseURL,
       iterations: $iterations,
       isRunning: isRunning,
-      runAction: { Task { await runBenchmark() } }
+      runAction: { Task { _ = await runBenchmark() } }
     )
   }
 
@@ -53,17 +54,26 @@ private struct BenchmarkView: View {
     let exitsAfterRun = arguments.contains("--benchmark-and-exit")
     let profiles = arguments.contains("--benchmark-profile")
     guard exitsAfterRun || profiles else { return }
-    await runBenchmark()
     #if os(macOS)
-    if exitsAfterRun { NSApp.terminate(nil) }
+    guard !exitsAfterRun || outputArgument != nil else {
+      let message = "Provide --output=<path> when using --benchmark-and-exit.\n"
+      FileHandle.standardError.write(Data(message.utf8))
+      Darwin.exit(EXIT_FAILURE)
+    }
+    #endif
+    let succeeded = await runBenchmark()
+    #if os(macOS)
+    if exitsAfterRun {
+      Darwin.exit(succeeded ? EXIT_SUCCESS : EXIT_FAILURE)
+    }
     #endif
   }
 
   @MainActor
-  private func runBenchmark() async {
+  private func runBenchmark() async -> Bool {
     guard let url = URL(string: baseURL) else {
       status = "Enter a valid loopback URL."
-      return
+      return false
     }
     isRunning = true
     results = []
@@ -73,8 +83,12 @@ private struct BenchmarkView: View {
       results = try await performBenchmark(url)
       status = "Complete. Export the report with --output=<path>."
       try exportIfRequested(results)
+      return true
     } catch {
+      let message = "Networking benchmark failed: \(error.localizedDescription)\n"
+      FileHandle.standardError.write(Data(message.utf8))
       status = "Failed: \(error.localizedDescription)"
+      return false
     }
   }
 
@@ -96,112 +110,13 @@ private struct BenchmarkView: View {
   private func exportIfRequested(_ results: [BenchmarkResult]) throws {
     guard let argument = outputArgument else { return }
     let path = String(argument.dropFirst("--output=".count))
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let json = try encoder.encode(results)
-    try json.write(to: URL(fileURLWithPath: path), options: .atomic)
+    try BenchmarkReportWriter.write(
+      results,
+      to: URL(fileURLWithPath: path)
+    )
   }
 
   private var outputArgument: String? {
     ProcessInfo.processInfo.arguments.first { $0.hasPrefix("--output=") }
-  }
-}
-
-private struct BenchmarkControls: View {
-  @Binding var baseURL: String
-  @Binding var iterations: Int
-  let isRunning: Bool
-  let runAction: () -> Void
-
-  var body: some View {
-    HStack(spacing: 12) {
-      TextField("Local HTTP(S) endpoint", text: $baseURL)
-        .textFieldStyle(.roundedBorder)
-      Stepper("\(iterations) samples", value: $iterations, in: 1...100)
-        .fixedSize()
-      Button("Run benchmark", action: runAction)
-        .buttonStyle(.borderedProminent)
-        .disabled(isRunning)
-    }
-  }
-}
-
-private struct BenchmarkResultTable: View {
-  let results: [BenchmarkResult]
-
-  var body: some View {
-    Table(results) {
-      TableColumn("Operation", value: \.name)
-      TableColumn("Samples") { Text("\($0.summary.sampleCount)") }
-      TableColumn("Median") { Text(formattedMedian($0)) }
-      TableColumn("p95 (2+ samples)") { Text(formattedP95($0)) }
-      TableColumn("Protocol") { Text(formattedProtocols($0)) }
-      TableColumn("Throughput") { Text(formattedThroughput($0)) }
-    }
-    .frame(minHeight: 240)
-  }
-
-  private func formattedMedian(_ benchmarkResult: BenchmarkResult) -> String {
-    String(format: "%.2f ms", benchmarkResult.summary.medianMilliseconds)
-  }
-
-  private func formattedP95(_ benchmarkResult: BenchmarkResult) -> String {
-    benchmarkResult.summary.p95Milliseconds.map {
-      String(format: "%.2f ms", $0)
-    } ?? "N/A"
-  }
-
-  private func formattedProtocols(
-    _ benchmarkResult: BenchmarkResult
-  ) -> String {
-    let protocols = benchmarkResult.protocolsObserved.joined(separator: ", ")
-    return protocols.ifEmpty("unknown")
-  }
-
-  private func formattedThroughput(
-    _ benchmarkResult: BenchmarkResult
-  ) -> String {
-    let bytesPerSecond = Int64(benchmarkResult.summary.bytesPerSecond)
-    let formatted = ByteCountFormatter.string(
-      fromByteCount: bytesPerSecond,
-      countStyle: .memory
-    )
-    return formatted + "/s"
-  }
-}
-
-private final class LoopbackCertificateDelegate:
-  NSObject,
-  URLSessionDelegate
-{
-  func urlSession(
-    _ session: URLSession,
-    didReceive challenge: URLAuthenticationChallenge,
-    completionHandler:
-      @escaping (
-        URLSession.AuthChallengeDisposition,
-        URLCredential?
-      ) -> Void
-  ) {
-    let host = challenge.protectionSpace.host.lowercased()
-    let localHosts: Set<String> = ["localhost", "127.0.0.1"]
-    let isLocalHost = localHosts.contains(host)
-    let authenticationMethod = challenge.protectionSpace.authenticationMethod
-    let isServerTrust =
-      authenticationMethod == NSURLAuthenticationMethodServerTrust
-    guard isServerTrust, isLocalHost,
-      let trust = challenge.protectionSpace.serverTrust
-    else {
-      completionHandler(.performDefaultHandling, nil)
-      return
-    }
-    let credential = URLCredential(trust: trust)
-    completionHandler(.useCredential, credential)
-  }
-}
-
-private extension String {
-  func ifEmpty(_ fallback: String) -> String {
-    isEmpty ? fallback : self
   }
 }

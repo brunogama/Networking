@@ -11,7 +11,8 @@ command -v python3 >/dev/null || {
 	exit 1
 }
 
-export XDG_DATA_HOME="${TMPDIR:-/tmp}/networking-benchmark-caddy"
+export XDG_CONFIG_HOME="${TMPDIR:-/tmp}/networking-benchmark-caddy-config"
+export XDG_DATA_HOME="${TMPDIR:-/tmp}/networking-benchmark-caddy-data"
 
 python3 "$ROOT/Benchmarks/NetworkingBenchmarkServer/server.py" &
 origin_pid=$!
