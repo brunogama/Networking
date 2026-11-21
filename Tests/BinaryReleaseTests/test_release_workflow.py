@@ -48,6 +48,29 @@ class BinaryReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("! -name '*.private.swiftinterface'", script)
         self.assertIn("! -name '*.package.swiftinterface'", script)
 
+    def test_published_binary_smoke_uses_only_release_assets(self):
+        workflow = (ROOT / ".github/workflows/published-binary-smoke.yml").read_text()
+        self.assertIn("release:\n    types: [published]", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("actions/checkout", workflow)
+        self.assertIn(
+            'gh release download "$TAG" --pattern Package.binary.swift --dir "$binary_package"',
+            workflow,
+        )
+        self.assertIn(
+            'mv "$binary_package/Package.binary.swift" "$binary_package/Package.swift"',
+            workflow,
+        )
+        self.assertIn('.package(path: "$binary_package")', workflow)
+        self.assertIn(
+            '.product(name: "Networking", package: "NetworkingBinary")',
+            workflow,
+        )
+        self.assertIn('import Networking', workflow)
+        self.assertIn('--scratch-path "$workspace/build"', workflow)
+        self.assertIn('swift run', workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

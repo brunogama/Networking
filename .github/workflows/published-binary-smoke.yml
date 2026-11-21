@@ -1,0 +1,69 @@
+name: Published Binary Consumer Smoke Test
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-binary-smoke-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: macos-26
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Select Xcode 26.6
+        shell: bash
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          swift --version
+          xcodebuild -version
+
+      - name: Resolve and run the published binary package
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$(mktemp -d "$RUNNER_TEMP/networking-published-binary-smoke.XXXXXXXX")"
+          trap 'rm -rf "$workspace"' EXIT
+          binary_package="$workspace/NetworkingBinary"
+          consumer="$workspace/Consumer"
+          mkdir -p "$binary_package" "$consumer/Sources/PublishedBinarySmoke"
+
+          gh release download "$TAG" --pattern Package.binary.swift --dir "$binary_package"
+          mv "$binary_package/Package.binary.swift" "$binary_package/Package.swift"
+
+          cat > "$consumer/Package.swift" <<EOF
+          // swift-tools-version: 6.2
+          import PackageDescription
+
+          let package = Package(
+            name: "PublishedBinarySmoke",
+            platforms: [.macOS(.v13)],
+            dependencies: [.package(path: "$binary_package")],
+            targets: [
+              .executableTarget(
+                name: "PublishedBinarySmoke",
+                dependencies: [.product(name: "Networking", package: "NetworkingBinary")]
+              )
+            ]
+          )
+          EOF
+
+          cat > "$consumer/Sources/PublishedBinarySmoke/main.swift" <<'EOF'
+          import Networking
+
+          print(HTTPMethod.get)
+          EOF
+
+          swift run \
+            --package-path "$consumer" \
+            --scratch-path "$workspace/build" \
+            -j 1
