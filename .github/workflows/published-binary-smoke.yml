@@ -3,22 +3,28 @@ name: Published Binary Consumer Smoke Test
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable version tag, such as 2.0.4
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: published-binary-smoke-${{ github.event.release.tag_name }}
+  group: published-binary-smoke-${{ inputs.tag || github.event.release.tag_name }}
   cancel-in-progress: false
 
 jobs:
   smoke:
-    if: ${{ !github.event.release.prerelease }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: macos-26
     env:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.event.release.tag_name }}
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
     steps:
       - name: Select Xcode 26.6
         shell: bash

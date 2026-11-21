@@ -23,6 +23,7 @@ jobs:
     if: ${{ !github.event.deleted }}
     runs-on: macos-26
     permissions:
+      actions: write
       contents: write
     steps:
       - name: Resolve release tag
@@ -157,3 +158,4 @@ jobs:
             "$ARTIFACT_DIRECTORY/Networking.xcframework.zip" \
             "$ARTIFACT_DIRECTORY/Package.binary.swift"
           gh release edit "$TAG" --draft=false
+          gh workflow run published-binary-smoke.yml --ref "$TAG" -f tag="$TAG"

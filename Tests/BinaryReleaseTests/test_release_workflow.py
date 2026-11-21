@@ -71,6 +71,25 @@ class BinaryReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('--scratch-path "$workspace/build"', workflow)
         self.assertIn('swift run', workflow)
 
+    def test_release_dispatches_post_publication_smoke_for_token_created_release(self):
+        release_workflow = WORKFLOW.read_text()
+        smoke_workflow = (ROOT / ".github/workflows/published-binary-smoke.yml").read_text()
+        self.assertIn(
+            "workflow_dispatch:\n    inputs:\n      tag:\n"
+            "        description: Published stable version tag, such as 2.0.4\n"
+            "        required: true\n"
+            "        type: string",
+            smoke_workflow,
+        )
+        self.assertIn("TAG: ${{ inputs.tag || github.event.release.tag_name }}", smoke_workflow)
+        self.assertIn("actions: write", release_workflow)
+        dispatch = 'gh workflow run published-binary-smoke.yml --ref "$TAG" -f tag="$TAG"'
+        self.assertIn(dispatch, release_workflow)
+        self.assertLess(
+            release_workflow.index('gh release edit "$TAG" --draft=false'),
+            release_workflow.index(dispatch),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
